@@ -23,6 +23,7 @@ from rich.syntax import Syntax
 from src.agent import SYSTEM_PROMPT, _build_tools, _call_with_retry
 
 _KNOWLEDGE_SERVER = Path(__file__).parent / "knowledge_server.py"
+_RAG_SERVER = Path(__file__).parent / "rag_server.py"
 console = Console()
 
 _STEP_LABELS = {
@@ -37,6 +38,10 @@ _STEP_LABELS = {
     "generate_response_file": "Generating response file",
     "validate_against_official_sample": "Validating against template",
     "generate_command": "Generating command",
+    "lookup_container_reqs": "Looking up container requirements",
+    "search_3p_sample_repos": "Searching sample repos",
+    "search_forum_threads": "Searching forum threads",
+    "search_docs": "Searching NVIDIA docs",
 }
 
 
@@ -105,23 +110,35 @@ async def _opening_probe(session: ClientSession) -> str:
 
 
 async def run_repl() -> None:
-    """Main conversational loop."""
+    """Main conversational loop. Connects to BOTH MCP servers (knowledge + rag)."""
     if not os.getenv("ANTHROPIC_API_KEY"):
         console.print("[red]ANTHROPIC_API_KEY is not set. Copy .env.example to .env.[/red]")
         sys.exit(1)
 
-    params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)])
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools_result = await session.list_tools()
-            tools = _build_tools(tools_result.tools)
+    k_params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)])
+    r_params = StdioServerParameters(command="python", args=[str(_RAG_SERVER)])
+
+    async with stdio_client(k_params) as (kr, kw), stdio_client(r_params) as (rr, rw):
+        async with ClientSession(kr, kw) as k_session, ClientSession(rr, rw) as r_session:
+            await k_session.initialize()
+            await r_session.initialize()
+
+            k_tools = (await k_session.list_tools()).tools
+            r_tools = (await r_session.list_tools()).tools
+
+            session_map: dict[str, ClientSession] = {}
+            for t in k_tools:
+                session_map[t.name] = k_session
+            for t in r_tools:
+                session_map[t.name] = r_session
+
+            tools = _build_tools(list(k_tools) + list(r_tools))
 
             client = anthropic.Anthropic()
             model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
             messages: list[dict] = []
 
-            opening = await _opening_probe(session)
+            opening = await _opening_probe(k_session)
             console.print(Panel(opening, title="NVIDIA SDK Advisor", border_style="green"))
 
             prompt_session = PromptSession()
@@ -146,7 +163,7 @@ async def run_repl() -> None:
 
                 # Inner tool-use loop
                 while True:
-                    response = _call_with_retry(client, model, tools, messages)
+                    response = await asyncio.to_thread(_call_with_retry, client, model, tools, messages)
                     if response.stop_reason == "end_turn":
                         final_text = next((b.text for b in response.content if hasattr(b, "text")), "")
                         console.print(final_text)
@@ -164,8 +181,13 @@ async def run_repl() -> None:
                     for block in response.content:
                         if block.type != "tool_use":
                             continue
-                        result = await session.call_tool(block.name, arguments=block.input)
-                        result_text = result.content[0].text if result.content else "{}"
+                        sess = session_map.get(block.name)
+                        if sess is None:
+                            import json as _json
+                            result_text = _json.dumps({"error": f"unknown tool: {block.name}"})
+                        else:
+                            result = await sess.call_tool(block.name, arguments=block.input)
+                            result_text = result.content[0].text if result.content else "{}"
                         _print_tool_step(block.name, dict(block.input or {}), result_text)
                         tool_results.append({
                             "type": "tool_result", "tool_use_id": block.id, "content": result_text,

@@ -11,20 +11,44 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-import chromadb
-from sentence_transformers import SentenceTransformer
-
 _MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 
+def _resolve_model_path(model_name: str) -> str:
+    """Return a local cache path for the model if it exists, else the HF Hub name.
+
+    Loading from a local path avoids a HF Hub network round-trip that deadlocks
+    on Windows Python 3.14 when the process has piped stdin/stdout (MCP stdio).
+    """
+    import os
+    from pathlib import Path as _Path
+
+    cache_dir = _Path(os.path.expanduser("~")) / ".cache" / "huggingface" / "hub"
+    # Convert "org/name" → "models--org--name"
+    slug = "models--" + model_name.replace("/", "--")
+    snapshots_dir = cache_dir / slug / "snapshots"
+    if snapshots_dir.is_dir():
+        candidates = sorted(snapshots_dir.iterdir())
+        if candidates:
+            return str(candidates[-1])  # pick the latest snapshot
+    return model_name  # fall back to HF Hub name
+
+
 @lru_cache(maxsize=1)
-def _embedder() -> SentenceTransformer:
-    """Module-level cached embedder (90MB, ~1s first load)."""
-    return SentenceTransformer(_MODEL_NAME)
+def _embedder():
+    """Module-level cached embedder (90MB, ~1s first load).
+
+    Imported lazily to avoid deadlocking subprocess stdio pipes on Windows
+    when sentence-transformers / PyTorch are imported at module level.
+    Uses a local cache path when available to bypass HF Hub network checks.
+    """
+    from sentence_transformers import SentenceTransformer  # lazy import
+    return SentenceTransformer(_resolve_model_path(_MODEL_NAME))
 
 
 class VectorStore:
     def __init__(self, persist_dir: Path, collection: str):
+        import chromadb  # lazy import — avoids heavy init at module-import time
         self._client = chromadb.PersistentClient(path=str(persist_dir))
         self._collection = self._client.get_or_create_collection(
             name=collection,

@@ -16,6 +16,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 _KNOWLEDGE_SERVER = Path(__file__).parent / "knowledge_server.py"
+_RAG_SERVER = Path(__file__).parent / "rag_server.py"
 
 
 SYSTEM_PROMPT = """You are NVIDIA SDK Advisor — a conversational agent helping a developer pick the right SDK Manager configuration for their hardware and use case.
@@ -45,6 +46,19 @@ Most inputs include enough info to produce a useful plan immediately. For each u
    Do NOT use: target_id, jetpack_version, release_version, hardware, hardware_id, device_id, board, sdks (use additional_sdks instead).
 6. Call generate_response_file(config_json) and generate_command(config_json) with your config.
 7. Present the result as: a brief explanation paragraph, then the sdkmanager command in a ```bash code block, then the response file in a ``` code block labeled ```ini.
+
+## Mode classification (your first decision each turn)
+
+You now have access to TWO MCP servers:
+- **nvidia-knowledge** (deterministic, 13 tools): list_products, list_releases, get_release, list_hardware, lookup_target_id, detect_connected_hardware, estimate_resources, check_constraints, validate_combo, generate_response_file, validate_against_official_sample, generate_command, parse_install_log
+- **nvidia-corpus-rag** (semantic / external, 4 tools): lookup_container_reqs, search_3p_sample_repos, search_forum_threads, search_docs
+
+Decide which RAG tool fits the user's intent:
+- User describes a workload without naming a product ("I want to do X") → search_3p_sample_repos FIRST to find the matching NVIDIA sample
+- User mentions a specific container (e.g. "dustynv/nano_llm") → lookup_container_reqs to get JetPack/CUDA reqs
+- User has unusual constraints / asks "how do experts do X" → search_forum_threads (mode='general')
+- User asks "where in docs is X" or "release notes for X" → search_docs
+- Troubleshoot mode (Plan C) → search_forum_threads(mode='troubleshoot')
 
 ## Asking the user (only when truly blocked)
 
@@ -105,28 +119,47 @@ def _call_with_retry(client, model, tools, messages, max_attempts=4):
 
 
 async def run_agent_single_turn(user_input: str, on_step: Optional[Callable] = None) -> str:
-    """Single-prompt agent run. Used by tests; REPL has its own loop."""
-    params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)])
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools_result = await session.list_tools()
-            tools = _build_tools(tools_result.tools)
+    """Single-prompt agent run with BOTH MCP servers connected."""
+    import json
+    k_params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)])
+    r_params = StdioServerParameters(command="python", args=[str(_RAG_SERVER)])
+
+    async with stdio_client(k_params) as (kr, kw), stdio_client(r_params) as (rr, rw):
+        async with ClientSession(kr, kw) as k_session, ClientSession(rr, rw) as r_session:
+            await k_session.initialize()
+            await r_session.initialize()
+
+            k_tools = (await k_session.list_tools()).tools
+            r_tools = (await r_session.list_tools()).tools
+
+            # Tool dispatch table: tool_name -> session
+            session_map: dict[str, ClientSession] = {}
+            for t in k_tools:
+                session_map[t.name] = k_session
+            for t in r_tools:
+                session_map[t.name] = r_session
+
+            tools = _build_tools(list(k_tools) + list(r_tools))
 
             client = anthropic.Anthropic()
             model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
             messages = [{"role": "user", "content": user_input}]
 
+            import asyncio as _asyncio
             while True:
-                response = _call_with_retry(client, model, tools, messages)
+                response = await _asyncio.to_thread(_call_with_retry, client, model, tools, messages)
                 if response.stop_reason == "end_turn":
                     return next((b.text for b in response.content if hasattr(b, "text")), "")
                 tool_results = []
                 for block in response.content:
                     if block.type != "tool_use":
                         continue
-                    result = await session.call_tool(block.name, arguments=block.input)
-                    result_text = result.content[0].text if result.content else "{}"
+                    sess = session_map.get(block.name)
+                    if sess is None:
+                        result_text = json.dumps({"error": f"unknown tool: {block.name}"})
+                    else:
+                        result = await sess.call_tool(block.name, arguments=block.input)
+                        result_text = result.content[0].text if result.content else "{}"
                     if on_step:
                         on_step(block.name, result_text)
                     tool_results.append({

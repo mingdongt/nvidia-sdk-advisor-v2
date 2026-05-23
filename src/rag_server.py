@@ -9,9 +9,14 @@ Run as stdio MCP server: python -m src.rag_server
 Tools also callable in-process via rag_server.call_tool(name, args).
 """
 import json
+import os
 import sys
 from functools import lru_cache
 from pathlib import Path
+
+# Disable tqdm progress bars — tqdm queries terminal dimensions on Windows which
+# deadlocks when stdout is a synchronous pipe (MCP stdio transport).
+os.environ.setdefault("TQDM_DISABLE", "1")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -77,14 +82,19 @@ def _github_store():
 
 
 @mcp.tool()
-def search_3p_sample_repos(query: str, k: int = 5) -> str:
+async def search_3p_sample_repos(query: str, k: int = 5) -> str:
     """Semantic search across 30 NVIDIA-AI-IOT, dusty-nv, isaac-ros sample repos.
 
     Returns top-k chunks from README.md files. Use this to find which sample/container
     matches a user's workload (e.g. 'I want to run YOLO' -> jetson-inference DetectNet).
     """
+    import asyncio
+
+    def _run_search(q: str, n: int) -> list:
+        return _github_store().search(q, k=n)
+
     try:
-        hits = _github_store().search(query, k=k)
+        hits = await asyncio.to_thread(_run_search, query, k)
     except Exception as e:
         return json.dumps({"error": f"search failed: {e}", "hits": []})
     return json.dumps({"hits": hits})
@@ -121,9 +131,18 @@ def search_docs(query: str, k: int = 5) -> str:
 
 
 # In-process helpers (Plan A pattern from knowledge_server.py)
+def _search_3p_sample_repos_sync(query: str, k: int = 5) -> str:
+    """Sync wrapper for in-process tests (search_3p_sample_repos is async for MCP)."""
+    try:
+        hits = _github_store().search(query, k=k)
+    except Exception as e:
+        return json.dumps({"error": f"search failed: {e}", "hits": []})
+    return json.dumps({"hits": hits})
+
+
 _UNDECORATED_TOOLS = {
     "lookup_container_reqs": lookup_container_reqs,
-    "search_3p_sample_repos": search_3p_sample_repos,
+    "search_3p_sample_repos": _search_3p_sample_repos_sync,
     "search_forum_threads": search_forum_threads,
     "search_docs": search_docs,
 }
@@ -140,4 +159,15 @@ def call_tool(name: str, args: dict) -> str:
 
 
 if __name__ == "__main__":
+    # Pre-warm heavy singletons (VectorStore + sentence-transformers embedder) BEFORE
+    # mcp.run() starts the asyncio event loop. The lru_cache means subsequent calls
+    # are instant. Without this pre-warm, the first search_3p_sample_repos call would
+    # load the model inside asyncio.to_thread while the event loop concurrently reads
+    # stdin — this causes a deadlock on Windows/Python 3.14 IOCP.
+    try:
+        from src.vector_search import _embedder
+        _embedder()           # load sentence-transformers model
+        _github_store()       # open ChromaDB persistent client
+    except Exception:
+        pass  # non-fatal if chroma_db or sentence-transformers is absent
     mcp.run()

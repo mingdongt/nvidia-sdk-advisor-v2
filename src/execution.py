@@ -67,6 +67,20 @@ def _latest_plan_ini() -> Path | None:
     return inis[0] if inis else None
 
 
+def _find_latest_export_log() -> Path | None:
+    """Look for SDK Manager export-logs tarballs in the typical locations."""
+    candidates: list[Path] = []
+    for base in (Path.home(), Path.home() / "Downloads", Path.cwd()):
+        if not base.exists():
+            continue
+        candidates.extend(base.glob("sdkm*log*.tar*"))
+        candidates.extend(base.glob("SDKManager*.tar*"))
+        candidates.extend(base.glob("*.tar.gz"))  # generic last-resort
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
 def run_dry_run_mode_for_file(plan_path: Path) -> int:
     """Invoke NvSDKManager.exe --query non-interactive --response-file <plan.ini>."""
     binary = _locate_sdkmanager_binary()
@@ -149,5 +163,17 @@ def run_execute_mode() -> None:
     console.print(f"\n[bold]Event summary:[/bold] {counters}")
     if rc != 0:
         console.print(f"[red]NvSDKManager exited with code {rc}.[/red]")
-        console.print("[dim]Tip: run `python main.py --troubleshoot <log_path>` once Plan C is shipped.[/dim]")
+        log_path = _find_latest_export_log()
+        if log_path:
+            console.print(f"[dim]Latest log: {log_path}[/dim]")
+            try:
+                ans = input("Run troubleshoot on this log? [Y/n] ").strip().lower()
+            except EOFError:
+                ans = ""
+            if ans in ("", "y", "yes"):
+                import asyncio
+                from src.troubleshoot import run_troubleshoot
+                asyncio.run(run_troubleshoot(str(log_path)))
+        else:
+            console.print("[dim]Tip: export logs (--export-logs), then `python main.py --troubleshoot <log>`.[/dim]")
     sys.exit(rc)

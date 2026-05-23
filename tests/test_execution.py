@@ -38,3 +38,12 @@ def test_dry_run_uses_response_file_arg():
         assert "--query" in called_args
     finally:
         plan_path.unlink(missing_ok=True)
+
+
+def test_classify_event_install_line():
+    from src.execution import _classify_event
+    assert _classify_event("Installing JetPack Components...") == "installing"
+    assert _classify_event("Downloading nvidia-jetpack-runtime") == "downloading"
+    assert _classify_event("Flashing target board...") == "flashing"
+    assert _classify_event("Error: failed to flash") == "error"
+    assert _classify_event("Just a normal log line") == "info"

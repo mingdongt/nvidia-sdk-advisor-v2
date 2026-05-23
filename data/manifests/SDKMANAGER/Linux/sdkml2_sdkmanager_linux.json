@@ -1,0 +1,36 @@
+{
+  "information": {
+    "title": "Sdk Manager Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 35,
+    "serverConfigurationBuild": "300"
+  },
+  "releases": [
+    {
+      "productCategory": "SDK Manager",
+      "targetOS": "Linux",
+      "serverType": [
+        "PID",
+        "DEVZONE"
+      ],
+      "id": "NV_SDKM_BUNDLE",
+      "title": "SDK Manager",
+      "releaseVersion": "2.4.0",
+      "releaseEdition": "",
+      "releaseEditionMessage": "",
+      "releaseBuild": "b13236",
+      "releaseRevision": 0,
+      "minSDKMVer": "",
+      "targetType": "",
+      "releaseMessage": "<div><span class=\"tooltip-title\">What's new in SDK Manager 2.4.0:</span><ul><li>Support RTX Kit installation on Windows host. Starting with RTX Kit 2025.4</li><li>Support flashing and target installation from Windows hosts for JetPack 6.2.x and JetPack 7.x SDKs</li><li>SDK Manager can now run directly on NVIDIA GH200 servers to install ARC-OTA SDK for ARM</li><li>Display release messages and update dialogs for additional SDKs, such as DeepStream and Holoscan</li><li>Resolved a performance issue that caused lag when scrolling through the embedded terminal with extensive output</li><li>Other bug fixes and stability improvements</li></ul></div>",
+      "pidGroupId": "",
+      "targetHW": [],
+      "supportedHW": [
+        "host",
+        "target"
+      ],
+      "IntHWSupport": false,
+      "compRepoURL": "https://developer.download.nvidia.com/sdkmanager/client_update/sdkml3_sdkm_2.4.0_update2.json"
+    }
+  ]
+}

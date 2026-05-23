@@ -1,0 +1,85 @@
+{
+  "information": {
+    "title": "Video Codec Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 1,
+    "serverConfigurationBuild": "1"
+  },
+  "releases": [
+    {
+      "productDisplayName": "Video Codec",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_THOR_TARGETS"
+        ]
+      },
+      "title": "Video Codec 13.0",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.4.0.13235",
+      "releaseMessage": "NVIDIA Video Codec SDK is a comprehensive set of APIs, tools, samples, and documentation that enables developers to utilize the dedicated hardware-accelerated video encoding and decoding capabilities on NVIDIA GPUs from Edge to Cloud platforms.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [],
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Video Codec 13.0:</span><ul><li>NVIDIA Video Codec SDK supported on Jetson Thor starting JP 7.1</li><li> C, C++ NVENCODE and NVDECODE API access for Jetson developers</li><li> Unified APIs to enable cross-platform deployment across DGPU and Jetson GPU.</li></ul><a href=\"https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/read-me/index.html\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/read-me/index.html",
+        "releaseNotesDownload": false
+      },
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 7.1",
+            "releaseRevision": 0,
+            "showInMainList": true,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "7.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "VideoCodec",
+      "targetOS": "Linux",
+      "releaseVersion": "13.0",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "NVIDIA Video Codec SDK is a comprehensive set of APIs, tools, samples, and documentation that enables developers to utilize  the dedicated hardware-accelerated video encoding and decoding capabilities on NVIDIA GPUs from Edge to Cloud platforms.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_VIDEOCODEC",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/videocodec-13.0/VideoCodec_130_b36/sdkml3_video_codec_130.json"
+    }
+  ]
+}

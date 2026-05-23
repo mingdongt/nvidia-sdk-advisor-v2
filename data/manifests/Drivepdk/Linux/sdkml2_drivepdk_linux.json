@@ -1,0 +1,211 @@
+{
+  "information": {
+    "title": "Drivepdk Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 4,
+    "serverConfigurationBuild": "10"
+  },
+  "releases": [
+    {
+      "productDisplayName": "PDK",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DRIVE OS 6.0.6 PDK",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "905928",
+      "targetHW": [
+        "DRIVE_AGX_ORIN_DEVKITS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu2004"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTitle": "ReleasetNotesTitlePlaceHolder",
+        "releaseNotesDownload": true,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DRIVE OS 6.0.6 PDK:</span></div>"
+      },
+      "setupDeviceRecoveryModeOptions": [],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "DRIVE OS 6.0.6 SDK",
+            "releaseRevision": 0,
+            "productCategory": "DRIVE",
+            "targetOS": "Linux",
+            "releaseVersion": "6.0.6",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DRIVEPDK",
+      "targetOS": "Linux",
+      "releaseVersion": "6.0.6",
+      "installedOn": [
+        "target"
+      ],
+      "description": "",
+      "canInstallStandAlone": false,
+      "id": "NV_DRIVE_LINUX_ADDITIONAL_PDK",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": true,
+      "schemaVersion": "16.0",
+      "intHWCompURL": "",
+      "compRepoURL": "https://developer.nvidia.com/drive/secure/pdk/drive-os/6.0.6/release/DRIVEPDK_606_b12/sdkml3_drive_os_606_pdk.json"
+    },
+    {
+      "productDisplayName": "PDK",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DRIVE OS 6.0.5 PDK",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "905928",
+      "targetHW": [
+        "DRIVE_AGX_ORIN_DEVKITS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu2004"
+        ]
+      },
+      "estimateTargetDiskSizeInGB": "0.0",
+      "isInstallOnTargetEnabled": true,
+      "IntHWSupport": true,
+      "releaseNotes": {
+        "releaseNotesTitle": "ReleasetNotesTitlePlaceHolder",
+        "releaseNotesDownload": true,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DRIVE OS 6.0.5 PDK:</span></div>"
+      },
+      "setupDeviceRecoveryModeOptions": [],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "DRIVE OS 6.0.5 SDK",
+            "releaseRevision": 0,
+            "productCategory": "DRIVE",
+            "targetOS": "Linux",
+            "releaseVersion": "6.0.5",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DRIVEPDK",
+      "targetOS": "Linux",
+      "releaseVersion": "6.0.5",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "",
+      "canInstallStandAlone": false,
+      "id": "NV_DRIVE_LINUX_ADDITIONAL_PDK",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "15.0",
+      "intHWCompURL": "https://urm.nvidia.com/artifactory/sw-sdkm-generic-local/sdks/drivepdk/6.0.5/Linux/11/DRIVEPDK_605_b11/../_PRIVATE/sdkml3_drive_os_605_pdk_b11_INTHW.json",
+      "compRepoURL": "https://developer.nvidia.com/drive/secure/pdk/drive-os/6.0.5/release/DRIVEPDK_605_b11/sdkml3_drive_os_605_pdk.json"
+    },
+    {
+      "productDisplayName": "PDK",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DRIVE PDK 6.0.4",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "905928",
+      "targetHW": [
+        "DRIVE_AGX_ORIN_DEVKITS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu2004"
+        ]
+      },
+      "estimateTargetDiskSizeInGB": "0.0",
+      "isInstallOnTargetEnabled": true,
+      "IntHWSupport": true,
+      "releaseNotes": {
+        "releaseNotesTitle": "ReleasetNotesTitlePlaceHolder",
+        "releaseNotesDownload": true,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DRIVE PDK 6.0.4:</span></div>"
+      },
+      "setupDeviceRecoveryModeOptions": [],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "DRIVE OS 6.0.4 SDK",
+            "releaseRevision": 1,
+            "productCategory": "DRIVE",
+            "targetOS": "Linux",
+            "releaseVersion": "6.0.4",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "productCategory": "DRIVEPDK",
+      "targetOS": "Linux",
+      "releaseVersion": "6.0.4",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "",
+      "canInstallStandAlone": false,
+      "id": "NV_DRIVE_LINUX_ADDITIONAL_PDK",
+      "hasTargetComponents": true,
+      "releaseBuild": "",
+      "schemaVersion": "14.0",
+      "intHWCompURL": "",
+      "compRepoURL": "https://developer.nvidia.com/drive/secure/drive-sdk/releases/drive_6.0.4/drive_6.0.4_pdk/drivepdk_604_b13/sdkml3_drive_pdk_604.json"
+    }
+  ]
+}

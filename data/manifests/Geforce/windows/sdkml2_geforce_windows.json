@@ -1,0 +1,143 @@
+{
+  "information": {
+    "title": "Geforce Windows Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 16,
+    "serverConfigurationBuild": "53"
+  },
+  "releases": [
+    {
+      "title": "RTX Kit 2026.2",
+      "productDisplayName": "GeForce",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "minSDKMVer": "2.4",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "windows11",
+          "windows10"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RTX Kit 2026.2:</span><ul><li>RTXDI: Updated to v3.0 (Added ReSTIR PT algorithm)</li><li>RTX Neural Shaders SDK: Updated to v1.3.1 (API improvements and Linux documentation)</li><li>RTX Character Rendering SDK: Updated to v1.3 (Expanded Geometry library with curve tessellation API, NRD denoising improvements)</li><li>RTX Path Tracing: Updated to v1.8.1 (Significant performance improvements and public DXR 1.2 support for OMM and SER APIs)</li><li>RTXGI: Updated to v2.7 (addition of DLSS-RR in sample, SHaRC improvements, various quality of life improvements)</li><li>Streamline: Updated to v2.10.3 (Bug Fixes & Stability Improvements)</li><li>NRD: Updated to v4.17.1 (Various bug fixes and improvements)</li></ul><a href=\"https://github.com/NVIDIA-RTX/RTX-Kit/releases/tag/2026.2\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://github.com/NVIDIA-RTX/RTX-Kit/releases/tag/2026.2",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "gpuRequirements": {
+        "minDriverVersion": "572.16"
+      },
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "GeForce",
+      "targetOS": "Windows",
+      "releaseVersion": "2026.2",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rtx/secure/rtx_kits/GeForce_20262_b8/sdkml3_rtx_kit_20262.json"
+    },
+    {
+      "title": "RTX Kit 2026.1",
+      "productDisplayName": "GeForce",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "minSDKMVer": "2.4",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "windows11",
+          "windows10"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RTX Kit 2026.1:</span><ul><li>RTX Neural Texture Compression SDK:Updated to v0.9.1 beta (Performance optimizations)</li><li>RTX Neural Shaders SDK: Updated to v1.3 (Added visualization graphs to shading Training examples)</li><li>RTX Character Rendering SDK: Updated to v1.2 (Added Vulkan support for RTX Hair)</li><li>RTX Path Tracing: Updated to v1.7 (New Stress test scene and performance optimizations)</li><li>RTXGI: Updated to v2.6 (SHaRC improvements, general bug fixes)</li><li>RTXMG: Updated to v1.0.1 (Added vertex normal support and general bug fixes)</li><li>Streamline: Updated to v2.10.0 (Bug Fixes & Stability Improvements)</li><li>NRD: Updated to v4.16.1 (Various bug fixes and improvements)</li><li>OMM: Updated to v1.9.1 (Added GPU baking tests and general bug fixes)</li></ul><a href=\"https://github.com/NVIDIA-RTX/RTX-Kit\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://github.com/NVIDIA-RTX/RTX-Kit",
+        "releaseNotesDownload": false
+      },
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "GeForce",
+      "targetOS": "Windows",
+      "releaseVersion": "2026.1",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rtx/secure/rtx_kits/GeForce_20261_b9/sdkml3_rtx_kit_20261.json"
+    },
+    {
+      "title": "RTX Kit 2025.4",
+      "productDisplayName": "",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "minSDKMVer": "2.4",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "windows11",
+          "windows10"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RTX Kit 2025.4:</span><ul><li>RTX Neural Texture Compression SDK: adds a D3D12 path for Cooperative Vectors, which provides evaluation, texture compression, and engine integration tools alongside a library for decompression</li><li>RTX Neural Shaders SDK: Introduces a new sample for converting from <a href=\"https://github.com/shader-slang/slangpy\" target=\"_blank\" class=\"tooltip-link\">SlangPy</a> (a library designed to make calling GPU code written in Slang easy) to C++. Slang is used to train and deploy tiny neural networks for shaders.</li><li>RTX Character Rendering SDK: Adds animation support to the digital human sample, making it easier to review RTX Hair and Skin implementations.</li><li>RTX Texture Filtering SDK: Brings new optimizations that improve the quality of filtered textures when magnified. </li><li>RTX Global Illumination SDK: Received bug fixes and user experience updates.</li></ul><a href=\"https://github.com/NVIDIA-RTX/RTX-Kit\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://github.com/NVIDIA-RTX/RTX-Kit",
+        "releaseNotesDownload": false
+      },
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "GeForce",
+      "targetOS": "Windows",
+      "releaseVersion": "2025.4",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rtx/secure/rtx_kits/GeForce_20254_b27/sdkml3_rtx_kit_20254.json"
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "information": {
+    "title": "Datalake Linux Versions Releases",
+    "fileVersion": "2",
+    "fileRevision": 0,
+    "serverConfigurationBuild": "23"
+  },
+  "releases": [
+    {
+      "title": "AI Frameworks 25.3",
+      "productDisplayName": "AI Frameworks",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "deviceIds": [
+          "SUPERMICRO_GH_MGX_TARGET"
+        ],
+        "seriesIds": []
+      },
+      "minSDKMVer": "2.4.0",
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000023"
+      ],
+      "supportsOEMPreConfiguration": false,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "ARC-OTA 1.7",
+            "releaseRevision": 0,
+            "showInMainList": true,
+            "productCategory": "Aerial",
+            "targetOS": "Linux",
+            "releaseVersion": "A1.7",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "aarch64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "DataLake",
+      "targetOS": "Linux",
+      "releaseVersion": "25.3",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "AI Frameworks is focused on retrieval of Channel State Information per UE.",
+      "canInstallStandAlone": false,
+      "id": "NV_DATALAKE_ADDITIONAL_SDK",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/aerial/aerial-sdk/aerial/secure/ai_frameworks_25.3/datalake_253_b9/sdkml3_ai_frameworks_253.json"
+    },
+    {
+      "title": "AI Frameworks 25.2",
+      "productDisplayName": "AI Frameworks",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "deviceIds": [
+          "SUPERMICRO_GH_MGX_TARGET"
+        ],
+        "seriesIds": []
+      },
+      "minSDKMVer": "2.3.0",
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000023"
+      ],
+      "supportsOEMPreConfiguration": false,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "ARC-OTA 1.6",
+            "releaseRevision": 0,
+            "showInMainList": true,
+            "productCategory": "Aerial",
+            "targetOS": "Linux",
+            "releaseVersion": "A1.6",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "aarch64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "DataLake",
+      "targetOS": "Linux",
+      "releaseVersion": "25.2",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "AI Frameworks is focused on retrieval of Channel State Information per UE.",
+      "canInstallStandAlone": false,
+      "id": "NV_DATALAKE_ADDITIONAL_SDK",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/aerial/aerial-sdk/aerial/secure/ai_frameworks_25.2/datalake_252_b14/sdkml3_ai_frameworks_252.json"
+    },
+    {
+      "productDisplayName": "AI Frameworks",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "AI Frameworks 24.1",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.1.0",
+      "hostOperatingSystemsSupportFor": {
+        "targetGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "911004"
+      ],
+      "showInMainList": true,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "supportsOEMPreConfiguration": false,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "ARC-OTA 1.5",
+            "releaseRevision": 1,
+            "productCategory": "Aerial",
+            "targetOS": "Linux",
+            "releaseVersion": "A1.5",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "DataLake",
+      "targetOS": "Linux",
+      "releaseVersion": "24.1",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "AI Frameworks is focused on retrieval of Channel State Information per UE.",
+      "canInstallStandAlone": false,
+      "targetHW": [
+        "GIGABYTE_EDGE_TARGET",
+        "DELL_R750_A100X_TARGET",
+        "SUPERMICRO_GH_MGX_TARGET"
+      ],
+      "id": "NV_DATALAKE_ADDITIONAL_SDK",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "20.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/aerial/aerial-sdk/aerial/secure/ai_frameworks_24.1/datalake_241_b5/sdkml3_ai_frameworks_241.json"
+    }
+  ]
+}

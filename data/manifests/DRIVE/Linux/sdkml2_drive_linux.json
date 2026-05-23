@@ -1,0 +1,292 @@
+{
+  "information": {
+    "title": "DRIVE Linux Versions Releases",
+    "fileVersion": "2",
+    "fileRevision": 16,
+    "serverConfigurationBuild": "1246D"
+  },
+  "releases": [
+    {
+      "serverType": [
+        "PID",
+        "DEVZONE"
+      ],
+      "title": "DRIVE OS 6.0.6 SDK",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "maxSDKMVer": "2.2.0",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "879192"
+      ],
+      "targetHW": [
+        "DRIVE_AGX_ORIN_DEVKITS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu2004"
+        ]
+      },
+      "IntHWSupport": true,
+      "releaseNotes": {
+        "releaseNotesTitle": "What's New",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/driveos-606-linux-release-notes-pdf",
+        "releaseNotesDownload": true,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DRIVE OS 6.0.6 SDK:</span><ul><li>Enhanced PKCS #11 security support</li><li>Logging mechanism of system level events, UART prints, and error codes (experimental)</li><li>Support for PCIe Root Port End Port support (experimental version of full library)</li><li>Linux Security Hardening improvements</li></ul></div>"
+      },
+      "showInMainList": true,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "supportsWipePersistentPartition": true,
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DRIVE",
+      "targetOS": "Linux",
+      "releaseVersion": "6.0.6",
+      "releaseEdition": "",
+      "productDisplayName": "DRIVE",
+      "id": "NV_DRIVE_LINUX_BUNDLE",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "16.0",
+      "compRepoURL": "https://developer.nvidia.com/drive/secure/sdk/drive-os/6.0.6/release/DRIVE_606_B32/sdkml3_drive_os_606_sdk.json"
+    },
+    {
+      "productCategory": "DRIVE",
+      "targetOS": "Linux",
+      "serverType": [
+        "PID",
+        "DEVZONE"
+      ],
+      "id": "NV_DRIVE_LINUX_BUNDLE",
+      "title": "DRIVE OS 5.2.6 SDK",
+      "releaseVersion": "5.2.6",
+      "releaseEdition": "OSWithSamples",
+      "releaseRevision": 0,
+      "releaseEditionMessage": "",
+      "releaseBuild": "",
+      "targetType": "SDK",
+      "minSDKMVer": "1.9.3",
+      "maxSDKMVer": "2.2.0",
+      "releaseMessage": "",
+      "showInMainList": true,
+      "pidGroupId": "-1",
+      "devzoneProgramId": "879192",
+      "targetHW": [
+        "DDPX"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [
+          "ubuntu1804"
+        ],
+        "targetGroups": [
+          "ubuntu1804"
+        ]
+      },
+      "isInstallOnTargetEnabled": false,
+      "IntHWSupport": true,
+      "releaseNotes": {
+        "releaseNotesTitle": "What's New",
+        "releaseNotesURL": "https://developer.nvidia.com/nvidia-drive-os-526-linux-release-notes",
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DRIVE OS 5.2.6:</span><ul><li>DRIVE OS Linux designated for use in production environment</li><li>Efficient image processing through SIPL framework</li><li>DRIVE OS Samples installed on the target</li><li>Persistent storage of user login on the target (i.e., username/password, SSH keys)</li><li>SSH enabled by default on the target</li></ul></div>",
+        "releaseNotesDownload": true
+      },
+      "updateInfo": [
+        {
+          "releaseVersion": "XXX"
+        }
+      ],
+      "supportedAdditionalSDKList": [
+        {
+          "id": "NV_DRIVE_ROS_ADDITIONAL_SDK",
+          "version": "5.2.6",
+          "revision": 0,
+          "default": "off",
+          "baseReleaseId": "DRIVE_Linux_5.2.6_OSWithSamples_0"
+        }
+      ],
+      "schemaVersion": "8.0",
+      "intHWCompURL": "",
+      "compRepoURL": "https://developer.nvidia.com/driveworks/secure/drive_bundles/drive_os_5.2.6_with_samples/drive_526l_sdk_b39_os/sdkml3_drive_linux_526_sdk_os_devzone.json"
+    },
+    {
+      "productCategory": "DRIVE",
+      "targetOS": "Linux",
+      "serverType": [
+        "PID",
+        "DEVZONE"
+      ],
+      "id": "NV_DRIVE_LINUX_BUNDLE",
+      "title": "DRIVE Software 10.0",
+      "releaseVersion": "5.1.6.1",
+      "releaseEdition": "OS",
+      "releaseEditionMessage": "",
+      "releaseBuild": "",
+      "releaseRevision": 2,
+      "targetType": "SDK",
+      "minSDKMVer": "1.9.3",
+      "maxSDKMVer": "2.2.0",
+      "showInMainList": true,
+      "releaseNotes": {
+        "releaseNotesTitle": "Release Notes",
+        "releaseNotesURL": "https://developer.nvidia.com/DRIVE/secure/docs/NVIDIA_DRIVE_Software_Release_Notes_10.0.pdf",
+        "releaseNotesTooltip": "Open release notes",
+        "releaseNotesDownload": true
+      },
+      "releaseMessage": "What\u2019s new in DRIVE Software 10.0: \n\u25cf Sensor plugin support for RADAR, GNSS and CAN\n\u25cf New image processing modules\n\u25cf Improved DNNs for calculating time-to-collision\n\u25cf Detecting multiple intersections per frame\n \n   and more...",
+      "updateInfo": [
+        {
+          "releaseVersion": "XXX"
+        }
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "879192"
+      ],
+      "targetHW": [
+        "DDPX"
+      ],
+      "operatingSystemsSupport": [
+        "ubuntu1804"
+      ],
+      "operatingSystemsSupportWarning": [],
+      "estimateTargetDiskSizeInGB": "44",
+      "IntHWSupport": true,
+      "compRepoURL": "https://developer.nvidia.com/driveworks/drive_bundles/DRIVE_5161L_SDK_b72_OS/sdkml3_drive_linux_5161_r2_sdk_os.json"
+    },
+    {
+      "id": "NV_DRIVE_LINUX_BUNDLE",
+      "title": "DRIVE OS 5.0.10.3 SDK with DriveWorks",
+      "releaseVersion": "5.0.10.3",
+      "releaseEdition": "OS",
+      "releaseEditionMessage": "",
+      "releaseBuild": "",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "maxSDKMVer": "2.2.0",
+      "targetType": "SDK",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "876061"
+      ],
+      "operatingSystemsSupport": [
+        "ubuntu1604"
+      ],
+      "operatingSystemsSupportWarning": [],
+      "compRepoURL": "https://developer.nvidia.com/drive/secure/drive_bundles/Drive_50103L_SDK_b135_OS_GA/sdkml3_drive_linux_50103_sdk_os.json",
+      "targetHW": [
+        "PX2_AUTOCRUISE",
+        "PX2_AUTOCHAUFFEUR"
+      ]
+    }
+  ],
+  "additionalSDKs": {
+    "NV_DRIVE_LINUX_ADDITIONAL_SDK_OPENDDS": {
+      "id": "NV_DRIVE_LINUX_ADDITIONAL_SDK_OPENDDS",
+      "title": "OpenDDS",
+      "description": "DDS (Data Distribution Service) is a networking middleware for data exchanges using publish-subscribe pattern for real time distributed applications.",
+      "versions": [
+        {
+          "version": "5.2.0",
+          "revision": 0,
+          "baseReleaseId": "DRIVE_Linux_5.2.0.0_OS_0D",
+          "estimateTargetDiskSizeInGB": "",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "879192"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/driveworks/secure/drive_bundles/DRIVE_5.2.0_DZ/DRIVE_5200L_OpenDDS_b60/sdkml3_drive_linux_5200_opendds.json"
+        },
+        {
+          "version": "5.1.15.0",
+          "revision": 0,
+          "baseReleaseId": "DRIVE_Linux_5.1.15.0_OS_0",
+          "estimateTargetDiskSizeInGB": "2.04",
+          "pidGroupId": "777",
+          "devzoneProgramId": [
+            "-1"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://nvonlineapi.nvidia.com/NVOnlineAPI/api/downloadfile?docid=1054201"
+        }
+      ]
+    },
+    "NV_DRIVE_LINUX_ADDITIONAL_PDK": {
+      "id": "NV_DRIVE_LINUX_ADDITIONAL_PDK",
+      "title": "PDK",
+      "description": "The DRIVE OS Platform Development Kit (PDK) is used to port DRIVE OS to run on custom DRIVE AGX-based hardware.",
+      "versions": [
+        {
+          "version": "5.1.15.0",
+          "revision": 0,
+          "baseReleaseId": "DRIVE_Linux_5.1.15.0_OS_0",
+          "estimateTargetDiskSizeInGB": "",
+          "pidGroupId": "776",
+          "devzoneProgramId": [
+            "-1"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://nvonlineapi.nvidia.com/NVOnlineAPI/api/downloadfile?docid=1054360"
+        }
+      ]
+    },
+    "NV_DRIVE_ROS_ADDITIONAL_SDK": {
+      "id": "NV_DRIVE_ROS_ADDITIONAL_SDK",
+      "title": "ROS Example",
+      "description": "The Robot Operating System Example for DRIVE AGX (NvROS) demonstrates how to integrate the Robot Operating System (ROS) framework into the DRIVE OS Linux software stack with NVIDIA DRIVE AGX as a target platform.",
+      "versions": [
+        {
+          "version": "5.2.6",
+          "revision": 0,
+          "baseReleaseId": "DRIVE_Linux_5.2.6_OSWithSamples_0",
+          "estimateTargetDiskSizeInGB": "",
+          "pidGroupId": "-1",
+          "devzoneProgramId": "879192",
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/driveworks/secure/drive_bundles/drive_os_5.2.6_with_samples/DRIVE_526L_ROS_b39/sdkml3_drive_linux_526_ros_devzone.json",
+          "intHWCompURL": ""
+        },
+        {
+          "version": "5.2.0",
+          "revision": 0,
+          "baseReleaseId": "DRIVE_Linux_5.2.0.0_OS_0D",
+          "estimateTargetDiskSizeInGB": "",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "879192"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/driveworks/secure/drive_bundles/DRIVE_5.2.0_DZ/DRIVE_5200L_ROS_b60/sdkml3_drive_linux_5200_ros.json"
+        }
+      ]
+    }
+  }
+}

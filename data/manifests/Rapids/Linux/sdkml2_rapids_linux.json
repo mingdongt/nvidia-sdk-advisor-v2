@@ -1,0 +1,494 @@
+{
+  "information": {
+    "title": "Rapids Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 5,
+    "serverConfigurationBuild": "53"
+  },
+  "releases": [
+    {
+      "title": "RAPIDS 26.04 - Stable",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.4",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 26.04 - Stable:</span><ul><li>cuML now accelerates scikit-learn</li><li>polars gpu engine</li><li>cuDF now pre-installed in google colab</li><li>vector search now with cuVS</li></ul><a href=\"https://rapids.ai/\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://rapids.ai/",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "gpuRequirements": {
+        "minDriverVersion": "525.60.13",
+        "minComputeCapability": "7.0"
+      },
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "26.04",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/RAPIDS_2604_b18/sdkml3_rapids_2604_-_stable.json"
+    },
+    {
+      "title": "RAPIDS 26.02 - Legacy",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.4",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 26.02 - Stable:</span><ul><li>cuML has new multi-GPU HDBSCAN and improved multi-GPU UMAP support</li><li>Support for TargetEncoder in cuml.accel</li><li>LedoitWolf estimator support to tl.leiden and tl.louvain </li></ul><a href=\"https://rapids.ai/\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://rapids.ai/",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "26.02",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/RAPIDS_2602_b14/sdkml3_rapids_2602_-_stable_cuda.json"
+    },
+    {
+      "title": "RAPIDS 25.12 - Legacy",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": false,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.4",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 25.12 - Stable:</span><ul><li>Support for PyArrow backed dtypes in Pandas, bringing acceleration to \"Arrow-based\" pandas workflows</li><li>Polars Single GPU Polars has experimental streaming and adds window functions and file writer support, a key feature for data engineering workloads (data science workloads less likely to need file writers)</li><li>RAPIDS singleCell 0.13.5 adds support for multi-GPU clustering via Dask to tl.leiden and tl.louvain </li></ul><a href=\"https://rapids.ai/\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://rapids.ai/",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "25.12",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/rapids_2512_b16/sdkml3_rapids_2512_-_stable_win_locale_cuda.json"
+    },
+    {
+      "title": "RAPIDS 25.10 - Legacy",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": false,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.3",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 25.10 - Stable:</span><ul><li>CUDA 13 support is here! Please select either the CUDA 13 or CUDA 12 during, but do not install both!</li><li>Updated single GPU, large-scale UMAP to enable workloads in genomics, topic modeling, recsys, etc. on up to ~300GB datasets</li><li>New Forest Inference Library (FIL), with optimized XGBoost/LightGBM/tree model inference, commonly used for RecSys/fraud</li><li>XGBoost v3.0 release with support for optimized out-of-core training on Grace Hopper/Blackwell</li><li>GPU Polars adds support for global configuration to trigger GPU execution (vs. per-query), and profiling</li><li>GNNs (cuGraph-PyG) now has full support for Heterogenous GNNs for link prediction, esp useful for use cases like RecSys and Fraud Detection where standard PyG cannot scale.</li></ul><a href=\"https://rapids.ai/\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://rapids.ai/",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "25.10",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/rapids_2510_b25/sdkml3_rapids_2510_-_stable_win_locale_cuda.json"
+    },
+    {
+      "title": "RAPIDS 25.08 - Legacy",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": false,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.3",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 25.08 - Stable:</span><ul><li>Streaming execution is now the default engine in cudf-polars</li><li>Expanded expression support for string and struct operators</li><li>Improved performance of rolling operations in Pandas </li><li>New profiling capabilities for cuML.scikit-learn</li><li>Coverage expansion for cuml.accell, LinearSVR, LinearSVC, and KernelRidge</li><li>SPEC-0 compliance with expanded scikit-learn versions</li><li>For CUDA 11 Support, please use 25.06</li></ul><a href=\"https://medium.com/rapids-ai/tagged/rapids-ai\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://medium.com/rapids-ai/tagged/rapids-ai",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "25.08",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/rapids_2508_b23/sdkml3_rapids_2508_-_stable_cuda.json"
+    },
+    {
+      "title": "RAPIDS 25.06 - Legacy",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": false,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.3",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 25.06 - Stable:</span><ul><li>New Windows Friendly Installer Capabilities for SDK Manager</li><li>Polars GPU streaming engine / shuffler / multi GPU</li><li>Window function / file writer support</li><li>SVM support in cuml.accel</li><li>cuSpatial deprecated (please use 25.04 for spatial analytics needs)</li></ul><a href=\"https://medium.com/rapids-ai/tagged/rapids-ai\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://medium.com/rapids-ai/tagged/rapids-ai",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "25.06",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/rapids_2506_b34/sdkml3_rapids_2506_-_stable.json"
+    },
+    {
+      "title": "RAPIDS 25.04 - Legacy (Last version with cuSpatial)",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.3",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 25.04 - Stable:</span><ul><li>RAPIDS now supports Blackwell GPUs!</li><li>CUDA 12.8 support</li><li>SDK Manager 2.3 now includes a Windows executable that seamlessly sets up a WSL instance and installs RAPIDS within it</li><li>Last release with cuSpatial</li></ul><a href=\"https://medium.com/rapids-ai/tagged/rapids-ai\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://medium.com/rapids-ai/tagged/rapids-ai",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "25.04",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/rapids_2504_b55/sdkml3_rapids_2504_-_stable.json"
+    },
+    {
+      "title": "RAPIDS 24.12 - Legacy (Last Pascal Compatible Version)",
+      "productDisplayName": "Data Science",
+      "releaseRevision": 0,
+      "showInMainList": false,
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "installMethodsSupported": [
+        {
+          "methodName": "pip",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "conda",
+          "iconUri": "place-holder"
+        },
+        {
+          "methodName": "docker",
+          "iconUri": "place-holder"
+        }
+      ],
+      "minSDKMVer": "2.2",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in RAPIDS 24.12 - Stable:</span><ul><li>Polars GPU Engine now has expanded support for large data sizes with chunked IO and CUDA Unified Memory</li><li>30-40% faster GNNs training using new WholeGraph optimizations</li><li>Open Beta of up to 2x faster AWS S3 multi-threaded file capability</li></ul><a href=\"https://medium.com/rapids-ai/tagged/rapids-ai\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://medium.com/rapids-ai/tagged/rapids-ai",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "SDKsRelations": [],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": false,
+      "locked": false,
+      "productCategory": "RAPIDS",
+      "targetOS": "Linux",
+      "releaseVersion": "24.12",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/rapids/secure/rapids_sdks/rapids_2412_b40/sdkml3_rapids_2412_-_stable.json"
+    }
+  ]
+}

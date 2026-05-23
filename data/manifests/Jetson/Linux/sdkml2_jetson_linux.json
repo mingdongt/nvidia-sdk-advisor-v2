@@ -1,0 +1,685 @@
+{
+  "information": {
+    "title": "Jetson Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 6,
+    "serverConfigurationBuild": "16780"
+  },
+  "releases": [
+    {
+      "title": "JetPack 7.1",
+      "productDisplayName": "Jetson",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_THOR_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0.13235",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ],
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 7.1:</span><ul><li>Based on Ubuntu 24.04 LTS and Kernel v6.8 LTS</li><li>OpenRM-based stack architecture</li><li>Support for Jetson T4000 module</li><li>Support for Video Codec SDK</li><li>Support for TensorRT EdgeLLM</li></ul><a href=\"https://docs.nvidia.com/jetson/archives/r38.4/ReleaseNotes/Jetson_Linux_Release_Notes_r38.4.pdf\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/jetson/archives/r38.4/ReleaseNotes/Jetson_Linux_Release_Notes_r38.4.pdf",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "bootRomPreflashVerification": true,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "7.1",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/Jetson_71_b112/sdkml3_jetpack_71_win_locale_space.json"
+    },
+    {
+      "title": "JetPack 7.0",
+      "productDisplayName": "Jetson",
+      "releaseRevision": 1,
+      "showInMainList": true,
+      "supportedHardware": {
+        "deviceIds": [
+          "JETSON_AGX_THOR_DEVKIT"
+        ],
+        "seriesIds": []
+      },
+      "minSDKMVer": "2.4.0.13235",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ],
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 7.0 (rev.1):</span><ul><li>Based on Ubuntu 24.04 LTS and Kernel v6.8 LTS.</li><li>Support for NVIDIA Jetson AGX Thor Developer Kit and T5000 module.</li><li>OpenRM-based stack architecture.</li><li>Latest AI compute stack: CUDA 13, cuDNN 9.12, and TensorRT 10.13.</li><li>CoE [CSI over Ethernet ] support using Holoscan Sensor Bridge. Out-of-the-box experience with Eagle Camera Sensor Module LI-VB1940.</li><li>CSI/GMSL is supported via Argus whereas CoE is supported via SIPL Camera API.</li><li>NVIDIA optimized preemptable realtime kernel.</li><li>SBSA Architecture</li><li>Deepstream is now supported, you can select it from additional SDKs to install.</li></ul><a href=\"https://docs.nvidia.com/jetson/archives/r38.2/ReleaseNotes/Jetson_Linux_Release_Notes_r38.2.pdf\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/jetson/archives/r38.2/ReleaseNotes/Jetson_Linux_Release_Notes_r38.2.pdf",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "bootRomPreflashVerification": true,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "7.0",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/Jetson_70_b110/sdkml3_jetpack_70_b237_win_locale_space.json"
+    },
+    {
+      "title": "JetPack 6.2.2",
+      "productDisplayName": "Jetson",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NX_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0.13235",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 6.2.2:</span><ul><li>Fixes for known issues and security vulnerabilities.</li></ul><a href=\"https://developer.nvidia.com/embedded/jetpack-sdk-622\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/embedded/jetpack-sdk-622",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "bootRomPreflashVerification": true,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "6.2.2",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/Jetson_622_b24/sdkml3_jetpack_622_space.json"
+    },
+    {
+      "title": "JetPack 6.2.1",
+      "productDisplayName": "Jetson",
+      "releaseRevision": 1,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NX_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0.13235",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 6.2.1:</span><ul><li>Added support for using Hardware Security Module (HSM) to sign boot images.</li><li>Resolved minor bugs, which improved the success rate of flashing with SDK Manager.</li><li>Addressed compatibility issues between JetPack 6.2 and the latest Docker release (v28.0.x).</li></ul></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/jetson/archives/jetpack-archived/jetpack-621/release-notes",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "bootRomPreflashVerification": true,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "6.2.1",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/Jetson_621_b198/sdkml3_jetpack_621_b211_win_locale_space.json"
+    },
+    {
+      "title": "JetPack 6.2",
+      "productDisplayName": "Jetson",
+      "releaseRevision": 2,
+      "showInMainList": false,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NX_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.2.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 6.2:</span><ul><li>Support for new reference boost power modes for Jetson Orin Nano and Jetson Orin NX modules</li><li>Jetson Orin Nano now supports additional 25W and MAXN SUPER (uncapped) reference power modes</li><li>Jetson Orin NX now supports additional 40W and MAXN SUPER (uncapped) reference power modules</li><li>CVE and minor bug fixes</li></ul><a href=\"https://docs.nvidia.com/jetson/archives/r36.4.3/ReleaseNotes/Jetson_Linux_Release_Notes_r36.4.3.pdf\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/jetson/archives/r36.4.3/ReleaseNotes/Jetson_Linux_Release_Notes_r36.4.3.pdf",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "bootRomPreflashVerification": true,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "6.2",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-6.2/Jetson_62_rev2_b78/sdkml3_jetpack_62_rev2.json"
+    },
+    {
+      "productDisplayName": "Jetson",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "JetPack 6.1",
+      "releaseRevision": 1,
+      "minSDKMVer": "2.2.0",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 6.1 (rev.1):</span><ul><li>Enhanced Argus library reducing CPU utilization by up to 40%</li><li>Upgraded compute stack library with CUDA 12.6, TensorRT 10.3, cuDNN 9.3, VPI 3.2. DLA 3.1 and DLFW 24.0</li><li>Security: Support for Firmware-based Trusted Platform Module (fTPM) on the T234 platform</li><li>Support of Boosted Performance for Jetson Orin Nano Developer Kit</li></ul><a href=\"https://developer.nvidia.com/embedded/jetpack-sdk-61\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/embedded/jetpack-sdk-61",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": false,
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "bootRomPreflashVerification": true,
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "6.1",
+      "releaseEdition": "",
+      "supportedHardware": {
+        "deviceIds": [],
+        "seriesIds": [
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NX_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ],
+        "excludedDeviceIds": [
+          "JETSON_ORIN_NANO_8GB_DEVKIT"
+        ]
+      },
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-6.1/jetson_61_b218/sdkml3_jetpack_61_rev1.json"
+    },
+    {
+      "title": "JetPack 5.1.6",
+      "productDisplayName": "Jetson",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_XAVIER_TARGETS",
+          "JETSON_XAVIER_NX_TARGETS",
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NX_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ],
+        "targetGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 5.1.6:</span><ul><li>Fixes for known issues and security vulnerabilities</li></ul><a href=\"https://developer.nvidia.com/embedded/jetpack-sdk-516\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/embedded/jetpack-sdk-516",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "5.1.6",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-5.1.6/jetson_516_b7/sdkml3_jetpack_516.json"
+    },
+    {
+      "productDisplayName": "Jetson",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "JetPack 5.1.5",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.2.0",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ],
+        "targetGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 5.1.5:</span><ul><li>Support for Super Mode on Jetson Orin NX and Jetson Orin Nano production modules</li><li>Jetson Orin NX 16GB/8GB now support new 40W and MAXN_SUPER reference power modes</li><li>Jetson Orin Nano 16GB/8GB now support new 25W and MAXN_SUPER reference power modes</li><li>Other minor bug fixes</li></ul><a href=\"https://developer.nvidia.com/embedded/jetpack-sdk-515\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/embedded/jetpack-sdk-515",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": false,
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "5.1.5",
+      "releaseEdition": "",
+      "targetHW": [
+        "JETSON_AGX_XAVIER_TARGETS",
+        "JETSON_XAVIER_NX_TARGETS",
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NX_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS"
+      ],
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-5.1.5/Jetson_515_b11/sdkml3_jetpack_515.json"
+    },
+    {
+      "title": "JetPack 4.6.6",
+      "productDisplayName": "Jetson",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_XAVIER_TARGETS",
+          "JETSON_XAVIER_NX_TARGETS",
+          "JETSON_TX2_TARGETS",
+          "JETSON_TX1_TARGETS",
+          "JETSON_NANO_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.2.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": "874688",
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu16.04",
+          "ubuntu18.04"
+        ],
+        "targetGroups": [
+          "ubuntu16.04",
+          "ubuntu18.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in JetPack 4.6.6:</span><ul><li>CVE patches and bug fixes</li><li>Support for new DRAM memory part: Micron MT53E1G32D2FW-046 WT:B</li></ul><a href=\"https://developer.nvidia.com/embedded/linux-tegra-r3276\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/embedded/linux-tegra-r3276",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "productCategory": "Jetson",
+      "targetOS": "Linux",
+      "releaseVersion": "4.6.6",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-4.6.6/jetson_466_b24/sdkml3_jetpack_466.json"
+    }
+  ],
+  "additionalSDKs": {
+    "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM": {
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM",
+      "title": "DeepStream",
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "versions": [
+        {
+          "version": "6.0.1",
+          "revision": 0,
+          "baseReleaseId": "Jetson_Linux_4.6.1_0",
+          "estimateTargetDiskSizeInGB": "0.0",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "874688"
+          ],
+          "installedOn": [
+            "target"
+          ],
+          "canInstallStandAlone": false,
+          "targetHW": [
+            "JETSON_AGX_XAVIER_TARGETS",
+            "JETSON_XAVIER_NX_TARGETS",
+            "JETSON_TX2_TARGETS",
+            "JETSON_TX1_TARGETS",
+            "JETSON_NANO_TARGETS",
+            "CLARA_AGX_DEVKIT_TARGETS"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/assets/deepstream/deepstream_6.0.1/deepstream_601_b11/sdkml3_deepstream.json",
+          "intHWCompURL": ""
+        },
+        {
+          "version": "6.0",
+          "revision": 0,
+          "baseReleaseId": "Jetson_Linux_4.6_0",
+          "estimateTargetDiskSizeInGB": "0",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "874688"
+          ],
+          "installedOn": [
+            "target"
+          ],
+          "canInstallStandAlone": false,
+          "targetHW": [],
+          "compRepoURL": "https://developer.nvidia.com/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-4.6/JETPACK_46_b208_DEEPSTREAM/sdkml3_jetpack_l4t_46_ga_deepstream.json",
+          "intHWCompURL": ""
+        },
+        {
+          "version": "5.1",
+          "revision": 0,
+          "baseReleaseId": "Jetson_Linux_4.6_0",
+          "estimateTargetDiskSizeInGB": "0",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "-1"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-4.6-ea/JETPACK_46_b137_DEEPSTREAM/sdkml3_jetpack_l4t_46_deepstream.json",
+          "intHWCompURL": ""
+        },
+        {
+          "version": "5.1",
+          "revision": 0,
+          "baseReleaseId": "Jetson_Linux_4.5.1_1",
+          "estimateTargetDiskSizeInGB": "0",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "874688"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-4.5.1/JETPACK_451_b17_DEEPSTREAM/sdkml3_jetpack_l4t_451_deepstream_r1.json",
+          "intHWCompURL": ""
+        },
+        {
+          "version": "5.1",
+          "revision": 0,
+          "baseReleaseId": "Jetson_Linux_4.5.1_0",
+          "estimateTargetDiskSizeInGB": "0",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "874688"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-4.5.1/JETPACK_451_b17_DEEPSTREAM/sdkml3_jetpack_l4t_451_deepstream.json",
+          "intHWCompURL": ""
+        },
+        {
+          "version": "5.0",
+          "revision": 0,
+          "baseReleaseId": "Jetson_Linux_4.5_0",
+          "estimateTargetDiskSizeInGB": "0",
+          "pidGroupId": "-1",
+          "devzoneProgramId": [
+            "874688"
+          ],
+          "canInstallStandAlone": false,
+          "installedOn": [
+            "target"
+          ],
+          "compRepoURL": "https://developer.nvidia.com/assets/embedded/secure/tools/files/jetpack-sdks/jetpack-4.5/JETPACK_45_b129_DEEPSTREAM/sdkml3_jetpack_l4t_45_deepstream.json",
+          "intHWCompURL": ""
+        }
+      ]
+    }
+  }
+}

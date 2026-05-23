@@ -1,0 +1,221 @@
+{
+  "information": {
+    "title": "Gxf Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 4,
+    "serverConfigurationBuild": "98"
+  },
+  "releases": [
+    {
+      "productDisplayName": "GXF Runtime",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "GXF Runtime 5.1.0",
+      "releaseRevision": 0,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_THOR_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu24.04"
+        ],
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in GXF Runtime 5.1.0:</span><ul><li>Graph Composer 5.1.0 has enhanced features added to the sdk along with the updated compute stack.</li></ul><a href=\"https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Release_notes.html#graph-composer-5-1-0\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Release_notes.html#graph-composer-5-1-0",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "GXF Runtime and Graph Composer Installers, with the Reference Graphs - GXF reference graphs based on deepstream sdk's sample applications, and V4l2 Dependency - Dependencies for multimedia extensions.\n*Host components only supports in Ubuntu 22.04.",
+      "showInMainList": true,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 7.1",
+            "releaseRevision": 0,
+            "showInMainList": true,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "7.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 7.0",
+            "releaseRevision": 1,
+            "showInMainList": true,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "7.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "GXF",
+      "targetOS": "Linux",
+      "releaseVersion": "5.1.0",
+      "releaseEdition": "",
+      "installedOn": [
+        "target",
+        "host"
+      ],
+      "description": "GXF Runtime and Graph Composer Installers, with the Reference Graphs - GXF reference graphs based on deepstream sdk's sample applications, and V4l2 Dependency - Dependencies for multimedia extensions.\n*Host components only supports in Ubuntu 22.04.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_GFX",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/gxf-runtime-5.1.0/gxf_510_b9/sdkml3_gxf_runtime_510_b11.json"
+    },
+    {
+      "productDisplayName": "GXF Runtime",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "GXF Runtime 4.1",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.4.0",
+      "releaseMessage": "GXF Runtime and Graph Composer Installers, with the Reference Graphs - GXF reference graphs based on deepstream sdk's sample applications, and V4l2 Dependency - Dependencies for multimedia extensions.\n*Host components only supports in Ubuntu 22.04.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2.2",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "GXF",
+      "targetOS": "Linux",
+      "releaseVersion": "4.1",
+      "releaseEdition": "",
+      "installedOn": [
+        "target",
+        "host"
+      ],
+      "description": "GXF Runtime and Graph Composer Installers, with the Reference Graphs - GXF reference graphs based on deepstream sdk's sample applications, and V4l2 Dependency - Dependencies for multimedia extensions.\n*Host components only supports in Ubuntu 22.04.",
+      "canInstallStandAlone": false,
+      "targetHW": [
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NX_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS",
+        "IGX_ORIN_DEVKIT_DGPU_TARGETS",
+        "IGX_ORIN_DEVKIT_IGPU_TARGETS"
+      ],
+      "id": "NV_JETPACK_ADDITIONAL_SDK_GFX",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/gxf-runtime-4.1/gxf_41_b57/sdkml3_gxf_runtime_41_b65.json"
+    }
+  ]
+}

@@ -1,0 +1,715 @@
+{
+  "information": {
+    "title": "Deepstream Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 29,
+    "serverConfigurationBuild": "3620"
+  },
+  "releases": [
+    {
+      "title": "DeepStream 9.0",
+      "productDisplayName": "DeepStream",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_THOR_TARGETS"
+        ]
+      },
+      "installMethodsSupported": [
+        {
+          "methodName": "direct_flash",
+          "iconUri": "none"
+        },
+        {
+          "methodName": "iso_flash",
+          "iconUri": "none"
+        },
+        {
+          "methodName": "iso_flash_headless",
+          "iconUri": "none"
+        }
+      ],
+      "minSDKMVer": "2.4.0.13235",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [],
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DeepStream 9.0:</span><ul><li>New AI capabilities and tools: DeepStream Coding Agent, Cosmos Reason 2 VLM</li><li>Support for RTX 4500 pro GPUs and latest Triton on x86 and JP 7.1</li><li>Built\u2011in observability with Open Telemetry, Prometheus metrics, and REST APIs for health checkpoints</li><li>Accuracy improvements for Reference Apps - MV3DT, MaskTracker, Pose Estimation</li><li>Smart Recording via Pyservicemaker</li></ul><a href=\"https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Release_notes.html#whats-new\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Release_notes.html#whats-new",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 7.1",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "7.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": true,
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "9.0",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/deepstream-9.0/DeepStream_90_b7/sdkml3_deepstream_90.json"
+    },
+    {
+      "productDisplayName": "DeepStream",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_THOR_TARGETS"
+        ]
+      },
+      "title": "DeepStream 8.0",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.4.0.13235",
+      "releaseMessage": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [],
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DeepStream 8.0:</span><ul><li>Multi-camera 3D tracking (MV3DT) with automated calibration.</li><li>Inference Builder for rapid deployment from simple configurations.</li><li>MaskTracker and TAO 6 support.</li><li>Accelerated tools for Generative AI development.</li></ul><a href=\"https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Release_notes.html#whats-new\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_Release_notes.html#whats-new",
+        "releaseNotesDownload": false
+      },
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 7.0",
+            "releaseRevision": 1,
+            "showInMainList": true,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "7.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "8.0",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/deepstream-8.0/DeepStream_80_b38/sdkml3_deepstream_80.json"
+    },
+    {
+      "productDisplayName": "DeepStream",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DeepStream 7.1",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.4.0",
+      "releaseMessage": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2.2",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "7.1",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "canInstallStandAlone": false,
+      "targetHW": [
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NX_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS",
+        "IGX_ORIN_DEVKIT_DGPU_TARGETS",
+        "IGX_ORIN_DEVKIT_IGPU_TARGETS"
+      ],
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/deepstream-7.1/deepstream_71_b26/sdkml3_deepstream_71_b31.json"
+    },
+    {
+      "productDisplayName": "DeepStream",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DeepStream 7.0",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.0.0",
+      "releaseMessage": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "targetHW": [
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NX_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS",
+        "IGX_ORIN_DEVKIT_DGPU_TARGETS",
+        "IGX_ORIN_DEVKIT_IGPU_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.0",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "7.0",
+      "installedOn": [
+        "target"
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "19.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/deepstream-7.0/DeepStream_70_b43/sdkml3_deepstream_70.json"
+    },
+    {
+      "productDisplayName": "DeepStream",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DeepStream 6.3",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "targetHW": [
+        "JETSON_AGX_XAVIER_TARGETS",
+        "JETSON_XAVIER_NX_TARGETS",
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS",
+        "JETSON_ORIN_NX_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ],
+        "targetGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 5.1.6",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "5.1.6",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 5.1.5",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "5.1.5",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "6.3",
+      "installedOn": [
+        "target"
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM_6_3",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "17.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/embedded/secure/tools/files/jetpack-sdks/deepstream-6.3/deepstream_63_b15/sdkml3_deepstream_63.json"
+    },
+    {
+      "productDisplayName": "DeepStream",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DeepStream 6.2",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "874688",
+      "targetHW": [
+        "JETSON_AGX_XAVIER_TARGETS",
+        "JETSON_XAVIER_NX_TARGETS",
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS",
+        "JETSON_ORIN_NX_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu1804",
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu1804",
+          "ubuntu2004"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTitle": "",
+        "releaseNotesDownload": false,
+        "releaseNotesTooltip": ""
+      },
+      "setupDeviceRecoveryModeOptions": [],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 5.1.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "5.1.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 5.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "5.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "6.2",
+      "installedOn": [
+        "target"
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM_6_2",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "15.0",
+      "compRepoURL": "https://developer.nvidia.com/assets/embedded/secure/tools/files/jetpack-sdks/deepstream-6.2/DeepStream_62_b18/sdkml3_deepstream_62.json"
+    },
+    {
+      "productDisplayName": "DeepStream",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DeepStream 6.1.1",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "874688",
+      "targetHW": [
+        "JETSON_AGX_XAVIER_TARGETS",
+        "JETSON_XAVIER_NX_TARGETS",
+        "CLARA_AGX_DEVKIT_TARGETS",
+        "JETSON_AGX_ORIN_TARGETS",
+        "CLARA_HOLOSCAN_DEVKIT_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [
+          "ubuntu1804",
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu1804",
+          "ubuntu2004"
+        ]
+      },
+      "estimateTargetDiskSizeInGB": "0.0",
+      "isInstallOnTargetEnabled": true,
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTitle": "",
+        "releaseNotesDownload": false,
+        "releaseNotesTooltip": ""
+      },
+      "setupDeviceRecoveryModeOptions": [],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 5.0.2",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "5.0.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "6.1.1",
+      "installedOn": [
+        "target"
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM_6_1_1",
+      "hasTargetComponents": true,
+      "releaseBuild": "",
+      "schemaVersion": "13.0",
+      "compRepoURL": "https://developer.nvidia.com/assets/embedded/secure/tools/files/jetpack-sdks/deepstream-6.1.1/DeepStream_611_b19/sdkml3_deepstream_611.json"
+    },
+    {
+      "productDisplayName": "DeepStream",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DeepStream 6.0.1",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "874688",
+      "targetHW": [
+        "JETSON_AGX_XAVIER_TARGETS",
+        "JETSON_XAVIER_NX_TARGETS",
+        "JETSON_TX2_TARGETS",
+        "JETSON_TX1_TARGETS",
+        "JETSON_NANO_TARGETS",
+        "CLARA_AGX_DEVKIT_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [
+          "ubuntu1604",
+          "ubuntu1804",
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu1604",
+          "ubuntu1804"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTitle": "",
+        "releaseNotesDownload": false,
+        "releaseNotesTooltip": ""
+      },
+      "setupDeviceRecoveryModeOptions": [],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 4.6.6",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "4.6.6",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 4.6.5",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "4.6.5",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 4.6.3",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "4.6.3",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 4.6.4",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "4.6.4",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "description": "DeepStream SDK provides a complete streaming analytics toolkit for situational awareness through computer vision, intelligent video analytics (IVA) and multi-sensor processing.",
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DeepStream",
+      "targetOS": "Linux",
+      "releaseVersion": "6.0.1",
+      "installedOn": [
+        "target"
+      ],
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_DEEPSTREAM_6_0_1",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "13.0",
+      "compRepoURL": "https://developer.nvidia.com/assets/deepstream/deepstream_6.0.1/deepstream_601_b11/sdkml3_deepstream.json"
+    }
+  ]
+}

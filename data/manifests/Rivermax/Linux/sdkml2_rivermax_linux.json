@@ -1,0 +1,159 @@
+{
+  "information": {
+    "title": "Rivermax Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 22,
+    "serverConfigurationBuild": "44"
+  },
+  "releases": [
+    {
+      "productDisplayName": "Rivermax",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Rivermax 1.51",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.2.0",
+      "releaseMessage": "Rivermax SDK is a unique IP-based solution that boosts video and data streaming performance. Rivermax together with NVIDIA GPU accelerated computing technologies unlocks innovation for a wide range of applications in Media and Entertainment (M&E), Broadcast, Healthcare, Smart Cities and more.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "896242"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Rivermax",
+      "targetOS": "Linux",
+      "releaseVersion": "1.51",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "Rivermax SDK is a unique IP-based solution that boosts video and data streaming performance. Rivermax together with NVIDIA GPU accelerated computing technologies unlocks innovation for a wide range of applications in Media and Entertainment (M&E), Broadcast, Healthcare, Smart Cities and more.",
+      "canInstallStandAlone": false,
+      "targetHW": [
+        "JETSON_AGX_ORIN_TARGETS",
+        "IGX_ORIN_DEVKIT_IGPU_TARGETS",
+        "IGX_ORIN_DEVKIT_DGPU_TARGETS"
+      ],
+      "id": "NV_JETPACK_ADDITIONAL_SDK_RIVERMAX",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "20.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/rivermax-sdks/rivermax-1.51/rivermax_151_b5/sdkml3_rivermax_151.json"
+    },
+    {
+      "productDisplayName": "Rivermax",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Rivermax 1.41",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.0.0",
+      "releaseMessage": "Rivermax SDK is a unique IP-based solution that boosts video and data streaming performance. Rivermax together with NVIDIA GPU accelerated computing technologies unlocks innovation for a wide range of applications in Media and Entertainment (M&E), Broadcast, Healthcare, Smart Cities and more.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "896242"
+      ],
+      "targetHW": [
+        "JETSON_AGX_ORIN_TARGETS",
+        "IGX_ORIN_DEVKIT_IGPU_TARGETS",
+        "IGX_ORIN_DEVKIT_DGPU_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.0",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Rivermax",
+      "targetOS": "Linux",
+      "releaseVersion": "1.41",
+      "installedOn": [
+        "target"
+      ],
+      "description": "Rivermax SDK is a unique IP-based solution that boosts video and data streaming performance. Rivermax together with NVIDIA GPU accelerated computing technologies unlocks innovation for a wide range of applications in Media and Entertainment (M&E), Broadcast, Healthcare, Smart Cities and more.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_RIVERMAX",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "19.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/rivermax-sdks/rivermax-1.41/Rivermax_141_b16/sdkml3_rivermax_141.json"
+    }
+  ]
+}

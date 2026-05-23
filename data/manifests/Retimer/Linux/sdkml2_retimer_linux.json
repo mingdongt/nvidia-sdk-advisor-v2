@@ -1,0 +1,192 @@
+{
+  "information": {
+    "title": "Retimer Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 9,
+    "serverConfigurationBuild": "3"
+  },
+  "releases": [
+    {
+      "title": "Retimer SDK 60.1.3004",
+      "productDisplayName": "Retimer",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "allowRunAsRoot": false,
+      "supportedHardware": {
+        "seriesIds": []
+      },
+      "minSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000018"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "centos7.9"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Retimer SDK 60.1.3004:</span><ul><li>New feature - Reporting SNR and LOL indications</li><li>General Improvements</li></ul></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/networking/secure/retimer/Retimer_601300_b5/NVIDIA_Retimer_SDK_Release_Notes_v60.1.3004.pdf",
+        "releaseNotesDownload": true
+      },
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "productCategory": "Retimer",
+      "targetOS": "Linux",
+      "releaseVersion": "60.1.300",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/retimer/Retimer_601300_b5/sdkml3_retimer_sdk_6013004.json"
+    },
+    {
+      "productDisplayName": "Retimer",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Retimer SDK 60.1.2014",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.2.0",
+      "targetHW": [],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "centos7.9"
+        ]
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000018"
+      ],
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Retimer SDK 60.1.2014:</span><ul><li>General Improvements.</li></ul></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/networking/secure/retimer/Retimer_601201_b17/NVIDIA_Retimer_SDK_Release_Notes_v60_1_2014.pdf",
+        "releaseNotesDownload": true
+      },
+      "showInMainList": false,
+      "allowRunAsRoot": false,
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Retimer",
+      "targetOS": "Linux",
+      "releaseVersion": "60.1.201",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/retimer/Retimer_601201_b17/sdkml3_retimer_sdk_6012014.json"
+    },
+    {
+      "productDisplayName": "Retimer",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Retimer SDK 60.1.2000",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.2.0",
+      "targetHW": [],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "centos7.9"
+        ]
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000018"
+      ],
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Retimer SDK 60.1.2000:</span><ul><li>Improved product robustness.</li></ul></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/networking/secure/retimer/Retimer_60120_b10/NVIDIA_Retimer_SDK_Release_Notes_v60.1.2000.pdf",
+        "releaseNotesDownload": true
+      },
+      "showInMainList": false,
+      "allowRunAsRoot": false,
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Retimer",
+      "targetOS": "Linux",
+      "releaseVersion": "60.1.20",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/retimer/Retimer_60120_b10/sdkml3_retimer_sdk_6012000.json"
+    },
+    {
+      "productDisplayName": "Retimer",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Retimer SDK 60.1.1098",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.2.0",
+      "targetHW": [],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "centos7.9"
+        ]
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000018"
+      ],
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Retimer SDK 60.1.1098:</span><ul><li>GA version of Nvidia ReTimer SDK</li></ul></div>",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": false,
+      "allowRunAsRoot": false,
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Retimer",
+      "targetOS": "Linux",
+      "releaseVersion": "60.1.10",
+      "id": "",
+      "hasTargetComponents": false,
+      "hardwareConfiguration": [
+        "host"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/retimer/Retimer_60110_b39/sdkml3_retimer_sdk_6011098.json"
+    }
+  ]
+}

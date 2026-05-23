@@ -1,0 +1,257 @@
+{
+  "information": {
+    "title": "SDK Manager supported releases index",
+    "version": "12",
+    "revision": 0,
+    "serverConfigurationBuild": "1003D584J23C132DOCA"
+  },
+  "productCategories": [
+    {
+      "categoryName": "DRIVE",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../DRIVE/Linux/sdkml2_drive_linux.json"
+        },
+        {
+          "targetOS": "QNX",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../DRIVE/QNX/sdkml2_drive_qnx.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Jetson",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Jetson/Linux/sdkml2_jetson_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Switch",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Switch/Linux/sdkml2_switch_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Retimer",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Retimer/Linux/sdkml2_retimer_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Deepstream",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Deepstream/Linux/sdkml2_deepstream_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "VideoCodec",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Videocodec/Linux/sdkml2_videocodec_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Gxf",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../GXF/Linux/sdkml2_gxf_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Holoscan",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Holoscan/Linux/sdkml2_holoscan_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Rivermax",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Rivermax/Linux/sdkml2_rivermax_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Drivepdk",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Drivepdk/Linux/sdkml2_drivepdk_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "DOCA",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../DOCA/Linux/sdkml2_doca_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Cuda",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Cuda/Linux/sdkml2_cuda_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Aerial",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Aerial/Linux/sdkml2_aerial_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "RAPIDS",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Rapids/Linux/sdkml2_rapids_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "GeForce",
+      "productLines": [
+        {
+          "targetOS": "Windows",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Geforce/windows/sdkml2_geforce_windows.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "Datalake",
+      "productLines": [
+        {
+          "targetOS": "Linux",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../Datalake/Linux/sdkml2_datalake_linux.json"
+        }
+      ]
+    },
+    {
+      "categoryName": "SDK Manager",
+      "productLines": [
+        {
+          "targetOS": "",
+          "targetType": "",
+          "serverType": [
+            "PID",
+            "DEVZONE"
+          ],
+          "releasesIndexURL": "../SDKMANAGER/Linux/sdkml2_sdkmanager_linux.json"
+        }
+      ]
+    }
+  ]
+}

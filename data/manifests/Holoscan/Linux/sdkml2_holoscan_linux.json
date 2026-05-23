@@ -1,0 +1,494 @@
+{
+  "information": {
+    "title": "Holoscan Linux Versions Releases",
+    "fileVersion": "3",
+    "fileRevision": 38,
+    "serverConfigurationBuild": "17"
+  },
+  "releases": [
+    {
+      "title": "Holoscan 4.2",
+      "productDisplayName": "Holoscan",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_THOR_TARGETS",
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ]
+      },
+      "installMethodsSupported": [
+        {
+          "methodName": "direct_flash",
+          "iconUri": "none"
+        },
+        {
+          "methodName": "iso_flash",
+          "iconUri": "none"
+        },
+        {
+          "methodName": "iso_flash_headless",
+          "iconUri": "none"
+        }
+      ],
+      "minSDKMVer": "2.4.0.13235",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "874688"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Holoscan 4.2:</span><ul><li>GPU-resident graph execution now supports directed acyclic graphs of operators.</li><li>DEBUG logging enables device-side diagnostics during GPU-resident graph runs.</li><li>The installed SDK includes MatX CMake configuration for downstream integration.</li><li>Updates GXF 5.6, CUDA 13.2, major libraries, and CUDA 13 containers to align with Production Branch 6.</li><li>RMM upgrades introduce API changes that may affect custom GPU memory pool code.</li><li>A new benchmark measures operator performance under `SCHED_DEADLINE` scheduling with background load.</li></ul><a href=\"https://github.com/nvidia-holoscan/holoscan-sdk/releases/tag/v4.2.0#release-notes\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://github.com/nvidia-holoscan/holoscan-sdk/releases/tag/v4.2.0#release-notes",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 7.1",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "7.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2.2",
+            "releaseRevision": 0,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2.1",
+            "releaseRevision": 1,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.2",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": true,
+      "productCategory": "Holoscan",
+      "targetOS": "Linux",
+      "releaseVersion": "4.2",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_HOLOSCAN",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/Clara/Downloads/Secure/Holoscan-4.2/Holoscan_42_b4/sdkml3_holoscan_42.json"
+    },
+    {
+      "title": "Holoscan 3.9",
+      "productDisplayName": "Holoscan",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_THOR_TARGETS",
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "887788"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04",
+          "windows10",
+          "windows11"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 7.0",
+            "releaseRevision": 1,
+            "showInMainList": true,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "7.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": true,
+      "productCategory": "Holoscan",
+      "targetOS": "Linux",
+      "releaseVersion": "3.9",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_HOLOSCAN",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/assets/Clara/Downloads/Secure/Holoscan-3.9/Holoscan_39_b4/sdkml3_holoscan_39.json"
+    },
+    {
+      "title": "Holoscan 2.9",
+      "productDisplayName": "Holoscan",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "seriesIds": [
+          "JETSON_AGX_ORIN_TARGETS",
+          "JETSON_ORIN_NANO_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.2.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "887788"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "releaseMessage": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.1",
+            "releaseRevision": 1,
+            "showInMainList": true,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "isAdditionalSDK": true,
+      "productCategory": "Holoscan",
+      "targetOS": "Linux",
+      "releaseVersion": "2.9",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "canInstallStandAlone": false,
+      "id": "NV_JETPACK_ADDITIONAL_SDK_HOLOSCAN",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "22.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/clara/downloads/secure/holoscan-2.9/Holoscan_29_b4/sdkml3_holoscan_29.json"
+    },
+    {
+      "productDisplayName": "Holoscan",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Holoscan 2.5",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.1.0.11682",
+      "releaseMessage": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "887788"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.0",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "productCategory": "Holoscan",
+      "targetOS": "Linux",
+      "releaseVersion": "2.5",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "canInstallStandAlone": false,
+      "targetHW": [
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS"
+      ],
+      "id": "NV_JETPACK_ADDITIONAL_SDK_HOLOSCAN",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "20.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/clara/downloads/secure/holoscan-2.5/holoscan_25_b3/sdkml3_holoscan_25.json"
+    },
+    {
+      "productDisplayName": "Holoscan",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Holoscan 2.4",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.1.0.11682",
+      "releaseMessage": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "887788"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "off",
+          "parent": {
+            "title": "JetPack 6.0",
+            "releaseRevision": 2,
+            "productCategory": "Jetson",
+            "targetOS": "Linux",
+            "releaseVersion": "6.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Holoscan",
+      "targetOS": "Linux",
+      "releaseVersion": "2.4",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "Holoscan is a domain-agnostic AI computing platform that delivers the accelerated, full-stack infrastructure required for scalable, software-defined, and real-time processing of streaming data running at the edge or in the cloud.",
+      "canInstallStandAlone": false,
+      "targetHW": [
+        "JETSON_AGX_ORIN_TARGETS",
+        "JETSON_ORIN_NANO_TARGETS"
+      ],
+      "id": "NV_JETPACK_ADDITIONAL_SDK_HOLOSCAN",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "20.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/assets/Clara/Downloads/Secure/Holoscan-2.4/Holoscan_24_b3/sdkml3_holoscan_24.json"
+    },
+    {
+      "productDisplayName": "Holoscan",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "HoloPack 1.2",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "887788",
+      "targetHW": [
+        "CLARA_AGX_DEVKIT_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "ubuntu1804",
+          "ubuntu2004"
+        ],
+        "targetGroups": [
+          "ubuntu1804",
+          "ubuntu2004"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTitle": "What's New",
+        "releaseNotesURL": "https://docs.nvidia.com/jetson/archives/r34.1/ReleaseNotes/Jetson_Linux_Release_Notes_r34.1.1_DP.pdf",
+        "releaseNotesDownload": true,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in HoloPack 1.2:</span><ul><li>CX6 FW Update Fix.</li></div>"
+      },
+      "showInMainList": true,
+      "setupDeviceRecoveryModeOptions": [
+        "manual",
+        "automatic"
+      ],
+      "supportsOEMPreConfiguration": true,
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "Holoscan",
+      "targetOS": "Linux",
+      "releaseVersion": "1.2",
+      "releaseEdition": "IGPU",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "15.0",
+      "compRepoURL": "https://developer.nvidia.com/assets/clara/downloads/secure/Clara-Holoscan-1.2/Holoscan_12_b3/sdkml3_holopack_12.json"
+    }
+  ]
+}

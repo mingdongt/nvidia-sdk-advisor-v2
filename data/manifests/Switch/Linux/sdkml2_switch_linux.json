@@ -1,0 +1,300 @@
+{
+  "information": {
+    "title": "Switch Linux Versions Releases",
+    "fileVersion": "2",
+    "fileRevision": 56,
+    "serverConfigurationBuild": "250"
+  },
+  "releases": [
+    {
+      "title": "Switch SDK 4.8.3086 (Last version supported by SDK Manager)",
+      "productDisplayName": "Ethernet Switch",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "deviceIds": [
+          "SWITCH_MSN2010_18",
+          "SWITCH_MSN2100_16",
+          "SWITCH_MSN2201",
+          "SWITCH_MSN2410_48",
+          "SWITCH_MSN2700_32",
+          "SWITCH_MSN3420_60",
+          "SWITCH_MSN3700_32",
+          "SWITCH_MSN3750",
+          "SWITCH_MSN3800",
+          "SWITCH_MSN4700_32",
+          "SWITCH_MSN4600_64",
+          "SWITCH_MSN4410",
+          "SWITCH_MSN5600",
+          "SWITCH_MSN5610",
+          "SWITCH_MSN5400",
+          "SWITCH_MSN5640",
+          "SWITCH_MSN4280"
+        ],
+        "seriesIds": [],
+        "excludedDeviceIds": []
+      },
+      "minSDKMVer": "2.4.0.13235",
+      "maxSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "897734"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "centos8.2",
+          "ubuntu18.04",
+          "ubuntu20.04",
+          "ubuntu24.04"
+        ],
+        "targetGroups": [
+          "centos8.2",
+          "ubuntu18.04",
+          "ubuntu20.04",
+          "ubuntu24.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Switch SDK 4.8.3086:</span><ul><li>New Switch SDK versions will be published via DevZone only</li><li>SDK CLI commands to show and set port operations </li><li>Customer-Optimized SDK Debug Dump</li><li>New SRv6 ACL keys</li><li>Added support for Tunnel in ISSUv2</li></ul></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/Switch_4830_b6/NVIDIA_SDK_v4.8.3086_RN_for_Ethernet.pdf",
+        "releaseNotesDownload": true
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Switch",
+      "targetOS": "Linux",
+      "releaseVersion": "4.8.30",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "24.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/Switch_4830_b6/sdkml3_switch_sdk_483086.json"
+    },
+    {
+      "title": "Switch SDK 4.8.2112",
+      "productDisplayName": "Ethernet Switch",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "deviceIds": [
+          "SWITCH_MSN2010_18",
+          "SWITCH_MSN2100_16",
+          "SWITCH_MSN2201",
+          "SWITCH_MSN2410_48",
+          "SWITCH_MSN2700_32",
+          "SWITCH_MSN3420_60",
+          "SWITCH_MSN3700_32",
+          "SWITCH_MSN3750",
+          "SWITCH_MSN3800",
+          "SWITCH_MSN4700_32",
+          "SWITCH_MSN4600_64",
+          "SWITCH_MSN4410",
+          "SWITCH_MSN5600",
+          "SWITCH_MSN5610",
+          "SWITCH_MSN5400",
+          "SWITCH_MSN5640",
+          "SWITCH_MSN4280"
+        ],
+        "seriesIds": [],
+        "excludedDeviceIds": []
+      },
+      "minSDKMVer": "2.4.0",
+      "maxSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "897734"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "centos8.2",
+          "ubuntu18.04",
+          "ubuntu20.04",
+          "ubuntu24.04"
+        ],
+        "targetGroups": [
+          "centos8.2",
+          "ubuntu18.04",
+          "ubuntu20.04",
+          "ubuntu24.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Switch SDK 4.8.2112:</span><ul><li>Bug fixes</li></ul></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/Switch_4821_b5/NVIDIA_SDK_v4.8.2112_RN_for_Ethernet.pdf",
+        "releaseNotesDownload": true
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "productCategory": "Switch",
+      "targetOS": "Linux",
+      "releaseVersion": "4.8.21",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/Switch_4821_b5/sdkml3_switch_sdk_482112.json"
+    },
+    {
+      "title": "Switch SDK 4.7.2442",
+      "productDisplayName": "Ethernet Switch",
+      "releaseRevision": 0,
+      "showInMainList": true,
+      "supportedHardware": {
+        "deviceIds": [
+          "SWITCH_MSN4700_32",
+          "SWITCH_MSN4600_64",
+          "SWITCH_MSN4410",
+          "SWITCH_MSN5600",
+          "SWITCH_MSN5400"
+        ],
+        "seriesIds": [
+          "SWITCH_2XXX_TARGETS",
+          "SWITCH_3XXX_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.3.0.12626",
+      "maxSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "897734"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "automatic"
+      ],
+      "IntHWSupport": false,
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "centos8.2",
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ],
+        "targetGroups": [
+          "centos8.2",
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ]
+      },
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Switch SDK 4.7.2442:</span><ul><li>Bug fixes</li></ul></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/Switch_47244_b8/NVIDIA_SDK_v4.7.2442_RN_for_Ethernet.pdf",
+        "releaseNotesDownload": true
+      },
+      "releaseMessage": "",
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "productCategory": "Switch",
+      "targetOS": "Linux",
+      "releaseVersion": "4.7.244",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/Switch_47244_b8/sdkml3_switch_sdk_472442.json"
+    },
+    {
+      "productDisplayName": "Ethernet Switch",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "Switch SDK 4.6.2300 - LTS",
+      "releaseRevision": 0,
+      "minSDKMVer": "2.1.0",
+      "maxSDKMVer": "2.4.0",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "897734"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "centos8.0",
+          "centos8.2",
+          "ubuntu16.04",
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ],
+        "targetGroups": [
+          "centos8.0",
+          "centos8.2",
+          "ubuntu16.04",
+          "ubuntu18.04",
+          "ubuntu20.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in Switch SDK 4.6.2300 - LTS:</span><ul><li>Bug fixes</li></ul></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/switch_4623_b4/nvidia_sdk_v.4.6.2300_rn_for_ethernet.pdf",
+        "releaseNotesDownload": true
+      },
+      "showInMainList": true,
+      "setupDeviceRecoveryModeOptions": [
+        "automatic"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "locked": false,
+      "productCategory": "Switch",
+      "targetOS": "Linux",
+      "releaseVersion": "4.6.23",
+      "releaseEdition": "",
+      "targetHW": [
+        "SWITCH_2XXX_TARGETS",
+        "SWITCH_3XXX_TARGETS",
+        "SWITCH_4XXX_TARGETS",
+        "SWITCH_5XXX_TARGETS"
+      ],
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "19.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/eth-switch/switch_4623_b4/sdkml3_switch_sdk_462300_-_lts.json"
+    }
+  ]
+}

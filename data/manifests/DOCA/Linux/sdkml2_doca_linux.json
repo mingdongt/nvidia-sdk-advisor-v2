@@ -1,0 +1,225 @@
+{
+  "information": {
+    "title": "Doca Linux Versions Releases",
+    "fileVersion": "8",
+    "fileRevision": 13,
+    "serverConfigurationBuild": "208DOCA"
+  },
+  "releases": [
+    {
+      "productDisplayName": "DOCA",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DOCA 2.2.0",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "maxSDKMVer": "2.1.0.11698",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "895349"
+      ],
+      "targetHW": [
+        "BLUEFIELD3_DPU_TARGETS",
+        "BLUEFIELD3_DPU_VPI_TARGETS",
+        "BLUEFIELD2_DPU_TARGETS",
+        "BLUEFIELD2_DPU_VPI_TARGETS",
+        "NVIDIA_CONVERGED_ACCELERATOR_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "hostGroups": [
+          "debian10",
+          "rhel8.2",
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ],
+        "targetGroups": [
+          "debian10",
+          "rhel8.2",
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ]
+      },
+      "IntHWSupport": true,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DOCA 2.2.0:</span><ul><li>Enhancements to BlueField NIC mode </li><li>DOCA PCC (Beta) for Programmable Congestion Control</li><li>Data-Path-Accelerator (DPA) DOCA FlexIO (GA)</li><li>DOCA FLOW enhancements for VPC overlay acceleration (Geneve and GRE)</li><li>DOCA FLOW per-flow metering</li><li>OVS-DOCA (Beta)</li><li>DOCA profiles (package install options) \u2013 Introducing DOCA-OFED profile</li><li>BMC/Redfish enhancements</li><li>Allowing DOCA-Services installation on devices with no internet access</li><li>Additional Host and DPU OSs are now supported</li></ul><a href=\"https://docs.nvidia.com/doca/sdk/release-notes/index.html\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/doca/sdk/release-notes/index.html",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "allowRunAsRoot": true,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DOCA",
+      "targetOS": "Linux",
+      "releaseVersion": "2.2.0",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "18.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/doca-sdk/doca_2.2.0/doca_220_b63/sdkml3_doca_220.json"
+    },
+    {
+      "productDisplayName": "DOCA",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DOCA 1.5.1",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "maxSDKMVer": "2.1.0.11698",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "895349",
+      "targetHW": [
+        "BLUEFIELD2_DPU_TARGETS",
+        "NVIDIA_CONVERGED_ACCELERATOR_TARGETS",
+        "BLUEFIELD2_DPU_VPI_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [
+          "centos7.6",
+          "centos8.0",
+          "centos8.2",
+          "debian10",
+          "rhel7.6",
+          "rhel8.0",
+          "rhel8.2",
+          "rhel8.6",
+          "rocky8.6",
+          "ubuntu1804",
+          "ubuntu2004",
+          "ubuntu2204"
+        ],
+        "targetGroups": [
+          "centos7.6",
+          "centos8.0",
+          "centos8.2",
+          "debian10",
+          "rhel7.6",
+          "rhel8.0",
+          "rhel8.2",
+          "rhel8.6",
+          "rocky8.6",
+          "ubuntu1804",
+          "ubuntu2004",
+          "ubuntu2204"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTitle": "What's New",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DOCA 1.5.1:</span><ul><li>Bug fixes and stability enhancements.</li><li>Support Rocky Linux on DPU and Host (Comm Channel is not supported). </li><li>Support CentOS 8.2 on DPU and on Host.</li><li>DOCA Blueman service GA.</li><li>IPSec tunnel mode [Beta].</li></ul><a href=\"https://docs.nvidia.com/doca/sdk/release-notes/index.html\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>"
+      },
+      "showInMainList": true,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DOCA",
+      "targetOS": "Linux",
+      "releaseVersion": "1.5.1",
+      "releaseEdition": "",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "13.0",
+      "compRepoURL": "https://developer.nvidia.com/networking/secure/doca-sdk/DOCA_1.5.1/DOCA_151_b18/sdkml3_doca_151.json"
+    },
+    {
+      "productDisplayName": "DOCA",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "DOCA 1.5.1 for Multiple DPUs",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "maxSDKMVer": "2.1.0.11698",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "895349",
+      "targetHW": [
+        "BLUEFIELD2_DPU_TARGETS",
+        "NVIDIA_CONVERGED_ACCELERATOR_TARGETS",
+        "BLUEFIELD2_DPU_VPI_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [
+          "centos7.6",
+          "centos8.0",
+          "centos8.2",
+          "debian10",
+          "rhel7.6",
+          "rhel8.0",
+          "rhel8.2",
+          "rhel8.6",
+          "rocky8.6",
+          "ubuntu1804",
+          "ubuntu2004",
+          "ubuntu2204"
+        ],
+        "targetGroups": [
+          "centos7.6",
+          "centos8.0",
+          "centos8.2",
+          "debian10",
+          "rhel7.6",
+          "rhel8.0",
+          "rhel8.2",
+          "rhel8.6",
+          "rocky8.6",
+          "ubuntu1804",
+          "ubuntu2004",
+          "ubuntu2204"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTitle": "What's New",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in DOCA 1.5.1 for Multiple DPUs:</span><ul><li>Bug fixes and stability enhancements.</li><li>Support Rocky Linux on DPU and Host (Comm Channel is not supported). </li><li>Support CentOS 8.2 on DPU and on Host.</li><li>DOCA Blueman service GA.</li><li>IPSec tunnel mode [Beta].</li></ul><a href=\"https://docs.nvidia.com/doca/sdk/release-notes/index.html\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>"
+      },
+      "showInMainList": true,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "architectures": [
+        "x86_64"
+      ],
+      "productCategory": "DOCA",
+      "targetOS": "Linux",
+      "releaseVersion": "1.5.1",
+      "releaseEdition": "MD",
+      "id": "",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "13.0",
+      "compRepoURL": "https://developer.nvidia.com/networking/secure/doca-sdk/DOCA_1.5.1/DOCA_151_b10/sdkml3_doca_151_for_multiple_dpus.json"
+    }
+  ]
+}

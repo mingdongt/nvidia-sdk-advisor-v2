@@ -1,0 +1,176 @@
+{
+  "information": {
+    "title": "Aerial Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 26,
+    "serverConfigurationBuild": "186"
+  },
+  "releases": [
+    {
+      "productDisplayName": "ARC-OTA",
+      "title": "ARC-OTA 1.7",
+      "releaseRevision": 0,
+      "supportedHardware": {
+        "deviceIds": [
+          "SUPERMICRO_GH_MGX_TARGET"
+        ],
+        "seriesIds": [
+          "5GC_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000023"
+      ],
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in ARC-OTA 1.7:</span><ul><li>Foxconn O-RUs are no longer supported</li><li>ARC-OTA 1.7 installation now supported on ARM</li></ul><a href=\"https://docs.nvidia.com/aerial/aerial-ran-colab-ota/current/text/release_notes.html\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/aerial/aerial-ran-colab-ota/current/text/release_notes.html",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "supportsOEMPreConfiguration": false,
+      "architectures": [
+        "x86_64",
+        "aarch64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Aerial",
+      "targetOS": "Linux",
+      "releaseVersion": "A1.7",
+      "releaseEdition": "",
+      "id": "NV_AERIAL_BUNDLE",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "target"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/aerial/aerial-sdk/aerial/secure/arc_1.7/aerial_a17_b9/sdkml3_arc-ota_17.json"
+    },
+    {
+      "productDisplayName": "ARC-OTA",
+      "title": "ARC-OTA 1.6",
+      "releaseRevision": 0,
+      "supportedHardware": {
+        "deviceIds": [
+          "SUPERMICRO_GH_MGX_TARGET"
+        ],
+        "seriesIds": [
+          "5GC_TARGETS"
+        ]
+      },
+      "minSDKMVer": "2.4.0",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "targetGroups": [
+          "ubuntu22.04",
+          "ubuntu24.04"
+        ]
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "1000023"
+      ],
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in ARC-OTA 1.6:</span><ul><li>Dell PowerEdge R750 Server + A100X HW no longer supported</li><li>Gigabyte Edge E251-U70 Server HW no longer supported</li></ul><a href=\"https://docs.nvidia.com/aerial/aerial-ran-colab-ota/current/text/release_notes.html\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/aerial/aerial-ran-colab-ota/current/text/release_notes.html",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "supportsOEMPreConfiguration": false,
+      "architectures": [
+        "x86_64",
+        "aarch64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Aerial",
+      "targetOS": "Linux",
+      "releaseVersion": "A1.6",
+      "releaseEdition": "",
+      "id": "NV_AERIAL_BUNDLE",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "target"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "23.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/aerial/aerial-sdk/aerial/secure/arc_1.6/aerial_a16_b73/sdkml3_arc-ota_16.json"
+    },
+    {
+      "productDisplayName": "ARC-OTA",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "ARC-OTA 1.5",
+      "releaseRevision": 1,
+      "minSDKMVer": "2.1.0.11698",
+      "hostOperatingSystemsSupportFor": {
+        "targetGroups": [
+          "ubuntu18.04",
+          "ubuntu20.04",
+          "ubuntu22.04"
+        ]
+      },
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "911004"
+      ],
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in ARC-OTA 1.5:</span><ul><li>SDKM now supports 3 ARC-OTA platforms.   (New SMC-GH,  Gigabyte,  Dell R750)</li><li>Additional release artifacts on top of the release manifest for ARC-OTA have been automated to further help developers</li><li>Additional services like AI Frameworks installation (eg. DataLakes + pyAerial) has been automated (on Gigabyte and Dell R750)</li></ul><a href=\"https://docs.nvidia.com/aerial/aerial-ran-colab-ota/archive/1.5/text/release_notes.html\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://docs.nvidia.com/aerial/aerial-ran-colab-ota/archive/1.5/text/release_notes.html",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": true,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "supportsOEMPreConfiguration": false,
+      "architectures": [
+        "x86_64",
+        "x86_64-wsl"
+      ],
+      "locked": false,
+      "productCategory": "Aerial",
+      "targetOS": "Linux",
+      "releaseVersion": "A1.5",
+      "releaseEdition": "",
+      "targetHW": [
+        "GIGABYTE_EDGE_TARGET",
+        "DELL_R750_A100X_TARGET",
+        "SUPERMICRO_GH_MGX_TARGET",
+        "5GC_TARGETS"
+      ],
+      "id": "NV_AERIAL_BUNDLE",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "target"
+      ],
+      "releaseBuild": "",
+      "IntHWSupport": false,
+      "schemaVersion": "20.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/aerial/aerial-sdk/aerial/secure/arc_1.5/aerial_a15_b67/sdkml3_arc-ota_15_rev1.json"
+    }
+  ]
+}

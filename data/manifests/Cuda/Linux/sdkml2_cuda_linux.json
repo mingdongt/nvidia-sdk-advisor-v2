@@ -1,0 +1,223 @@
+{
+  "information": {
+    "title": "Cuda Linux Versions Releases",
+    "fileVersion": "1",
+    "fileRevision": 9,
+    "serverConfigurationBuild": "41"
+  },
+  "releases": [
+    {
+      "productDisplayName": "CUDA Toolkit",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "CUDA Toolkit 12.1",
+      "releaseRevision": 0,
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": [
+        "895349"
+      ],
+      "targetHW": [
+        "NVIDIA_CONVERGED_ACCELERATOR_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "targetGroups": [
+          "centos7.6",
+          "centos8.0",
+          "centos8.2",
+          "debian10",
+          "rhel7.6",
+          "rhel8.0",
+          "rhel8.2",
+          "rhel8.6",
+          "rhel8.6",
+          "rocky8.6",
+          "rocky8.6",
+          "ubuntu18.04",
+          "ubuntu20.04",
+          "ubuntu22.04",
+          "ubuntu22.04"
+        ]
+      },
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in CUDA Toolkit 12.1:</span><ul><li>NVIDIA Magnum IO GPUDirect\u00ae Storage (GDS) is now part of CUDA.</li><li>liMPS - Implemented a programmatic API to configure SM partitions.</li><li>MPS - Also allow non-uniform SM partitioning using either MPS control daemon command set_active_thread_percentage or the environment variable CUDA_MPS_ACTIVE_THREAD_PERCENTAGE.</li></ul><a href=\"https://developer.nvidia.com/cuda-downloads\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>",
+        "releaseNotesURL": "https://developer.nvidia.com/cuda-downloads",
+        "releaseNotesDownload": false
+      },
+      "showInMainList": false,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "on",
+          "parent": {
+            "title": "DOCA 2.0.2",
+            "releaseRevision": 2,
+            "productCategory": "DOCA",
+            "targetOS": "Linux",
+            "releaseVersion": "2.0.2",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "on",
+          "parent": {
+            "title": "DOCA 2.2.0",
+            "releaseRevision": 0,
+            "productCategory": "DOCA",
+            "targetOS": "Linux",
+            "releaseVersion": "2.2.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        }
+      ],
+      "architectures": [
+        "aarch64",
+        "x86_64"
+      ],
+      "productCategory": "CUDA",
+      "targetOS": "Linux",
+      "releaseVersion": "12.1",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "The CUDA Toolkit provides a comprehensive development environment for C and C++ developers building GPU-accelerated applications.",
+      "canInstallStandAlone": false,
+      "id": "NV_CUDA_TARGET_SDK",
+      "hasTargetComponents": true,
+      "hardwareConfiguration": [
+        "host",
+        "target"
+      ],
+      "releaseBuild": "",
+      "schemaVersion": "17.0",
+      "compRepoURL": "https://developer.nvidia.com/downloads/networking/secure/doca-sdk/cuda_12.1/cuda_121_b12/sdkml3_cuda_toolkit_121.json"
+    },
+    {
+      "productDisplayName": "CUDA Toolkit",
+      "serverType": [
+        "DEVZONE"
+      ],
+      "title": "CUDA Toolkit 11.6",
+      "releaseRevision": 0,
+      "releaseEditionMessage": "",
+      "minSDKMVer": "1.9.3",
+      "releaseMessage": "",
+      "pidGroupId": "-1",
+      "devzoneProgramId": "895349",
+      "targetHW": [
+        "NVIDIA_CONVERGED_ACCELERATOR_TARGETS"
+      ],
+      "hostOperatingSystemsSupportFor": {
+        "displayWarningForOS": [],
+        "hostGroups": [],
+        "targetGroups": [
+          "centos7.6",
+          "centos8.0",
+          "centos8.2",
+          "rocky8.6",
+          "debian10",
+          "rhel7.6",
+          "rhel8.0",
+          "rhel8.2",
+          "rhel8.6",
+          "ubuntu1804",
+          "ubuntu2004",
+          "ubuntu2204"
+        ]
+      },
+      "estimateTargetDiskSizeInGB": "0.0",
+      "isInstallOnTargetEnabled": true,
+      "IntHWSupport": false,
+      "releaseNotes": {
+        "releaseNotesTitle": "What's New",
+        "releaseNotesURL": "",
+        "releaseNotesDownload": false,
+        "releaseNotesTooltip": "<div><span class=\"tooltip-title\">What's new in CUDA 11.6:</span><ul><li>NVIDIA Magnum IO GPUDirect\u00ae Storage (GDS) is now part of CUDA.</li><liMPS - Implemented a programmatic API to configure SM partitions.</li><li>MPS - Also allow non-uniform SM partitioning using either MPS control daemon command set_active_thread_percentage or the environment variable CUDA_MPS_ACTIVE_THREAD_PERCENTAGE.</li></ul><br/><a href=\"https://developer.nvidia.com/cuda-downloads\" target=\"_blank\" class=\"tooltip-link\">Open Release Notes</a></div>"
+      },
+      "supportedAdditionalSDKList": [],
+      "showInMainList": false,
+      "setupDeviceRecoveryModeOptions": [
+        "none"
+      ],
+      "isAdditionalSDK": true,
+      "SDKsRelations": [
+        {
+          "default": "on",
+          "parent": {
+            "title": "DOCA 1.5.1",
+            "releaseRevision": 0,
+            "productCategory": "DOCA",
+            "targetOS": "Linux",
+            "releaseVersion": "1.5.1",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "On",
+          "parent": {
+            "title": "DOCA 1.5.0",
+            "releaseRevision": 0,
+            "productCategory": "DOCA",
+            "targetOS": "Linux",
+            "releaseVersion": "1.5.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "On",
+          "parent": {
+            "title": "DOCA 1.4.0",
+            "releaseRevision": 0,
+            "productCategory": "DOCA",
+            "targetOS": "Linux",
+            "releaseVersion": "1.4.0",
+            "releaseEdition": ""
+          },
+          "depends": [],
+          "conflicts": []
+        },
+        {
+          "default": "On",
+          "parent": {
+            "title": "DOCA 1.3.0",
+            "releaseRevision": 0,
+            "productCategory": "DOCA",
+            "targetOS": "Linux",
+            "releaseVersion": "1.3.0",
+            "releaseEdition": ""
+          },
+          "depends": []
+        }
+      ],
+      "productCategory": "CUDA",
+      "targetOS": "Linux",
+      "releaseVersion": "11.6",
+      "releaseEdition": "",
+      "installedOn": [
+        "target"
+      ],
+      "description": "The CUDA Toolkit provides a comprehensive development environment for C and C++ developers building GPU-accelerated applications.",
+      "canInstallStandAlone": false,
+      "id": "NV_CUDA_TARGET_SDK",
+      "hasTargetComponents": true,
+      "releaseBuild": "",
+      "schemaVersion": "13.0",
+      "compRepoURL": "https://developer.nvidia.com/networking/secure/doca-sdk/DOCA_1.3.0/CUDA_116_b30/sdkml3_cuda_toolkit_116.json"
+    }
+  ]
+}

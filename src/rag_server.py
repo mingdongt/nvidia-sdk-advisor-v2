@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastmcp import FastMCP
+from src.brave_search import brave_search, BraveSearchError
 
 mcp = FastMCP("nvidia-corpus-rag")
 
@@ -89,10 +90,42 @@ def search_3p_sample_repos(query: str, k: int = 5) -> str:
     return json.dumps({"hits": hits})
 
 
+@mcp.tool()
+def search_forum_threads(query: str, k: int = 5, mode: str = "general") -> str:
+    """Search NVIDIA Developer Forums (forums.developer.nvidia.com) via Brave Search.
+
+    mode='general' for advice/best-practices queries.
+    mode='troubleshoot' adds error/fix keywords to bias toward fix-related threads.
+    """
+    q = query
+    if mode == "troubleshoot":
+        q = f"{q} error fix solution"
+    try:
+        hits = brave_search(q, k=k, site="forums.developer.nvidia.com")
+    except BraveSearchError as e:
+        return json.dumps({"error": str(e), "hits": []})
+    return json.dumps({"hits": hits, "mode": mode})
+
+
+@mcp.tool()
+def search_docs(query: str, k: int = 5) -> str:
+    """Search NVIDIA documentation (docs.nvidia.com) via Brave Search.
+
+    Use for: release notes, system requirements, SDK install guides, FAQs.
+    """
+    try:
+        hits = brave_search(query, k=k, site="docs.nvidia.com")
+    except BraveSearchError as e:
+        return json.dumps({"error": str(e), "hits": []})
+    return json.dumps({"hits": hits})
+
+
 # In-process helpers (Plan A pattern from knowledge_server.py)
 _UNDECORATED_TOOLS = {
     "lookup_container_reqs": lookup_container_reqs,
     "search_3p_sample_repos": search_3p_sample_repos,
+    "search_forum_threads": search_forum_threads,
+    "search_docs": search_docs,
 }
 
 

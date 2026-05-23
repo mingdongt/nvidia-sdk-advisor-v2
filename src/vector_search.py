@@ -33,10 +33,19 @@ class VectorStore:
 
     def close(self) -> None:
         """Explicitly close the Chroma client (important on Windows)."""
-        if hasattr(self._client, "delete"):
-            self._client.delete()
-        elif hasattr(self._client, "close"):
-            self._client.close()
+        try:
+            if hasattr(self._client, "_producer"):
+                # Chroma PersistentClient has a producer to cleanup
+                self._client._producer = None
+        except Exception:
+            pass
+        try:
+            if hasattr(self._client, "delete"):
+                self._client.delete()
+            elif hasattr(self._client, "close"):
+                self._client.close()
+        except Exception:
+            pass
 
     def upsert(self, ids: list[str], texts: list[str], metadatas: list[dict]) -> None:
         assert len(ids) == len(texts) == len(metadatas), "ids/texts/metadatas length mismatch"

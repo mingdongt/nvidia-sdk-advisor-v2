@@ -66,9 +66,33 @@ def lookup_container_reqs(container_id: str) -> str:
     return json.dumps({"error": f"no NGC entry for '{container_id}'", "known_sample": known_sample})
 
 
+_GITHUB_CHROMA = Path(__file__).resolve().parents[1] / "data" / "chroma_db"
+
+
+@lru_cache(maxsize=1)
+def _github_store():
+    from src.vector_search import VectorStore
+    return VectorStore(persist_dir=_GITHUB_CHROMA, collection="github")
+
+
+@mcp.tool()
+def search_3p_sample_repos(query: str, k: int = 5) -> str:
+    """Semantic search across 30 NVIDIA-AI-IOT, dusty-nv, isaac-ros sample repos.
+
+    Returns top-k chunks from README.md files. Use this to find which sample/container
+    matches a user's workload (e.g. 'I want to run YOLO' -> jetson-inference DetectNet).
+    """
+    try:
+        hits = _github_store().search(query, k=k)
+    except Exception as e:
+        return json.dumps({"error": f"search failed: {e}", "hits": []})
+    return json.dumps({"hits": hits})
+
+
 # In-process helpers (Plan A pattern from knowledge_server.py)
 _UNDECORATED_TOOLS = {
     "lookup_container_reqs": lookup_container_reqs,
+    "search_3p_sample_repos": search_3p_sample_repos,
 }
 
 

@@ -48,3 +48,20 @@ def test_lookup_container_reqs_suffix_match():
     result = json.loads(result_json)
     # Either direct hit (suffix match works) OR multi-match candidates
     assert "display_name" in result or "matches" in result
+
+
+def test_search_3p_tools_registered():
+    assert "search_3p_sample_repos" in rag_server.list_tool_names()
+
+
+def test_search_3p_sample_repos_returns_hits():
+    """Query against the real (committed) Chroma index."""
+    result_json = rag_server.call_tool(
+        "search_3p_sample_repos",
+        {"query": "object detection on Jetson Orin Nano", "k": 3},
+    )
+    result = json.loads(result_json)
+    assert "hits" in result
+    assert len(result["hits"]) > 0
+    assert "repo" in result["hits"][0]["metadata"]
+    assert "score" in result["hits"][0]

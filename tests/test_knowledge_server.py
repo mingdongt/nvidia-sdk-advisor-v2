@@ -10,7 +10,7 @@ def test_server_has_expected_tools():
         "detect_connected_hardware",
         "estimate_resources", "check_constraints", "validate_combo",
         "generate_response_file", "validate_against_official_sample",
-        "generate_command",
+        "generate_command", "parse_install_log",
     }
     assert set(tools) == expected, f"diff: {expected ^ set(tools)}"
 
@@ -44,3 +44,18 @@ def test_validate_combo_unsupported_target_via_server():
         {"product": "Jetson", "version": "7.1", "target": "JETSON_ORIN_NANO_TARGETS"}
     ))
     assert result["valid"] is False
+
+
+def test_parse_install_log_in_tools():
+    tools = knowledge_server.list_tool_names()
+    assert "parse_install_log" in tools
+    assert len(tools) == 13  # Plan A (11) + validate_combo (12) + parse_install_log (13)
+
+
+def test_parse_install_log_via_server():
+    import os
+    fixture = os.path.join(os.path.dirname(__file__), "fixtures", "apt_missing_package.log")
+    result_json = knowledge_server.call_tool("parse_install_log", {"log_path_or_archive": fixture})
+    result = json.loads(result_json)
+    assert result["failed_stage"] == "apt"
+    assert result["error_class"] == "apt-missing-package"

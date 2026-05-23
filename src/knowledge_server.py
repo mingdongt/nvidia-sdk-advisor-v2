@@ -104,6 +104,19 @@ def generate_command(config_json: str) -> str:
     return json.dumps({"command": command_gen.generate_command(cfg)})
 
 
+@mcp.tool()
+def parse_install_log(log_path_or_archive: str) -> str:
+    """Parse an SDK Manager install/error log; return a structured LogDiagnosis JSON.
+
+    Accepts a path to a single .log file OR a .tar.gz archive of logs
+    (the format produced by `NvSDKManager.exe --export-logs`).
+    """
+    from dataclasses import asdict
+    from src import log_parser
+    diagnosis = log_parser.parse_install_log(log_path_or_archive)
+    return json.dumps(asdict(diagnosis))
+
+
 # In-process helpers for tests (no MCP transport)
 # Store references to the undecorated functions before @mcp.tool decorates them
 _UNDECORATED_TOOLS = {
@@ -119,6 +132,7 @@ _UNDECORATED_TOOLS = {
     "generate_response_file": generate_response_file,
     "validate_against_official_sample": validate_against_official_sample,
     "generate_command": generate_command,
+    "parse_install_log": parse_install_log,
 }
 
 

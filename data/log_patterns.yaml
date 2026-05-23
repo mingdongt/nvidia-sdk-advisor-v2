@@ -1,0 +1,130 @@
+# SDK Manager install log error patterns.
+# Each pattern: a regex, the failed stage, an error class tag, and search terms
+# the troubleshoot mode will use to query forums.
+#
+# Patterns are tried in declaration order against the LAST 200 lines of the log
+# (failures usually near the tail). Last match wins (so generic fallback
+# patterns at the bottom are overridden by specific patterns above).
+
+patterns:
+  # ─── APT / package resolution ──────────────────────────────────────────
+  - regex: 'E: Unable to locate package\s+(\S+)'
+    stage: apt
+    error_class: apt-missing-package
+    search_terms: ['nvidia-jetpack apt unable to locate', 'jetpack apt source missing', 'nvidia-l4t-apt-source']
+
+  - regex: 'E: Failed to fetch.*404\s+Not Found'
+    stage: apt
+    error_class: apt-404
+    search_terms: ['apt 404 jetson', 'l4t-apt-source 404', 'repo.download.nvidia.com 404']
+
+  - regex: 'E: Could not get lock /var/lib/dpkg/lock'
+    stage: apt
+    error_class: apt-lock-held
+    search_terms: ['dpkg lock held', 'apt lock jetson install']
+
+  - regex: 'dpkg:\s+error processing package\s+(\S+)'
+    stage: apt
+    error_class: dpkg-package-error
+    search_terms: ['dpkg error processing nvidia', 'package configure failed']
+
+  # ─── Flash / recovery ──────────────────────────────────────────────────
+  - regex: 'Error:\s+failed to flash,?\s+errCode\s+(\d+)'
+    stage: flash
+    error_class: flash-failure
+    search_terms: ['flash failed errCode jetson', 'recovery mode flash fail']
+
+  - regex: 'NvDeviceFlashFail|flash\.sh failed'
+    stage: flash
+    error_class: flash-script-fail
+    search_terms: ['flash.sh failed jetson', 'nvflash error']
+
+  - regex: 'No NVIDIA device found in recovery mode'
+    stage: flash
+    error_class: recovery-mode-not-detected
+    search_terms: ['recovery mode not detected jetson', 'usb force recovery']
+
+  - regex: 'BootRom is not responding|Bootloader is invalid'
+    stage: flash
+    error_class: bootloader-error
+    search_terms: ['bootrom not responding jetson', 'bootloader invalid orin']
+
+  # ─── Driver / kernel module ────────────────────────────────────────────
+  - regex: 'NVIDIA driver installation failed.*kernel module'
+    stage: postinst
+    error_class: kernel-module-mismatch
+    search_terms: ['nvidia kernel module install fail', 'l4t bsp postinst']
+
+  - regex: 'modprobe:\s+ERROR:\s+could not insert\s+(\S+)'
+    stage: postinst
+    error_class: kernel-module-load-fail
+    search_terms: ['modprobe nvidia jetson fail', 'kernel module not loaded']
+
+  # ─── Network / downloads ───────────────────────────────────────────────
+  - regex: 'Connection timed out|Timeout was reached'
+    stage: download
+    error_class: network-timeout
+    search_terms: ['sdkmanager download timeout', 'developer.nvidia.com timeout']
+
+  - regex: 'curl:.*Could not resolve host'
+    stage: download
+    error_class: dns-failure
+    search_terms: ['could not resolve host jetson sdkmanager']
+
+  - regex: 'HTTP/.* 403\s+Forbidden|access denied'
+    stage: download
+    error_class: auth-forbidden
+    search_terms: ['sdkmanager 403 forbidden download', 'developer.nvidia.com login']
+
+  - regex: 'checksum (mismatch|failed)|SHA(256)? mismatch'
+    stage: download
+    error_class: checksum-mismatch
+    search_terms: ['sdkmanager checksum mismatch', 'sha256 failed jetson']
+
+  # ─── Disk / filesystem ─────────────────────────────────────────────────
+  - regex: 'No space left on device'
+    stage: download
+    error_class: disk-full
+    search_terms: ['no space left jetson install', 'sdkmanager disk full']
+
+  - regex: 'Read-only file system'
+    stage: postinst
+    error_class: readonly-fs
+    search_terms: ['read only filesystem jetson', 'remount rw l4t']
+
+  # ─── License ───────────────────────────────────────────────────────────
+  - regex: 'Licenses?\s+not\s+accepted|License agreement.*required'
+    stage: license
+    error_class: license-not-accepted
+    search_terms: ['sdkmanager licenses accept flag', 'eula license required']
+
+  # ─── Auth / login ──────────────────────────────────────────────────────
+  - regex: 'Authentication failed|Invalid credentials'
+    stage: license
+    error_class: devzone-auth-fail
+    search_terms: ['sdkmanager authentication failed devzone', 'login expired']
+
+  # ─── Generic ───────────────────────────────────────────────────────────
+  - regex: 'FATAL ERROR|Unrecoverable error'
+    stage: unknown
+    error_class: fatal-unspecified
+    search_terms: ['sdkmanager fatal error jetson']
+
+  - regex: '\b(ERROR|Error):.*'
+    stage: unknown
+    error_class: generic-error
+    search_terms: ['sdkmanager error jetson']
+
+# Header-extraction patterns: pull install context from log header
+header_patterns:
+  - field: target
+    regex: 'target:\s*(JETSON_\S+|CLARA_\S+)'
+
+  - field: host_os
+    regex: '(?:host|Host) OS:\s*(\S+)'
+
+  - field: jetpack_version
+    regex: 'JetPack[:\s]+([\d.]+)'
+
+  - field: timestamp
+    regex: '(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})'

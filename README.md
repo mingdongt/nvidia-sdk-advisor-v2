@@ -143,3 +143,87 @@ nvidia-sdk-advisor/
 │   └── run_smoke_eval.py         # end-to-end eval runner
 └── output/                       # generated .ini + .command files
 ```
+
+---
+
+## Plan B additions: Hybrid RAG + execution modes
+
+### Hybrid RAG architecture (3 tiers)
+
+The agent now retrieves from three sources, each chosen for a different problem class:
+
+| Tier | Source | Backed by | Use case |
+|---|---|---|---|
+| **1** | NGC catalog metadata | Local JSONL (~10 containers) | Container → JetPack/CUDA reqs |
+| **2** | GitHub READMEs | Chroma vector store (~21 repos, 203 chunks) | Workload → which NVIDIA sample to use |
+| **3** | Forum threads + docs | Brave Search API (free tier 2000 req/mo) | Best practices, troubleshooting, fresh content |
+
+Tier 2 uses `sentence-transformers/all-MiniLM-L6-v2` for embeddings (90MB local model, no third-party API).
+
+### Server B: nvidia-corpus-rag
+
+Second MCP server alongside Server A. 4 tools:
+- `lookup_container_reqs(container_id)` — Tier 1
+- `search_3p_sample_repos(query, k)` — Tier 2
+- `search_forum_threads(query, k, mode)` — Tier 3 (forums.developer.nvidia.com)
+- `search_docs(query, k)` — Tier 3 (docs.nvidia.com)
+
+Both servers connect via MCP stdio. The agent dispatches via tool→session routing table.
+
+### Execution modes
+
+```powershell
+python main.py --plan                  # default — generate .ini and .command, exit
+python main.py --dry-run               # invoke NvSDKManager.exe --query to verify .ini format
+python main.py --execute               # actually install (requires confirmation + sudo on Linux)
+```
+
+`--execute` flow:
+1. Locates the most recent `output/*.ini`
+2. Asks user to type `yes` to confirm
+3. Prompts for sudo password (Linux only; Windows skips)
+4. Spawns `NvSDKManager.exe --cli --response-file <plan.ini>` with streamed stdout
+5. Classifies output lines (downloading / installing / flashing / error / success) and prints summary
+
+### Eval results
+
+```powershell
+python main.py --eval smoke            # Plan A smoke (5 hand-crafted cases) — 14/15 = 93.3%
+python main.py --eval reasoning        # Plan B reasoning (20 LLM-judged) — 3.56/5 (target ≥3.5)
+```
+
+### Setup additions for Plan B
+
+```powershell
+# Optional: get a free Brave Search API key (2000 req/mo) for Tier 3
+# https://api.search.brave.com/  →  Data for AI plan  →  Create Key
+# Add to .env:
+BRAVE_API_KEY=BSA...
+
+# Optional: GitHub token for raising scrape rate limit from 60→5000/hr
+# https://github.com/settings/tokens (no scopes needed)
+$env:GH_TOKEN = "ghp_..."
+
+# Then refresh corpus (one-time):
+python -m ingest.fetch_ngc_catalog       # NGC catalog (Tier 1)
+python -m ingest.scrape_github_samples   # GitHub READMEs (Tier 2 data)
+python -m ingest.build_github_vectordb   # Build Chroma index (Tier 2)
+```
+
+The corpus + Chroma DB are committed via Git LFS; a fresh clone does not need to re-run the ingestion scripts.
+
+### Plan B sequence (for reference)
+
+Plan B series (in commit order):
+- B.1: NGC catalog fetcher
+- B.2: Server B skeleton + Tier 1 tool
+- B.3: VectorStore (Chroma + sentence-transformers)
+- B.4: GitHub READMEs scraper
+- B.5: Vector index builder
+- B.6: search_3p_sample_repos
+- B.7: Brave Search client
+- B.8: search_forum_threads + search_docs
+- B.9: Multi-server agent + REPL wire-up
+- B.10: --dry-run execution mode
+- B.11: --execute execution mode
+- B.12: Reasoning eval suite

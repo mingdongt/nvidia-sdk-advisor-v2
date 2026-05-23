@@ -200,7 +200,12 @@ async def run_troubleshoot(
     # Step 3: synthesize (wrapped in asyncio.to_thread to avoid blocking stdio event loop)
     console.print("[dim]→ synthesizing fix recommendation...[/dim]")
     synthesized = await asyncio.to_thread(_synthesize_fix_sync, diagnosis, threads)
-    console.print(Panel(synthesized, title="Recommended fix", border_style="green"))
+    try:
+        console.print(Panel(synthesized, title="Recommended fix", border_style="green"))
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        # Fallback for terminals with narrow encoding (e.g. Windows GBK)
+        safe = synthesized.encode("ascii", errors="replace").decode("ascii")
+        console.print(Panel(safe, title="Recommended fix", border_style="green"))
 
     # Step 4: optionally write outputs
     outputs = {}

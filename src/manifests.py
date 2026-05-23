@@ -140,3 +140,34 @@ class KnowledgeBase:
             return {"target_id": best_id, "matched_on": "fuzzy"}
 
         return None
+
+    def validate_combo(self, product: str, version: str, target: Optional[str] = None,
+                       additional_sdks: Optional[list[str]] = None) -> dict:
+        """Validate that (product, version, target, additional_sdks) is a feasible combination.
+
+        Checks performed:
+        - version exists for the product
+        - if target is given, target is in the release's supportedHardware.seriesIds
+        - additional_sdks: per-version supported list lives behind auth-gated compRepoURL;
+          we ack it as 'opportunistic' rather than failing
+        """
+        rel = self.get_release(product, version)
+        if not rel:
+            return {"valid": False, "reason": f"version {version} not found for product {product}"}
+
+        if target:
+            supported = rel.get("supportedHardware", {}).get("seriesIds", []) or []
+            if target not in supported:
+                return {
+                    "valid": False,
+                    "reason": f"target {target} not in {product} {version} supportedHardware (have: {supported})"
+                }
+
+        warnings = []
+        if additional_sdks:
+            warnings.append("addon SDK compatibility verified only opportunistically (compRepoURL is auth-gated)")
+
+        out = {"valid": True}
+        if warnings:
+            out["warnings"] = warnings
+        return out

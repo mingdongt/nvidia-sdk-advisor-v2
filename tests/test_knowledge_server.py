@@ -8,7 +8,7 @@ def test_server_has_expected_tools():
     expected = {
         "list_products", "list_releases", "get_release", "list_hardware", "lookup_target_id",
         "detect_connected_hardware",
-        "estimate_resources", "check_constraints",
+        "estimate_resources", "check_constraints", "validate_combo",
         "generate_response_file", "validate_against_official_sample",
         "generate_command",
     }
@@ -28,3 +28,19 @@ def test_generate_response_file_via_server():
     })
     result = json.loads(knowledge_server.call_tool("generate_response_file", {"config_json": config_json}))
     assert "[client_arguments]" in result["content"]
+
+
+def test_validate_combo_via_server():
+    result = json.loads(knowledge_server.call_tool(
+        "validate_combo",
+        {"product": "Jetson", "version": "6.1", "target": "JETSON_ORIN_NX_TARGETS"}
+    ))
+    assert result["valid"] is True
+
+
+def test_validate_combo_unsupported_target_via_server():
+    result = json.loads(knowledge_server.call_tool(
+        "validate_combo",
+        {"product": "Jetson", "version": "7.1", "target": "JETSON_ORIN_NANO_TARGETS"}
+    ))
+    assert result["valid"] is False

@@ -1,4 +1,4 @@
-"""nvidia-knowledge MCP server. Exposes 11 deterministic tools.
+"""nvidia-knowledge MCP server. Exposes 12 deterministic tools.
 
 Run as stdio MCP server: python -m src.knowledge_server
 Tools also callable in-process via knowledge_server.call_tool(name, args).
@@ -78,6 +78,13 @@ def check_constraints(config_json: str, available_disk_gb: float, available_ram_
 
 
 @mcp.tool()
+def validate_combo(product: str, version: str, target: str = "", additional_sdks_json: str = "[]") -> str:
+    """Validate a (product, version, target, additional_sdks) combination against manifests."""
+    sdks = json.loads(additional_sdks_json) if additional_sdks_json else []
+    return json.dumps(_kb.validate_combo(product, version, target=target or None, additional_sdks=sdks))
+
+
+@mcp.tool()
 def generate_response_file(config_json: str) -> str:
     """Generate a 3-section .ini response file matching NVIDIA's template."""
     cfg = InstallConfig(**json.loads(config_json))
@@ -108,6 +115,7 @@ _UNDECORATED_TOOLS = {
     "detect_connected_hardware": detect_connected_hardware,
     "estimate_resources": estimate_resources,
     "check_constraints": check_constraints,
+    "validate_combo": validate_combo,
     "generate_response_file": generate_response_file,
     "validate_against_official_sample": validate_against_official_sample,
     "generate_command": generate_command,

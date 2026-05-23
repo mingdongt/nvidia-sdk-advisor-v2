@@ -60,3 +60,24 @@ def test_lookup_target_id_alias():
 def test_lookup_target_id_unknown_returns_none():
     kb = KnowledgeBase(_MANIFEST_DIR)
     assert kb.lookup_target_id("Mars Rover Edge") is None
+
+
+def test_validate_combo_unknown_version():
+    kb = KnowledgeBase(_MANIFEST_DIR)
+    r = kb.validate_combo("Jetson", "999.999")
+    assert r["valid"] is False
+    assert "not found" in r["reason"].lower()
+
+
+def test_validate_combo_unsupported_target():
+    kb = KnowledgeBase(_MANIFEST_DIR)
+    # JetPack 7.1 supports JETSON_AGX_THOR_TARGETS only (verified earlier)
+    r = kb.validate_combo("Jetson", "7.1", target="JETSON_ORIN_NANO_TARGETS")
+    assert r["valid"] is False
+    assert "supportedHardware" in r["reason"] or "supported" in r["reason"].lower()
+
+
+def test_validate_combo_valid():
+    kb = KnowledgeBase(_MANIFEST_DIR)
+    r = kb.validate_combo("Jetson", "6.1", target="JETSON_ORIN_NX_TARGETS")
+    assert r["valid"] is True

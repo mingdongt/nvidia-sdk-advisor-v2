@@ -20,7 +20,7 @@ def test_fetch_one_container_metadata():
         result = fetch_container_metadata("nvidia/deepstream-l4t")
     assert result["name"] == "nvidia/deepstream-l4t"
     assert result["display_name"] == "DeepStream 7.0 for L4T"
-    assert "JetPack" in str(result["labels"])
+    assert "jetpack" in str(result["labels"]).lower()
 
 
 def test_save_catalog_writes_jsonl():

@@ -1,0 +1,8 @@
+[project]
+name = "nvidia-sdk-advisor"
+version = "2.0.0-a"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

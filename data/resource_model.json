@@ -1,0 +1,23 @@
+{
+  "_source_notes": "Numbers from docs.nvidia.com/sdk-manager/system-requirements/ and JetPack release notes. Approximate.",
+  "jetpack_versions": {
+    "7.1": { "target_disk_gb": 18, "host_disk_gb": 36, "os_ram_overhead_gb": 1.8 },
+    "7.0": { "target_disk_gb": 18, "host_disk_gb": 36, "os_ram_overhead_gb": 1.8 },
+    "6.2.2": { "target_disk_gb": 17, "host_disk_gb": 35, "os_ram_overhead_gb": 1.7 },
+    "6.2.1": { "target_disk_gb": 17, "host_disk_gb": 35, "os_ram_overhead_gb": 1.7 },
+    "6.2": { "target_disk_gb": 17, "host_disk_gb": 35, "os_ram_overhead_gb": 1.7 },
+    "6.1": { "target_disk_gb": 17, "host_disk_gb": 35, "os_ram_overhead_gb": 1.7 },
+    "5.1.6": { "target_disk_gb": 14, "host_disk_gb": 28, "os_ram_overhead_gb": 1.4 },
+    "5.1.5": { "target_disk_gb": 14, "host_disk_gb": 28, "os_ram_overhead_gb": 1.4 },
+    "4.6.6": { "target_disk_gb": 10, "host_disk_gb": 22, "os_ram_overhead_gb": 1.0 }
+  },
+  "addon_sdks": {
+    "DeepStream 7.1": { "disk_gb": 4.5, "runtime_ram_gb": 2.0 },
+    "DeepStream 7.0": { "disk_gb": 4.0, "runtime_ram_gb": 1.8 },
+    "DeepStream 6.4": { "disk_gb": 3.5, "runtime_ram_gb": 1.5 },
+    "DeepStream 6.3": { "disk_gb": 3.2, "runtime_ram_gb": 1.4 },
+    "DeepStream 6.1": { "disk_gb": 2.8, "runtime_ram_gb": 1.2 },
+    "Isaac ROS 3.2":  { "disk_gb": 7.0, "runtime_ram_gb": 2.8 },
+    "Isaac Sim 4.0":  { "disk_gb": 52.0, "runtime_ram_gb": 16.0, "host_only": true }
+  }
+}

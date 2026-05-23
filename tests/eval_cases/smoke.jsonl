@@ -1,0 +1,5 @@
+{"input": "Orin Nano 8GB, basic CUDA work, JetPack 6.x", "expected": {"product": "Jetson", "target": "JETSON_ORIN_NANO_TARGETS", "version_starts_with": "6"}}
+{"input": "AGX Orin 64GB, want DeepStream 7.0 for video analytics", "expected": {"product": "Jetson", "target": "JETSON_AGX_ORIN_TARGETS", "additional_sdks_contains": "DeepStream 7.0"}}
+{"input": "Orin NX 16GB, JetPack 7.0", "expected": {"product": "Jetson", "target": "JETSON_ORIN_NX_TARGETS", "version_starts_with": "7"}}
+{"input": "AGX Xavier, latest JetPack that supports it", "expected": {"product": "Jetson", "target": "JETSON_AGX_XAVIER_TARGETS", "version_starts_with": "5"}}
+{"input": "Jetson Nano (original 4GB), object detection sample", "expected": {"product": "Jetson", "target": "JETSON_NANO_TARGETS", "version_starts_with": "4"}}

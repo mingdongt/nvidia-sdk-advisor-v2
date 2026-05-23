@@ -40,3 +40,23 @@ def test_unknown_product_returns_empty():
     kb = KnowledgeBase(_MANIFEST_DIR)
     assert kb.list_releases("NotARealProduct") == []
     assert kb.get_release("Jetson", "999.999") is None
+
+
+def test_lookup_target_id_canonical_name():
+    kb = KnowledgeBase(_MANIFEST_DIR)
+    r = kb.lookup_target_id("Jetson Orin Nano 8GB")
+    assert r is not None
+    assert r["target_id"] == "JETSON_ORIN_NANO_TARGETS"
+    assert r["matched_on"] in ("canonical", "alias", "fuzzy")
+
+
+def test_lookup_target_id_alias():
+    kb = KnowledgeBase(_MANIFEST_DIR)
+    r = kb.lookup_target_id("orin nx")
+    assert r is not None
+    assert r["target_id"] == "JETSON_ORIN_NX_TARGETS"
+
+
+def test_lookup_target_id_unknown_returns_none():
+    kb = KnowledgeBase(_MANIFEST_DIR)
+    assert kb.lookup_target_id("Mars Rover Edge") is None

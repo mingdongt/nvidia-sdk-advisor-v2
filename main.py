@@ -18,13 +18,17 @@ def main() -> None:
     mode.add_argument("--plan", action="store_true", help="Plan only — generate files, do not execute (default)")
     mode.add_argument("--dry-run", action="store_true", help="Invoke SDK Manager in dry-run mode (Plan C)")
     mode.add_argument("--execute", action="store_true", help="Actually install via SDK Manager (Plan C)")
-    parser.add_argument("--eval", action="store_true", help="Run smoke eval suite")
+    parser.add_argument("--eval", nargs="?", const="smoke", choices=["smoke", "reasoning"],
+                        help="Run an eval suite. Default: smoke")
     args = parser.parse_args()
 
     from src import execution
 
     if args.eval:
-        from tests.run_smoke_eval import main as run_eval
+        if args.eval == "reasoning":
+            from tests.run_reasoning_eval import main as run_eval
+        else:
+            from tests.run_smoke_eval import main as run_eval
         run_eval()
         return
 

@@ -41,3 +41,11 @@ def test_invalid_login_type_rejected():
             product="Jetson", version="6.1", target="JETSON_ORIN_NX_TARGETS",
             login_type="oauth",
         )
+
+
+def test_invalid_action_rejected():
+    with pytest.raises(ValueError):
+        InstallConfig(
+            product="Jetson", version="6.1", target="JETSON_ORIN_NX_TARGETS",
+            action="rebuild",
+        )

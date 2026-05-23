@@ -1,0 +1,12 @@
+=== SDK Manager Install Log ===
+target: JETSON_ORIN_NANO_TARGETS
+Host OS: ubuntu22.04
+JetPack: 6.1
+2026-05-21 16:00:00 starting install
+2026-05-21 16:02:14 Flashing OK
+2026-05-21 16:08:45 Running post-install on target
+2026-05-21 16:09:01 apt install nvidia-l4t-bsp succeeded
+2026-05-21 16:09:13 Running postinst hooks
+modprobe: ERROR: could not insert 'nvgpu': Exec format error
+NVIDIA driver installation failed: kernel module nvgpu could not be loaded
+2026-05-21 16:09:14 Install aborted at stage: postinst

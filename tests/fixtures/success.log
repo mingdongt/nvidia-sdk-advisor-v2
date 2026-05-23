@@ -1,0 +1,9 @@
+=== SDK Manager Install Log ===
+target: JETSON_ORIN_NX_TARGETS
+Host OS: ubuntu22.04
+JetPack: 6.1
+2026-05-22 14:00:00 starting install
+2026-05-22 14:31:12 Flashing OK
+2026-05-22 14:45:00 apt install nvidia-jetpack succeeded
+2026-05-22 14:50:00 SUCCESS: all components installed
+2026-05-22 14:50:00 Install complete.

@@ -1,0 +1,17 @@
+=== SDK Manager Install Log ===
+target: JETSON_ORIN_NX_TARGETS
+Host OS: ubuntu22.04
+JetPack: 6.1
+2026-05-22 14:30:00 starting install
+2026-05-22 14:30:05 Downloading components OK
+2026-05-22 14:31:12 Flashing target board OK
+2026-05-22 14:33:02 Setting up apt sources
+2026-05-22 14:33:18 Running apt-get update
+2026-05-22 14:33:20 apt-get update completed
+2026-05-22 14:33:21 Running apt-get install nvidia-jetpack
+Reading package lists... Done
+Building dependency tree... Done
+E: Unable to locate package nvidia-jetpack=6.1*
+E: Couldn't find any package by glob 'nvidia-jetpack=6.1*'
+2026-05-22 14:33:21 apt-get install failed with exit code 100
+2026-05-22 14:33:21 Install aborted at stage: target_install (apt)

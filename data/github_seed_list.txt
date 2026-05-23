@@ -1,0 +1,35 @@
+# NVIDIA-AI-IOT — Jetson vision samples
+NVIDIA-AI-IOT/jetson-inference
+NVIDIA-AI-IOT/jetson-utils
+NVIDIA-AI-IOT/torch2trt
+NVIDIA-AI-IOT/deepstream-services-library
+NVIDIA-AI-IOT/redtail
+NVIDIA-AI-IOT/tao-toolkit-triton-apps
+NVIDIA-AI-IOT/jetson_dla_tutorial
+NVIDIA-AI-IOT/scene_text_recognition
+NVIDIA-AI-IOT/face-mask-detection
+NVIDIA-AI-IOT/CUDA-PointPillars
+
+# NVIDIA-ISAAC-ROS — Isaac ROS packages
+NVIDIA-ISAAC-ROS/isaac_ros_visual_slam
+NVIDIA-ISAAC-ROS/isaac_ros_image_proc
+NVIDIA-ISAAC-ROS/isaac_ros_dnn_inference
+NVIDIA-ISAAC-ROS/isaac_ros_apriltag
+NVIDIA-ISAAC-ROS/isaac_ros_argus_camera
+NVIDIA-ISAAC-ROS/isaac_ros_nvblox
+NVIDIA-ISAAC-ROS/isaac_ros_object_detection
+NVIDIA-ISAAC-ROS/isaac_ros_visual_global_localization
+
+# dusty-nv — Practical Jetson containers + tutorials
+dusty-nv/jetson-containers
+dusty-nv/jetson-inference
+dusty-nv/jetson-utils
+dusty-nv/jetson-voice
+dusty-nv/jetson-reinforcement
+dusty-nv/jetbot_ros
+
+# NVIDIA — Foundational ML + samples
+NVIDIA/TensorRT
+NVIDIA/DeepLearningExamples
+NVIDIA/cuda-samples
+NVIDIA/Megatron-LM

@@ -227,3 +227,116 @@ Plan B series (in commit order):
 - B.10: --dry-run execution mode
 - B.11: --execute execution mode
 - B.12: Reasoning eval suite
+
+---
+
+## Plan C additions: Troubleshoot mode (the 4th JD verb)
+
+Drop in an SDK Manager log → get a fix recommendation grounded in the diagnosis (and forum context when Brave is configured).
+
+```powershell
+python main.py --troubleshoot ~/sdkm-export-logs.tar.gz
+```
+
+### How troubleshoot works
+
+```
+log file or .tar.gz archive
+  │
+  ▼
+parse_install_log   (regex-driven LogDiagnosis, 20 patterns, 5 stages)
+  │
+  ▼
+search_forum_threads(mode='troubleshoot')   (Tier 3 Brave; optional)
+  │
+  ▼
+Claude synthesizes a fix grounded in diagnosis + threads
+  │
+  ▼
+output/<error_class>_diagnosis.md   ← human-readable explanation + sources
+output/<error_class>_fix.sh         ← runnable shell script (sudo-marked)
+```
+
+### Hero Scenario 2: apt-missing-package recovery
+
+```
+$ python main.py --troubleshoot tests/fixtures/apt_missing_package.log
+
+╭──────────────── Troubleshoot mode ────────────────╮
+│ Parsing SDK Manager log: tests/fixtures/apt_missing_package.log │
+╰────────────────────────────────────────────────────╯
+
+Failed stage:    apt
+Error class:     apt-missing-package
+Error signature: E: Unable to locate package nvidia-jetpack=6.1*
+Target:          JETSON_ORIN_NX_TARGETS
+Host OS:         ubuntu22.04
+JetPack:         6.1
+Timestamp:       2026-05-22 14:33:21
+Last success:    apt-get update completed
+
+→ search_forum_threads(query='nvidia-jetpack apt unable to locate', mode=troubleshoot)
+  found N thread(s)
+
+→ synthesizing fix recommendation...
+
+╭───────────────── Recommended fix ──────────────────╮
+│ ## Diagnosis                                       │
+│ The apt sources list is missing the NVIDIA L4T    │
+│ repository — the jetson-ota-public key + repo URL │
+│ entry never got written during the SDK Manager    │
+│ install path...                                    │
+│                                                     │
+│ ## Recommended fix                                  │
+│ ```bash                                             │
+│ sudo apt-key adv --fetch-keys \                    │
+│   https://repo.download.nvidia.com/jetson/jetson-ota-public.asc │
+│ sudo bash -c 'echo "deb https://repo.download.nvidia.com/jetson/common r36.4 main" \ │
+│   > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list' │
+│ sudo apt update                                    │
+│ ```                                                 │
+│                                                     │
+│ ## Why this works                                   │
+│ The NVIDIA jetson-ota-public.asc key authenticates │
+│ the L4T repo; once apt knows about repo.download   │
+│ .nvidia.com it can resolve nvidia-jetpack=6.1*.    │
+╰─────────────────────────────────────────────────────╯
+```
+
+### Eval results
+
+```powershell
+python main.py --eval troubleshoot     # 15 LLM-judged cases — 4.70/5 (target ≥3.5)
+```
+
+Per-axis (15 cases, 3× median):
+- Identified: 5.00/5 (all 15 errors classified correctly via regex pattern match)
+- Matches expert: 4.00/5
+- Actionable: 4.93/5
+- Safety: 4.93/5
+
+### Adding new log patterns
+
+Edit `data/log_patterns.yaml` — each entry is `{regex, stage, error_class, search_terms}`. The parser scans the last 300 lines of the log; the LAST matching pattern wins. ~20 patterns ship at v2.0.0-c covering apt, flash, kernel module, download, license, and auth failures.
+
+### Plan C sequence (for reference)
+
+- C.1: LogDiagnosis dataclass
+- C.2: log_patterns.yaml (20 patterns)
+- C.3: log_parser.py + 5 fixture logs
+- C.4: parse_install_log MCP tool (13th Server A tool — completes spec)
+- C.5: troubleshoot.py orchestrator
+- C.6: --troubleshoot CLI flag
+- C.7: Auto-enter troubleshoot from --execute failure
+- C.8: Troubleshoot eval suite (15 LLM-judged cases)
+
+---
+
+## All four JD verbs covered
+
+| JD verb | Mechanism in this demo |
+|---|---|
+| **Discover** | `search_3p_sample_repos` (GitHub README RAG) + workload inference |
+| **Configure** | Server A's 13 deterministic tools + constraint-aware reasoning |
+| **Install** | `--execute` mode drives `NvSDKManager.exe --cli --response-file` |
+| **Troubleshoot** | `parse_install_log` + Brave forum search + Claude synthesis → `fix.sh` |

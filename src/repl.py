@@ -40,9 +40,27 @@ _STEP_LABELS = {
 }
 
 
-def _print_tool_step(name: str, result_text: str) -> None:
+def _print_tool_step(name: str, args: dict, result_text: str) -> None:
     label = _STEP_LABELS.get(name, name)
-    console.print(f"  [cyan]->[/cyan] {label}")
+    arg_str = ""
+    if args:
+        # Show first 2 args, truncated values
+        items = [(k, str(v)[:50]) for k, v in list(args.items())[:2]]
+        arg_str = " " + ", ".join(f"{k}={v}" for k, v in items)
+    console.print(f"  [cyan]→[/cyan] [bold]{label}[/bold][dim]{arg_str}[/dim]")
+    # Truncated result preview
+    preview = result_text.replace("\n", " ")[:140]
+    if len(result_text) > 140:
+        preview += "…"
+    console.print(f"    [dim]↳ {preview}[/dim]")
+
+
+def _print_thought(text: str) -> None:
+    """Print Claude's intermediate reasoning text (between tool calls)."""
+    text = text.strip()
+    if not text:
+        return
+    console.print(f"[italic yellow]💭 {text}[/italic yellow]")
 
 
 def _safe_filename(label: str) -> str:
@@ -120,6 +138,7 @@ async def run_repl() -> None:
                 if user_input.strip().lower() in ("exit", "quit"):
                     return
 
+                raw_user_input = user_input  # preserve for label generation
                 if not messages:
                     user_input = f"{opening}\n\nUser response: {user_input}"
                     first_input_hint = "continue conversation"
@@ -131,18 +150,23 @@ async def run_repl() -> None:
                     if response.stop_reason == "end_turn":
                         final_text = next((b.text for b in response.content if hasattr(b, "text")), "")
                         console.print(final_text)
-                        saved = _save_outputs(final_text, label_hint=user_input[:40])
+                        saved = _save_outputs(final_text, label_hint=raw_user_input[:40])
                         for kind, path in saved.items():
                             console.print(f"[green]+[/green] saved {kind}: {path}")
                         messages.append({"role": "assistant", "content": response.content})
                         break
+                    # Print any text blocks (Claude's reasoning between tool calls)
+                    for block in response.content:
+                        if hasattr(block, "text") and getattr(block, "text", "").strip():
+                            _print_thought(block.text)
+
                     tool_results = []
                     for block in response.content:
                         if block.type != "tool_use":
                             continue
                         result = await session.call_tool(block.name, arguments=block.input)
                         result_text = result.content[0].text if result.content else "{}"
-                        _print_tool_step(block.name, result_text)
+                        _print_tool_step(block.name, dict(block.input or {}), result_text)
                         tool_results.append({
                             "type": "tool_result", "tool_use_id": block.id, "content": result_text,
                         })

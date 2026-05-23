@@ -40,5 +40,9 @@ def detect_connected_hardware() -> dict:
     except (subprocess.TimeoutExpired, OSError) as e:
         return {"available": False, "devices": [], "reason": f"subprocess error: {e}"}
     if proc.returncode != 0:
+        combined = ((proc.stderr or "") + " " + (proc.stdout or "")).lower()
+        if "already running" in combined:
+            return {"available": False, "devices": [],
+                    "reason": "SDK Manager GUI is currently open — close it to enable USB hardware detection."}
         return {"available": False, "devices": [], "reason": f"NvSDKManager exited {proc.returncode}: {proc.stderr[:200]}"}
     return {"available": True, "devices": _parse_devices(proc.stdout)}

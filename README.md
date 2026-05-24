@@ -8,6 +8,18 @@ Generates output files (`.ini` response files) SDK Manager natively consumes, an
 
 ---
 
+## Design principles
+
+Three judgments shaped what this demo includes and what it excludes:
+
+1. **The code is evidence, the README is the argument.** Reading the README without running the code should be enough to evaluate the design depth. Running the code without reading the README will miss the point.
+2. **Demonstrate the architecture, not the polish.** Every code path exists to make an architectural claim concrete. Polish — CLI ergonomics, exhaustive error handling, every edge case — is deliberately under-invested where it doesn't strengthen the argument.
+3. **Surface gaps honestly.** Sections below — _Production gaps_, _Troubleshoot evolution roadmap_ — enumerate what a real product would need that this demo doesn't have. The point is to prove these gaps are understood, not to fill them.
+
+This is a design study with executable evidence, not a tool meant to be adopted as-is.
+
+---
+
 ## What this does
 
 | Capability | Current SDK Manager gap | This demo's mechanism |
@@ -354,6 +366,58 @@ These are surface-level differences in HOW the two models walk the agent graph. 
 
 ---
 
+## Production gaps
+
+If this demo were to ship as part of SDK Manager — or any product handling real user installs at scale — the 80% of work _not_ in this codebase would look like:
+
+### 1. Privacy / data flow
+
+User logs contain hostnames, IPs, usernames, sometimes internal repo paths and project names. Sending them to a cloud LLM API is a compliance event in many environments.
+
+A production version needs: PII scrubber pre-prompt (regex over `/home/[^/]+/`, RFC1918 IPs, hostname patterns); per-tenant data residency (EU users → EU-region inference); audit log of exactly what was sent and to which endpoint; a `--local-only` switch that disables outbound API calls and accepts a small capability loss.
+
+### 2. Citation persistence
+
+The agent cites forum URLs. Six months later, threads can be deleted, locked, version-shifted, or merged. `diagnosis.md` quietly becomes a file of dead links.
+
+A production version needs: fetch + snapshot the cited paragraph (not the whole page) at synthesis time, embedded inline in `diagnosis.md`; optional periodic re-validation that flags broken citations.
+
+### 3. Failure feedback loop
+
+The agent generates `fix.sh`. The user runs it. Then nothing — no callback, no signal whether the fix worked, no learning across runs.
+
+A production version needs: post-fix verification (re-run `--execute`, check exit code, run `nvidia-smi`); explicit user feedback prompt ("did this resolve it?"); aggregated success rate per error class to tune prompts; failed cases retained as future eval inputs.
+
+### 4. Eval drift monitoring
+
+The scores in the badges were measured at a fixed point against a specific model + prompt. Upgrading either drifts the numbers — sometimes silently. Today no one would notice if a prompt edit dropped reasoning from 3.56 to 3.10.
+
+A production version needs: eval wired into CI on every prompt change; per-model baselines tracked over time; variance bars (each case run N times to characterize judge noise); a "score regression > 0.3" gate that blocks merges.
+
+### 5. Cost / abuse controls
+
+`max_uses=5` is a per-troubleshoot cap. There is no per-user-per-day cap. A buggy client or a coordinated abuse pattern could drain the API budget.
+
+A production version needs: per-tenant rate limits enforced at the agent layer; daily / monthly spend ceilings with email alerts; per-feature cost telemetry (`web_search` vs synthesis vs MCP); a graceful "quota exhausted" path that refuses new dispatches without crashing.
+
+### 6. Trust calibration ("I don't know")
+
+The agent always produces a four-section output. When `web_search` returns nothing useful, it still writes a confident-looking `fix.sh` backed only by training knowledge. The "Why this works" paragraph admits this, but a real product should refuse to write executable script in that case.
+
+A production version needs: a genuine `cannot diagnose` output path that produces `forum_draft.md` (escalation-by-helping-the-user-ask) instead of `fix.sh`; per-step confidence scores; UI affordances that visually flag low-confidence recommendations.
+
+### 7. Observability / audit trail
+
+When a user reports "the fix didn't work," there is no way to reconstruct what the agent saw and decided. Each run leaves only `fix.sh` and `diagnosis.md` — not the queries it issued, the URLs it considered and discarded, the prompt version, the model version, or the temperature.
+
+A production version needs: structured per-run logs at `~/.sdk-advisor/runs/<run-id>.jsonl` with log hash, all queries, all URLs retrieved, URLs cited in output, model + prompt versions, cost estimate, exit status; a `sdk-advisor history` command to search past runs.
+
+---
+
+These gaps are intentional omissions, not oversights. Each is closable, and the work is mostly engineering — not new architecture. The point of enumerating them is to prove they're understood.
+
+---
+
 ## Tests
 
 ```powershell
@@ -410,18 +474,6 @@ nvidia-sdk-advisor/
 │   └── run_troubleshoot_eval.py
 └── output/                          # generated .ini, .command, fix.sh, diagnosis.md
 ```
-
----
-
-## How to extend
-
-**Add a new NVIDIA product**: append its slug to `data/ngc_seed_list.txt`, run `python -m ingest.fetch_ngc_catalog`.
-
-**Add a new sample repo to RAG**: append to `data/github_seed_list.txt`, run `python -m ingest.scrape_github_samples && python -m ingest.build_github_vectordb`.
-
-**Improve troubleshoot for a new error class**: there is no pattern library to extend — the agent reads the raw log tail itself and uses `web_search` to find fixes. To improve coverage of a specific error class, add a representative log fixture to `tests/fixtures/`, add a case to `tests/eval_cases/troubleshoot.jsonl`, and (if needed) refine the synthesis prompt in `src/troubleshoot.py`.
-
-**Use only Server B from a different agent**: `python -m src.rag_server` exposes the 4 RAG tools via stdio MCP — any MCP client can connect and use them in isolation.
 
 ---
 
@@ -492,6 +544,20 @@ Plan series (in commit order, tagged in git):
 | _delta_ | `validate_combo` (12th Server A tool) | 1 commit |
 | **v2.0.0-b** | RAG layer (Server B: NGC + GitHub) + `--dry-run` + `--execute` modes + reasoning eval | B.1–B.13 |
 | **v2.0.0-c** | `parse_install_log` (13th Server A tool) + `--troubleshoot` mode + troubleshoot eval | C.1–C.10 |
+
+---
+
+## Deliberate non-goals
+
+To set expectations clearly:
+
+- **Not a package for end-users to install and use daily.** Polished onboarding is out of scope. The Setup section exists so the demo can be verified, not to make it adoptable.
+- **Not a replacement for SDK Manager.** It complements, doesn't compete. The `.ini` it produces is consumed by SDK Manager itself; `NvSDKManager.exe` is treated as a subprocess target.
+- **Not a library to fork and extend.** Data files (manifest snapshots, NGC catalog, log fixtures, README corpus) are project-specific point-in-time captures, not a generalizable starter kit.
+- **Not a complete production-readiness sweep.** See _Production gaps_ above for the explicit list of what's out, and why.
+- **Not a NeMo Agent Toolkit or LangGraph competitor.** Those are framework-level products; this is a single-domain agent that happens to use MCP.
+
+Treating it as any of these will lead to disappointment. Treat it as a design study with executable evidence.
 
 ---
 

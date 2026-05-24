@@ -67,18 +67,43 @@ def _latest_plan_ini() -> Path | None:
     return inis[0] if inis else None
 
 
-def _find_latest_export_log() -> Path | None:
-    """Look for SDK Manager export-logs tarballs in the typical locations."""
+def _find_latest_install_log() -> Path | None:
+    """Find the most recent SDK Manager log, in priority order:
+
+    1. Exported tarballs in ~, ~/Downloads, cwd (sdkm-*log*.tar*)
+    2. Raw .log files in SDK Manager's session log dirs (no --export-logs needed)
+
+    SDK Manager writes raw logs to a session folder at install time. The
+    --export-logs command merely packages those into a tarball for sharing.
+    Our log parser accepts both forms, so we don't require the user to export.
+    """
     candidates: list[Path] = []
+
+    # Exported tarballs (user shared a packaged log)
     for base in (Path.home(), Path.home() / "Downloads", Path.cwd()):
         if not base.exists():
             continue
         candidates.extend(base.glob("sdkm*log*.tar*"))
         candidates.extend(base.glob("SDKManager*.tar*"))
-        candidates.extend(base.glob("*.tar.gz"))  # generic last-resort
+
+    # Raw session logs (SDK Manager writes these automatically during install)
+    session_dirs = [
+        Path.home() / ".nvsdkm-logs",                                         # Linux/Mac default
+        Path.home() / "AppData" / "Local" / "NVIDIA Corporation" / "SDK Manager" / "logs",  # Windows
+        Path.home() / "AppData" / "Roaming" / "sdkmanager" / "logs",          # Windows fallback
+    ]
+    for d in session_dirs:
+        if not d.exists():
+            continue
+        candidates.extend(d.glob("**/*.log"))
+
     if not candidates:
         return None
     return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+# Backward-compat alias (old name was misleading — implied user had to export first)
+_find_latest_export_log = _find_latest_install_log
 
 
 def run_dry_run_mode_for_file(plan_path: Path) -> int:
@@ -163,9 +188,10 @@ def run_execute_mode() -> None:
     console.print(f"\n[bold]Event summary:[/bold] {counters}")
     if rc != 0:
         console.print(f"[red]NvSDKManager exited with code {rc}.[/red]")
-        log_path = _find_latest_export_log()
+        log_path = _find_latest_install_log()
         if log_path:
-            console.print(f"[dim]Latest log: {log_path}[/dim]")
+            kind = "exported tarball" if ".tar" in log_path.name else "session log"
+            console.print(f"[dim]Found {kind}: {log_path}[/dim]")
             try:
                 ans = input("Run troubleshoot on this log? [Y/n] ").strip().lower()
             except EOFError:
@@ -175,5 +201,8 @@ def run_execute_mode() -> None:
                 from src.troubleshoot import run_troubleshoot
                 asyncio.run(run_troubleshoot(str(log_path)))
         else:
-            console.print("[dim]Tip: export logs (--export-logs), then `python main.py --troubleshoot <log>`.[/dim]")
+            console.print(
+                "[dim]No SDK Manager logs found in ~/.nvsdkm-logs or expected Windows paths.[/dim]\n"
+                "[dim]Run `NvSDKManager.exe --export-logs <folder>` then `python main.py --troubleshoot <log>`.[/dim]"
+            )
     sys.exit(rc)

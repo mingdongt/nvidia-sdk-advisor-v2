@@ -234,9 +234,12 @@ python main.py --eval troubleshoot       # Plan C eval (15 log-snippet LLM-judge
 
 ### Self-healing chain on failure
 
-When `--execute` exits non-zero, the agent searches `~`, `~/Downloads`, and `cwd` for the most recent `sdkm-*log*.tar*` archive and offers to enter `--troubleshoot` on it. No manual log hunt required if SDK Manager has been used to export logs before.
+When `--execute` exits non-zero, the agent automatically finds the most recent SDK Manager log and offers to enter `--troubleshoot` on it. Two sources are searched, in priority order:
 
-> **Known gap (planned `--full` mode):** if no exported log tarball exists yet (e.g. fresh user, first failure), the agent prints a one-liner asking the user to run `NvSDKManager.exe --export-logs <folder>` first. A future `--full` orchestration mode will invoke `--export-logs` automatically so the entire plan → execute → troubleshoot → fix → retry chain runs without manual intervention.
+1. Exported tarballs (`sdkm-*log*.tar*`) in `~`, `~/Downloads`, or `cwd`
+2. Raw session `.log` files in `~/.nvsdkm-logs/` (Linux/Mac) or `~/AppData/Local/NVIDIA Corporation/SDK Manager/logs/` (Windows)
+
+**The user does NOT need to run `--export-logs` manually.** SDK Manager writes raw session logs during install; we read them directly. `--export-logs` packaging is a sharing convenience, not a prerequisite for our parser. The most-recent file (by mtime) across both sources wins.
 
 `--troubleshoot` itself is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
 

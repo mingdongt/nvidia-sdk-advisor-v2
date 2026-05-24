@@ -8,3 +8,7 @@ output/*
 *.egg-info/
 .pytest_cache/
 test_responses.txt
+
+# Chroma vector DB — rebuild via `python -m ingest.build_github_vectordb`
+# (kept out of git to avoid repo bloat; corpus JSONL is committed for rebuild input)
+data/chroma_db/

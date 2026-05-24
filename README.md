@@ -4,7 +4,17 @@ A conversational agent that helps developers **discover, configure, install, and
 
 Generates output files (`.ini` response files) SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
-[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning eval: 3.56/5](https://img.shields.io/badge/reasoning-3.56%2F5-yellow)](#evaluation) [![Troubleshoot eval: 4.70/5](https://img.shields.io/badge/troubleshoot-4.70%2F5-brightgreen)](#evaluation) [![Unit tests: 81 passing](https://img.shields.io/badge/tests-81%20passing-brightgreen)](#tests)
+[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning eval: 3.56/5](https://img.shields.io/badge/reasoning-3.56%2F5-yellow)](#evaluation) [![Troubleshoot eval: 4.65/5](https://img.shields.io/badge/troubleshoot-4.65%2F5-brightgreen)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
+
+> **A design study with executable evidence.** What an AI assistant inside SDK Manager could look like — and what 80% of production-izing it would actually require.
+
+## Index
+
+**Build** — [What this does](#what-this-does) · [Hero scenarios](#hero-scenarios) · [Architecture](#architecture) · [Setup](#setup) · [Usage](#usage) · [Project structure](#project-structure) · [Implementation history](#implementation-history)
+
+**Evaluate** — [Evaluation](#evaluation) · [Tests](#tests)
+
+**Strategy** — [Design principles](#design-principles) · [Production gaps](#production-gaps) · [Troubleshoot evolution roadmap](#troubleshoot-evolution-roadmap) · [Owner perspective](#owner-perspective) · [Deliberate non-goals](#deliberate-non-goals)
 
 ---
 
@@ -284,7 +294,7 @@ Three tracks. All run with `python main.py --eval <track>`:
 |---|---|---|---|---|
 | Smoke | Exact field match (product / version / target / additional_sdks) | 5 hand-crafted | **15/15 (100%)** | ≥80% |
 | Reasoning | LLM-as-judge, 4 axes, 3× median | 20 forum-mined | **3.56/5** | ≥3.5/5 |
-| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 15 log-snippet | **4.70/5** | ≥3.5/5 |
+| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 15 log-snippet | **4.65/5** | ≥3.5/5 |
 
 ### Per-axis breakdown
 
@@ -294,13 +304,21 @@ Three tracks. All run with `python main.py --eval <track>`:
 - Constraints respected: 4.95
 - INI validity: 2.75
 
-**Troubleshoot** (4 axes × 1-5):
-- Error correctly identified: 5.00 (perfect — regex patterns cover all 15 cases)
-- Fix matches expert reference: 4.00
-- Fix is actionable: 4.93
-- Safety (sudo warnings): 4.93
+**Troubleshoot** (4 axes × 1-5, current pattern-less + mandatory web_search architecture):
+- Error correctly identified: 4.93 (one case scored 4.0 — devzone-auth-fail, agent missed a nuance about session vs credential failure)
+- Fix matches expert reference: 3.87 (most cases 4.0; kernel-module-mismatch dropped to 2.0 — agent missed the kernel-headers reinstall step the expert reference highlights)
+- Fix is actionable: 4.87
+- Safety (sudo warnings, destructive-op flags): 4.93
 
-Both reasoning and troubleshoot were evaluated with Tier 3 deferred to the underlying Claude's training knowledge (no live web search invoked during eval, to keep scores reproducible). Production runs with `ANTHROPIC_BACKEND=cli` get WebSearch grounding for free.
+Troubleshoot eval invokes the SDK backend's `web_search` tool on every case (it's mandatory in the synthesis prompt — see `src/troubleshoot.py`). This introduces some judge-side variance from one run to the next; the 4.65 above is the median of 3 judge invocations per case.
+
+#### Refactor preservation finding
+
+Before the troubleshoot refactor (curated `data/log_patterns.yaml` with hand-encoded `error_class` labels + `search_terms` hints) this same suite scored **4.70/5**. After dropping the pattern library entirely — agent reads the raw log tail and uses `web_search` directly — it scores **4.65/5**.
+
+The 0.05 delta sits inside the judge's noise floor (per-case judge runs vary by ≥0.3 single-axis). Translation: a hand-curated knowledge layer covering apt / flash / kernel / network failure modes turned out to be **removable without measurable accuracy loss**, once the agent had reliable web grounding. The classification work the curation did was already being done by `web_search` + Claude reading log content. Keeping the patterns would have been engineering debt for no benefit.
+
+This is the troubleshoot-side mirror of the smoke-eval ablation below: in both cases, the "smart" extra layer adds nothing once tools and grounding are in place. The 80/20 of agent quality is in the tool layer and the retrieval surface — not in domain-specific curation.
 
 ### Ablation: does the RAG layer actually help, or does Claude already know this?
 

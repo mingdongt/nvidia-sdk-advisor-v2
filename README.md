@@ -1,16 +1,16 @@
 # NVIDIA SDK Advisor
 
-A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs — the four AI capabilities named in NVIDIA JR2017783 (Senior SWE Tech Lead — AI Developer Experiences, SDK Manager team).
+A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs, built on the same public data sources SDK Manager itself uses.
 
-Built on the same NVIDIA public data sources SDK Manager itself uses, producing output files (`.ini` response files) SDK Manager natively consumes, and optionally driving `NvSDKManager.exe` to completion via subprocess.
+Generates output files (`.ini` response files) SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
 [![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning eval: 3.56/5](https://img.shields.io/badge/reasoning-3.56%2F5-yellow)](#evaluation) [![Troubleshoot eval: 4.70/5](https://img.shields.io/badge/troubleshoot-4.70%2F5-brightgreen)](#evaluation) [![Unit tests: 81 passing](https://img.shields.io/badge/tests-81%20passing-brightgreen)](#tests)
 
 ---
 
-## The four JD verbs, mapped to demo mechanisms
+## What this does
 
-| JD verb | What SDK Manager wizard can't do | What this demo does |
+| Capability | Current SDK Manager gap | This demo's mechanism |
 |---|---|---|
 | **Discover** | Flat list of NVIDIA-branded SDKs; user must already know which fits their use case | `search_3p_sample_repos` (vector search over 21 GitHub repo READMEs) + workload-to-product inference |
 | **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
@@ -272,7 +272,7 @@ Three-way smoke-eval comparison (same 5 hand-crafted cases, same scorer):
 
 With the RAG + deterministic tool layer, both Haiku 4.5 and Opus 4.7 score perfectly. The tools convert the model's knowledge into **executable, factually-grounded** artifacts. Haiku + our layer **matches** Opus + our layer at this scoring axis.
 
-The portfolio claim this supports: *the agent layer is the demo's value, not the model under it.*
+The takeaway: the tool layer — not the underlying model — is where the accuracy comes from.
 
 Try it yourself:
 ```powershell
@@ -307,13 +307,13 @@ Aggregate (5 cases each):
 | `validate_combo` | **2** | **0** _(internalizes the era-pairing rule)_ |
 | `search_3p_sample_repos` | 1 | 1 |
 
-**Two behavioral signals worth flagging to a reviewer parsing this work:**
+**Two behavioral signals worth noting:**
 
 1. **Opus skips `validate_combo` (case 2)** — it reads the JetPack ↔ addon-SDK era table in the SYSTEM_PROMPT and inlines the check rather than dispatching the tool. Haiku takes the tool path literally; Opus internalizes the rule. **Both still get the right answer.** This says something about tool-design: a tool the bigger model routinely skips without losing accuracy is *probably* doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
 
 2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; the demo's correctness doesn't depend on it, but it shows up in the trace.
 
-These are surface-level differences in HOW the two models walk the agent graph. The OUTCOME on every case is identical (15/15 each). The portfolio claim — *the agent layer is the demo's value, not the model under it* — holds: change the model, behavior shifts slightly, output stays correct.
+These are surface-level differences in HOW the two models walk the agent graph. The OUTCOME on every case is identical (15/15 each). The earlier takeaway — *the tool layer, not the underlying model, is where the accuracy comes from* — holds: change the model, behavior shifts slightly, output stays correct.
 
 ---
 
@@ -400,21 +400,8 @@ Plan series (in commit order, tagged in git):
 | **v2.0.0-b** | RAG layer (Server B: NGC + GitHub) + `--dry-run` + `--execute` modes + reasoning eval | B.1–B.13 |
 | **v2.0.0-c** | `parse_install_log` (13th Server A tool) + `--troubleshoot` mode + troubleshoot eval | C.1–C.10 |
 
-Spec: `docs/superpowers/specs/2026-05-23-nvidia-sdk-advisor-v2-design.md`.
-Plans: `docs/superpowers/plans/2026-05-23-nvidia-sdk-advisor-v2{a,b,c}-*.md`.
-
----
-
-## Strategic positioning (for NVIDIA reviewers)
-
-This demo addresses the unfilled white space on NVIDIA's "AI everywhere in developer tools" roadmap — the SDK Manager team's product gap. NeMo Agent Toolkit, AI-Q Blueprints, Nsight Copilot, Vera CPU all received agentic upgrades in the past 18 months; SDK Manager's developer-blog tag has zero posts since July 2023, and v2.4.0 release notes mention no AI features.
-
-The pitch in one sentence: *the same agent NVIDIA is building everywhere else, applied to the wizard their docs show users routinely bouncing off of.*
-
-The repo is built on the same data sources SDK Manager itself reads (the public CDN at `developer.download.nvidia.com/sdkmanager/sdkm-config/`), produces output matching NVIDIA's own `.ini` template format, and treats `NvSDKManager.exe` as a subprocess target rather than competing with it. It positions itself as *everything before the wizard fires* — it does not replace `sdkmanager`, it feeds it.
-
 ---
 
 ## License & attribution
 
-Portfolio artifact. NVIDIA SDK Manager, NGC, JetPack, Jetson, Isaac, DeepStream, etc. are trademarks of NVIDIA Corporation. All NVIDIA data is fetched from public endpoints; this repo redistributes only what is necessary for offline reproducibility (CDN manifest snapshots, GitHub README scraped via API).
+NVIDIA SDK Manager, NGC, JetPack, Jetson, Isaac, DeepStream, etc. are trademarks of NVIDIA Corporation. All NVIDIA data is fetched from public endpoints; this repo redistributes only what is necessary for offline reproducibility (CDN manifest snapshots, GitHub README scraped via API).

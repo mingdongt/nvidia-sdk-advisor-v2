@@ -176,6 +176,24 @@ GH_TOKEN=ghp_...
 
 Without `BRAVE_API_KEY`, Tier 3 returns empty hits and the agent works from Tier 1+2 only (still useful, just narrower).
 
+### Backend selection (use API key OR Claude Code subscription)
+
+The agent supports three backends, switchable via env var:
+
+```powershell
+# Default: Anthropic Python SDK (Haiku 4.5 by default, configurable via ANTHROPIC_MODEL)
+$env:ANTHROPIC_BACKEND="sdk"
+
+# Subscription-based: spawn `claude` CLI as subprocess + our 2 MCP servers
+# (avoids API quota when you already have a Claude Pro/Max subscription)
+$env:ANTHROPIC_BACKEND="cli"
+
+# Baseline (for the ablation study below): claude CLI with no tools attached
+$env:ANTHROPIC_BACKEND="cli-no-tools"
+```
+
+The `cli` backend requires `claude` CLI installed and authenticated (`claude login`).
+
 ### Re-running corpus ingestion (optional)
 
 ```powershell
@@ -232,6 +250,36 @@ Three tracks. All run with `python main.py --eval <track>`:
 - Safety (sudo warnings): 4.93
 
 Both reasoning and troubleshoot were evaluated **without** Brave Search (Tier 3 silent). With Brave key configured, factual and matches-expert axes are expected to lift further.
+
+### Ablation: does the RAG layer actually help, or does Claude already know this?
+
+Three-way smoke-eval comparison (same 5 hand-crafted cases, same scorer):
+
+| Configuration | Backend | Tools | Smoke score | Δ vs baseline |
+|---|---|---|---|---|
+| **A** | Anthropic SDK + **Haiku 4.5** | + Server A (13) + Server B (4) | **15/15 (100%)** | +53.3 pp |
+| **B** | Claude CLI + **Opus 4.7** | + Server A (13) + Server B (4) | **15/15 (100%)** | +53.3 pp |
+| **C (baseline)** | Claude CLI + **Opus 4.7** | _none — model alone with format prompt_ | **7/15 (46.7%)** | — |
+
+**Reading the table:** Opus 4.7 alone, even when explicitly told to produce `sdkmanager` commands in the right format, scores 46.7% on factual NVIDIA SDK questions. The misses are all hallucinations the model couldn't ground:
+
+- `--product jetpack` instead of `Jetson` (product/version confusion)
+- `--product JETSON_ORIN_NX_TARGETS` (target ID written into the product field)
+- `JETSON_XAVIER_TARGETS` instead of `JETSON_AGX_XAVIER_TARGETS` (invented variant)
+- Original Jetson Nano (4GB) paired with JetPack 5.0 — but Nano only supports up to 4.6.4
+
+With the RAG + deterministic tool layer, both Haiku 4.5 and Opus 4.7 score perfectly. The tools convert the model's knowledge into **executable, factually-grounded** artifacts. Haiku + our layer **matches** Opus + our layer at this scoring axis.
+
+The portfolio claim this supports: *the agent layer is the demo's value, not the model under it.*
+
+Try it yourself:
+```powershell
+$env:ANTHROPIC_BACKEND="cli-no-tools"; python main.py --eval smoke   # Opus alone
+$env:ANTHROPIC_BACKEND="cli";          python main.py --eval smoke   # Opus + our tools
+$env:ANTHROPIC_BACKEND="sdk";          python main.py --eval smoke   # Haiku + our tools (default)
+```
+
+Raw baseline responses (showing the hallucinations) archived at `data/eval_runs/opus_baseline_responses.txt`.
 
 ---
 

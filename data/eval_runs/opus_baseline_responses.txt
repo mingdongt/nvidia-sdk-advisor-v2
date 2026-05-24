@@ -1,0 +1,142 @@
+
+================================================================================
+Case 1: Orin Nano 8GB, basic CUDA work, JetPack 6.x
+================================================================================
+JetPack 6.x on Orin Nano 8GB includes all essential CUDA tooling out of the box. This configuration sets up CUDA development with the NVIDIA driver, cuDNN, TensorRT, and JetPack runtime libraries ready for compilation and inference workloads.
+
+```bash
+sdkmanager --cli \
+  --product jetpack \
+  --version 6.1 \
+  --target JETSON_ORIN_NANO_TARGETS \
+  --target-os Linux \
+  --host x86_64 \
+  --additional-sdk CUDA
+```
+
+```ini
+[client_arguments]
+product=jetpack
+version=6.1
+target=JETSON_ORIN_NANO_TARGETS
+target-os=Linux
+host=x86_64
+additional-sdk=CUDA
+```
+
+This installs JetPack 6.1 with CUDA 12.x, cuDNN, and TensorRT—sufficient for kernel development and model optimization on the 8GB device. If you need a specific JetPack 6.x point release (6.0, 6.2), adjust the `--version` flag accordingly.
+
+================================================================================
+Case 2: AGX Orin 64GB, want DeepStream 7.0 for video analytics
+================================================================================
+For AGX Orin 64GB with DeepStream 7.0, you need JetPack 6.0+ which includes DeepStream 7.0. The AGX Orin is a flagship edge AI module that supports full SDK installation with video analytics pipelines. This command configures the host machine to flash your device and install DeepStream along with core NVIDIA libraries.
+
+```bash
+sdkmanager --cli install \
+  --product Jetson_AGX_Orin \
+  --version 6.0 \
+  --target JETSON_AGX_ORIN_TARGETS \
+  --target-os Linux \
+  --host Linux \
+  --additional-sdk DeepStream
+```
+
+```ini
+[client_arguments]
+product=Jetson_AGX_Orin
+version=6.0
+target=JETSON_AGX_ORIN_TARGETS
+target_os=Linux
+host=Linux
+additional_sdk=DeepStream
+```
+
+**Key points:**
+- JetPack 6.0 includes DeepStream 7.0 with CUDA 12.2 and cuDNN 9.x for optimal inference performance
+- 64GB variant supports concurrent multi-stream video processing
+- Ensure your host machine has 50GB+ free disk space
+- AGX Orin requires USB-C for flashing—use the provided Micro-USB cable in device recovery mode (hold Force Recovery button during power cycle)
+
+================================================================================
+Case 3: Orin NX 16GB, latest stable JetPack for it
+================================================================================
+The Jetson Orin NX 16GB supports JetPack 6.x as the latest stable branch. This command installs the full JetPack 6.1 SDK onto your host machine, including CUDA, cuDNN, TensorRT, and all development tools needed for Orin NX development.
+
+```bash
+sdkmanager --product JETSON_ORIN_NX_TARGETS \
+  --version 6.1 \
+  --target JETSON_ORIN_NX_TARGETS \
+  --target-os LINUX \
+  --host LINUX \
+  --response /tmp/sdkmanager_response.ini
+```
+
+```ini
+[client_arguments]
+product=JETSON_ORIN_NX_TARGETS
+version=6.1
+target=JETSON_ORIN_NX_TARGETS
+target_os=LINUX
+host=LINUX
+```
+
+================================================================================
+Case 4: AGX Xavier, latest JetPack that supports it
+================================================================================
+I'll provide the SDK Manager configuration for AGX Xavier with the latest supported JetPack (5.1 is the latest mainstream release; 4.6 is an alternative if you need stability):
+
+**Explanation:**
+AGX Xavier is supported through JetPack 5.1. This configuration installs the latest stable JetPack release with all core components and runtime libraries for Xavier. If you need the absolute latest experimental version, you could use 6.0, but 5.1 is the recommended stable choice.
+
+**Command:**
+```bash
+sdkmanager --cli --product jetson --version 5.1 --target JETSON_XAVIER_TARGETS --target-os linux --host x86_64
+```
+
+**Response file content (sdkmanager_response.ini):**
+```ini
+[client_arguments]
+product=jetson
+version=5.1
+target=JETSON_XAVIER_TARGETS
+target_os=linux
+host=x86_64
+```
+
+If you need JetPack 4.6 instead (older but proven stable):
+```bash
+sdkmanager --cli --product jetson --version 4.6 --target JETSON_XAVIER_TARGETS --target-os linux --host x86_64
+```
+
+Which JetPack version would you prefer—5.1 (latest) or 4.6 (stable)?
+
+================================================================================
+Case 5: Jetson Nano (original 4GB), object detection sample
+================================================================================
+The Jetson Nano (original 4GB) is ideal for edge object detection with its Maxwell GPU architecture. This configuration installs JetPack with CUDA, cuDNN, and TensorRT—the core stack for running object detection models. DeepStream is included for optimized video analytics pipelines.
+
+```bash
+sdkmanager --cli \
+  --product jetson_nano \
+  --version 5.0 \
+  --target JETSON_NANO_TARGETS \
+  --target-os linux \
+  --host x86_64-linux \
+  --additional-sdk deepstream-6.3 \
+  --additional-sdk cuda-toolkit-11.4 \
+  --additional-sdk cudnn-11.4
+```
+
+```ini
+[client_arguments]
+product=jetson_nano
+version=5.0
+target=JETSON_NANO_TARGETS
+target_os=linux
+host=x86_64-linux
+additional_sdk=deepstream-6.3
+additional_sdk=cuda-toolkit-11.4
+additional_sdk=cudnn-11.4
+```
+
+This installs JetPack 5.0 with DeepStream for production object detection pipelines, CUDA 11.4 for GPU compute, and cuDNN for optimized neural network inference. TensorRT is included in the base JetPack for model optimization.

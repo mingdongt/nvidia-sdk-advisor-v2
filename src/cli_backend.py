@@ -119,14 +119,34 @@ def run_with_tools(user_input: str, system_prompt: str, timeout: int = 300) -> s
             pass
 
 
+_NO_TOOLS_INSTRUCTION = """You are NVIDIA SDK Advisor. Help the user pick the right SDK Manager configuration.
+
+For each request, respond with:
+1. A brief explanation paragraph.
+2. The full sdkmanager command in a ```bash code block, with --product, --version,
+   --target, --target-os, --host, --additional-sdk[] flags.
+3. The response file content in a ```ini code block with [client_arguments] section.
+
+Use the same flag names and value vocabulary as `sdkmanager --cli`. Target IDs follow
+the pattern JETSON_<MODEL>_TARGETS (e.g. JETSON_ORIN_NANO_TARGETS).
+
+Be specific. Generate the command directly; do not ask clarifying questions."""
+
+
 def run_no_tools(user_input: str, timeout: int = 120) -> str:
-    """Run query via claude CLI alone, no MCP, no system prompt augmentation.
+    """Run query via claude CLI alone, no MCP.
 
     This is the BASELINE for our comparison: what does the raw model know
     about NVIDIA SDKs without our retrieval layer?
+
+    We DO pass a brief instruction prompt so the model knows the expected
+    output format (sdkmanager command + .ini), to make the comparison fair
+    against the with-tools version. The model still has to invent target IDs,
+    version strings, and SDK names from training-time knowledge alone.
     """
     args = [
         "-p", user_input,
+        "--append-system-prompt", _NO_TOOLS_INSTRUCTION,
         "--output-format", "json",
         "--no-session-persistence",
         *_model_arg(),

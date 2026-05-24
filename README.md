@@ -4,6 +4,19 @@ A conversational agent that helps developers **discover, configure, install, and
 
 [![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
 
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/demo/architecture.svg" alt="Architecture: 5 phases on one MCP + RAG backend">
+<p align="center"><sub><b>The architecture.</b> Five phases share one Agent + MCP + RAG backend. Red dashed line = the replaceable boundary. <a href="#mcp-design">MCP design</a> · <a href="#rag-design">RAG design</a></sub></p>
+</td>
+<td width="50%" valign="top">
+<img src="docs/demo/full-mode.gif" alt="End-to-end demo: configure → install → troubleshoot → fix → retry">
+<p align="center"><sub><b>The demo.</b> <code>python main.py --full --mock-install --query "..."</code>. Every MCP tool call + agent reasoning + web_search query is visible. Real Anthropic API calls; install steps mocked because no Jetson is plugged in. <a href="docs/demo/README.md">Recording recipe</a></sub></p>
+</td>
+</tr>
+</table>
+
 ---
 
 ## What's in this repo

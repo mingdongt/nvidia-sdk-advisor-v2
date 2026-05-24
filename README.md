@@ -245,10 +245,23 @@ python main.py                           # default — conversational REPL, gene
 python main.py --dry-run                 # invoke NvSDKManager --query against latest plan
 python main.py --execute                 # actually install (confirmation + sudo prompt)
 python main.py --troubleshoot <log>      # diagnose an SDK Manager log archive or .log file
+python main.py --full --mock-install --query "<text>"   # end-to-end: configure → install → troubleshoot → fix → retry
 python main.py --eval smoke              # Plan A eval (5 hand-crafted cases, exact match)
 python main.py --eval reasoning          # Plan B eval (20 LLM-judged cases)
 python main.py --eval troubleshoot       # Plan C eval (15 log-snippet LLM-judged cases)
 ```
+
+### End-to-end mode (`--full`)
+
+`--full --mock-install` chains all five phases of the troubleshoot story into one continuous CLI session:
+
+1. **Configure** [REAL] — agent + MCP + `.ini` / `.command` generation
+2. **Install** [MOCKED] — canned SDK Manager failure log (no real subprocess; no hardware needed)
+3. **Troubleshoot** [REAL] — agent re-reads the mock log, invokes `web_search`, synthesizes `fix.sh` + `diagnosis.md`
+4. **Apply fix** [SIMULATED] — prints `bash fix.sh` command, does not actually execute
+5. **Retry install** [MOCKED] — canned success log
+
+Each phase header in the output is tagged REAL / MOCKED / SIMULATED so the audience sees exactly where grounding ends and canned content begins. Without `--mock-install`, `--full` exits with an error: real-hardware end-to-end isn't built yet (needs a connected Jetson + a deterministic failure recipe — see [Owner perspective](#owner-perspective) Q3 plan).
 
 ### Execution mode safety
 
@@ -514,6 +527,8 @@ Trust axis    : full review ──── per-action confirm ──── --yolo
 
 v2.0.0-c sits at `(passive, generate, full-review)`. The trade-off is deliberate: maximum safety, minimum surprise.
 
+The `--full --mock-install` orchestrator (commit 8be775c) demonstrates how an end-to-end chain across these axes would compose — configure → install → troubleshoot → fix → retry, with canned subprocess stand-ins for the still-future Execute and Verify cells. The orchestration layer itself is built; only the bits behind the MOCKED tags are not.
+
 ### Input axis — how the agent engages
 
 | Mode | Status | Trigger | Cost |
@@ -528,9 +543,9 @@ v2.0.0-c sits at `(passive, generate, full-review)`. The trade-off is deliberate
 | Mode | Status | What it does | Cost |
 |---|---|---|---|
 | **Generate** | ✓ shipped | Writes `fix.sh` + `diagnosis.md` to `output/`; user runs the script themselves | — |
-| **Execute** | future | Runs `fix.sh` with per-command risk gating: low-risk lines auto-run, sudo/destructive lines require explicit confirm | ~3 hrs |
+| **Execute** | orchestration shipped, real path future | The chain that would invoke Execute ships as `--full` (currently with `--mock-install` stand-in). Real path needs per-command risk gating: low-risk lines auto-run, sudo / destructive lines require explicit confirm | ~3 hrs once a Jetson is on hand |
 | **Escalate** | future | When `web_search` returns nothing usable, drafts a NVIDIA-forum-format post with PII-scrubbed log excerpts, prefilled hardware + version fields, and a "what I've tried" hypothesis. Saves to `output/forum_draft.md` or opens the forum's new-topic URL with query params pre-populated | ~2 hrs |
-| **Verify** | future | After install retry, runs a smoke test (`nvidia-smi`, `apt list nvidia-jetpack`, lsmod check) to confirm the system is actually healthy — not just that the installer's exit code was 0 | ~1 hr |
+| **Verify** | orchestration shipped, real check future | `--full` reserves a verify phase but currently mocks success. Real check would run `nvidia-smi`, `apt list nvidia-jetpack`, lsmod sanity — confirms the system is actually healthy, not just that installer exit was 0 | ~1 hr |
 
 ### Trust axis — how much control the user keeps
 

@@ -34,20 +34,21 @@ console = Console()
 _CASES = Path(__file__).parent / "eval_cases" / "troubleshoot.jsonl"
 
 
-_JUDGE_PROMPT = """You are evaluating a troubleshoot agent's fix recommendation against an expert reference.
+_JUDGE_PROMPT = """You are evaluating a troubleshoot agent's fix recommendation against a real-world reference mined from an NVIDIA Developer Forum thread.
 
 Log snippet (input):
 {log}
 
-Expected error class: {expected_error_class}
-Expected fix summary (expert reference): {expected_fix}
+Category label: {category_label}
+Reference fix (from forum thread, verification status = {verification}): {expected_fix}
+Source thread: {source_thread_url}
 
 Agent's recommendation:
 {agent_output}
 
 Rate the agent on FOUR axes (1-5 each):
-1. Error correctly identified — did the agent classify the same failed stage / error class as the reference?
-2. Fix matches expert reference — does the recommendation aim at the same root cause and proposed solution path?
+1. Error correctly identified — did the agent recognize the same failure mode as the forum thread?
+2. Fix matches reference — does the recommendation aim at the same root cause and propose a compatible solution path? (An equally-valid alternative fix that addresses the same root cause scores high.)
 3. Fix is actionable — are the proposed commands runnable (specific commands, not vague advice)?
 4. Safety — for any destructive or sudo command, is there an explicit warning?
 
@@ -75,7 +76,10 @@ def _run_one_case(case: dict) -> dict:
 def _judge(client: anthropic.Anthropic, case: dict, agent_output: str) -> dict:
     import re
     prompt = _JUDGE_PROMPT.format(
-        log=case["log_inline"], expected_error_class=case["expected_error_class"],
+        log=case["log_inline"],
+        category_label=case.get("category_label", case.get("expected_error_class", "")),
+        verification=case.get("verification", "unspecified"),
+        source_thread_url=case.get("source_thread_url", "n/a"),
         expected_fix=case["expected_fix_summary"], agent_output=agent_output,
     )
     try:
@@ -100,14 +104,16 @@ def main() -> None:
     cases = [json.loads(line) for line in _CASES.read_text(encoding="utf-8").splitlines() if line.strip()]
     client = anthropic.Anthropic()
 
-    table = Table(title="Troubleshoot eval (LLM-as-judge, 3x median)")
-    for col in ("#", "Error class", "Ident", "Matches", "Actionable", "Safety", "Avg"):
+    table = Table(title="Troubleshoot eval (LLM-as-judge, 3x median, forum-mined cases)")
+    for col in ("#", "Category", "Verif", "Ident", "Matches", "Actionable", "Safety", "Avg"):
         table.add_column(col)
 
     scores_all = {"identified": [], "matches_expert": [], "actionable": [], "safety": []}
 
     for i, c in enumerate(cases, 1):
-        console.print(f"[dim]running case {i}/{len(cases)} ({c['expected_error_class']})...[/dim]")
+        label = c.get("category_label", c.get("expected_error_class", ""))
+        verif = c.get("verification", "?")
+        console.print(f"[dim]running case {i}/{len(cases)} ({label}, {verif})...[/dim]")
         result = _run_one_case(c)
         agent_output = result.get("fix_recommendation", "")
 
@@ -120,7 +126,7 @@ def main() -> None:
             scores_all[k].append(median[k])
         avg = sum(median.values()) / 4
         table.add_row(
-            str(i), c["expected_error_class"][:24],
+            str(i), label[:28], verif[:18],
             f"{median['identified']:.1f}", f"{median['matches_expert']:.1f}",
             f"{median['actionable']:.1f}", f"{median['safety']:.1f}",
             f"{avg:.2f}",

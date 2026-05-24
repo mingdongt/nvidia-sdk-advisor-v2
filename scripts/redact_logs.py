@@ -2,10 +2,15 @@
 into the repo's data/sample_logs/ directory.
 
 Redaction rules:
-  - /home/<anything>/         -> /home/REDACTED/
+  - /home/<...any depth...>/<known SDK dir>/  -> /home/REDACTED/<known SDK dir>/
+    (collapses /home/SENSETIME/wangmingke/.nvsdkm -> /home/REDACTED/.nvsdkm)
+  - /home/<anything>/         -> /home/REDACTED/         (single-level fallback)
   - C:\\Users\\<anything>\\   -> C:\\Users\\REDACTED\\
+  - /tmp/tmp_<COMP>.<user>.sh -> /tmp/tmp_<COMP>.REDACTED.sh
+    (SDK Manager embeds the host username in temp script filenames)
   - Public IPs (not NVIDIA-known) -> X.X.X.X
   - SenseTime, company-name-ish patterns -> REDACTED
+  - Emails -> REDACTED@example.com
 
 Preserves all error messages, error codes, target IDs, JetPack versions,
 component names — the agent needs all of those.
@@ -25,9 +30,23 @@ SRC_ZIPS = [
 
 DEST_DIR = Path(r"C:\onmyway\nvidia-sdk-advisor-v2\data\sample_logs")
 
-# Patterns to redact (replacement preserves length-ish where possible)
+# Directories that mark the "safe" tail of an SDK Manager path. Anything
+# between /home/ and one of these is treated as user-identifying.
+_KNOWN_SDK_DIRS = r"(?:\.nvsdkm|nvidia|nvidia_sdk|Linux_for_Tegra|sdkmanager|JetPack_[\w.]+|Downloads)"
+
+# /home/<1-5 dirs>/<known SDK dir>/   -> /home/REDACTED/<known SDK dir>/
+LINUX_HOME_DEEP = re.compile(
+    rf"/home/(?:[\w.+-]+/){{1,5}}(?={_KNOWN_SDK_DIRS}/)"
+)
+# Fallback for single-level /home/<user>/ that didn't match a known SDK dir
 LINUX_HOME = re.compile(r"/home/([\w.+-]+)/")
 WIN_USER = re.compile(r"([Cc]):\\Users\\([^\\]+)\\")
+# /tmp/tmp_NV_L4T_FLASH_JETSON_LINUX_COMP.<user>.sh -> ...REDACTED.sh
+# Username is the segment between the last '.' before the extension and the
+# component name (which is uppercase letters/underscores).
+TMP_USER_SCRIPT = re.compile(
+    r"(/tmp/tmp_[A-Z][A-Z0-9_]+)\.([\w.+-]+?)\.(sh|bat|ps1|cmd)\b"
+)
 # Don't touch the NVIDIA recovery USB IP — it's a known constant, not personal
 NVIDIA_CONSTANT_IPS = {"192.168.55.1", "192.168.55.100", "0.0.0.0", "127.0.0.1"}
 IP_PATTERN = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
@@ -37,8 +56,12 @@ EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
 def redact_text(text: str) -> str:
-    out = LINUX_HOME.sub("/home/REDACTED/", text)
+    # Order matters: collapse multi-level /home/.../SDK first, then handle
+    # any single-level /home/<user>/ that the deep pattern didn't catch.
+    out = LINUX_HOME_DEEP.sub("/home/REDACTED/", text)
+    out = LINUX_HOME.sub("/home/REDACTED/", out)
     out = WIN_USER.sub(lambda m: f"{m.group(1)}:\\Users\\REDACTED\\", out)
+    out = TMP_USER_SCRIPT.sub(lambda m: f"{m.group(1)}.REDACTED.{m.group(3)}", out)
     # IPs: replace any not in the NVIDIA constant set
     out = IP_PATTERN.sub(lambda m: m.group(1) if m.group(1) in NVIDIA_CONSTANT_IPS else "X.X.X.X", out)
     out = EMAIL_PATTERN.sub("REDACTED@example.com", out)

@@ -49,7 +49,10 @@ _TAIL_LINES = 200
 _FILENAME_RE_LONG = re.compile(
     r"SDKM_logs_JetPack_(?P<jp>[\d.]+)_"
     r"(?P<host>Linux|Windows|Ubuntu\S*)_"
-    r"for_Jetson_(?P<board>[A-Za-z0-9_]+?)_"
+    # Board fragment can contain underscores, alphanumerics, and bracketed
+    # variant tags like '[8GB_developer_kit_version]' — verified against
+    # real Orin Nano exports on the forum.
+    r"for_Jetson_(?P<board>[A-Za-z0-9_\[\]]+?)_"
     r"(?P<date>\d{4}-\d{2}-\d{2})_"
     r"(?P<time>\d{2}-\d{2}-\d{2})"
     r"\.(?:zip|tar\.gz|tgz|log|txt)$",

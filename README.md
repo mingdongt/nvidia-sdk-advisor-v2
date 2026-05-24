@@ -278,24 +278,50 @@ When `--execute` exits non-zero, the agent automatically finds the most recent S
 
 `--troubleshoot` itself is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
 
-### Log handling: what's verified vs what production would refine
+### Log handling: surface-level by design
 
-The log-reading layer is intentionally narrow — open the `.zip`, parse the filename, hand the agent the raw tail. Beyond that, the agent reads the log and decides; there is no pre-classification step.
+The log-reading layer is **deliberately surface-level**: open the `.zip`, regex-parse the filename, take the last ~200 lines, hand it all to the agent. That's it. No stage classification, no error vocabulary, no internal-structure assumptions.
 
-What's grounded in public evidence:
+This is intentional, not lazy. We are an external project looking at the **finished artifact** of SDK Manager — an opaque `.zip` whose internal layout, log file naming conventions, error code semantics, and severity grading are NVIDIA-internal implementation details. Any pre-classification we wrote without access to those internals would be guesswork. We tried it once (a curated `log_patterns.yaml` of ~20 regexes); too many patterns were hallucinated against training data instead of grounded in real logs. The refactor that removed it is in commit `6765bed`.
 
-- `.zip` archive format and filename pattern: confirmed from real SDK Manager exports posted to [forums.developer.nvidia.com](https://forums.developer.nvidia.com)
-- Filename → target / JetPack / host OS / timestamp extraction: deterministic regex
-- Error strings the agent will recognize: standard Linux tool output (apt / dpkg / modprobe / curl) plus NVIDIA-specific strings the model has seen in its training data
-- Web search domain priorities: forums.developer.nvidia.com, askubuntu.com, stackoverflow.com, github.com — based on observed signal density per error type
+What we DO verify works (against five real exports — see "Test corpus" below):
 
-What this PoC explicitly does NOT have:
+- `.zip` archive format and the two real filename patterns: long (`SDKM_logs_JetPack_<ver>_<host>_for_Jetson_<board>_<date>_<time>.zip`) and short (`SDKM_logs_<date>_<time>.zip`)
+- Filename → target / JetPack / host OS / timestamp extraction (deterministic regex)
+- Concat all `.log` / `.txt` files inside the archive; take the last 200 lines
 
-- Knowledge of the internal directory layout inside the `.zip` (which subfolder, what each log file represents) — we read all `.log` / `.txt` files and concatenate
-- A curated dictionary of NVIDIA-specific error → fix mappings — earlier versions tried this and the patterns were unreliable; the agent now identifies errors from the log text itself
-- Session-level summary or manifest files (if any) inside the archive
+What only the SDK Manager team can do reliably:
 
-A production version built with SDK Manager team's internal access could refine all three — direct knowledge of the log producer code, the actual error vocabulary, and a curated fix knowledge base. The MCP boundary means swapping in that production-grade `parse_install_log` does not require touching the agent loop, troubleshoot orchestrator, or any other downstream code.
+- **Read the log-producer code.** Errors in SDK Manager come from specific code paths (Electron main / renderer / worker subprocess / PowerShell query scripts on Windows / bash scripts on Linux). Knowing which path emits which error string lets you build a real parser that classifies by code site, not by string match.
+- **Surface internal error codes.** Real exports contain `error code is: 2001`, `Task 0x0 failed (err: 0x1f1e050d)`, `command error code: 11` — all NVIDIA-internal numeric/hex codes. Their meanings live in the source.
+- **Use the internal directory layout.** Real archives have `sdkm-*.log` (session log) + `downloadLogs/sdkm_download-*.log` (download subsystem) + likely more subsystem-specific files. Knowing which file represents which subsystem lets you query the relevant one instead of concatenating everything.
+- **Schema-validate the log.** SDK Manager logs follow internal conventions (`HH:MM:SS.mmm - <severity>: <message>`, event-pattern `Event: <COMPONENT>@<TARGET> - status is: <status>`). With the producer source, you parse this as structured records instead of free text.
+
+**Once these are accessible — i.e. once we are SDK Manager team members rather than external researchers — the real, reliable parser gets written.** Until then, the surface-level layer keeps the agent honest: it never trusts a classification we made up, it just reads the actual log content. The MCP boundary localizes the eventual change to a single replaceable function (`parse_install_log`); the agent loop, troubleshoot orchestrator, prompt template, web_search integration, and output writer all stay unchanged.
+
+### Test corpus: real SDK Manager exports
+
+To validate the surface-level approach against real-world variability, the parser + agent has been run against five SDK Manager log archives downloaded from public forum posts:
+
+| # | Source thread | Filename | Failure scenario |
+|---|---|---|---|
+| 1 | [Can not flash JetPack 6.1 on AGX Orin via SDK Manager](https://forums.developer.nvidia.com/t/can-not-flash-jetpack-6-1-on-jetson-agx-orin-via-sdk-manager/308377) | `SDKM_logs_JetPack_6.1_Linux_for_Jetson_AGX_Orin_modules_2024-09-30_16-09-17.zip` | JetPack 6.1 flash failure on AGX Orin |
+| 2 | [How to flash MCU's firmware on AGX Orin 64G DK](https://forums.developer.nvidia.com/t/how-to-flash-mcus-firmware-on-agx-orin-64g-dk/366168) | `SDKM_logs_JetPack_6.2.2_Linux_for_Jetson_AGX_Orin_modules_2026-04-10_10-51-27.zip` | MCU firmware flash, JetPack 6.2.2 |
+| 3 | [Flashing Orin Nano via SDK Fails](https://forums.developer.nvidia.com/t/flashing-orin-nano-via-sdk-fails/318733) | `SDKM_logs_2025-01-03_13-01-22.zip` | WSL-based flash failure (short filename — only timestamp encoded) |
+| 4 | [Install JetPack 6.2 failed with SDK manager on AGX orin 64G](https://forums.developer.nvidia.com/t/install-jetpack-6-2-failed-with-sdk-manager-on-agx-orin-64g/321524) | `SDKM_logs_JetPack_6.2_Linux_for_Jetson_AGX_Orin_64GB_2025-01-26_11-41-13.zip` | JetPack 6.2 install fail on AGX Orin |
+| 5 | [Flashing JetPack 6.2 ... command error code: 11](https://forums.developer.nvidia.com/t/flashing-jetpack-6-2-using-sdk-manager-displays-command-error-code-11/327911) | `SDKM_logs_JetPack_6.2_Linux_for_Jetson_Orin_Nano_[8GB_developer_kit_version]_2025-03-21_12-48-45.zip` | JetPack 6.2 Orin Nano + bracketed board variant in filename |
+
+These archives are NOT committed to this repo — they belong to the users who posted them, and the log content embeds usernames/paths/IDs that would be a privacy issue to redistribute. They were downloaded for local validation only. Each forum thread URL above is the canonical source.
+
+Findings that drove parser changes during this validation pass:
+
+- **Real archive format is `.zip`**, not `.tar.gz` (commit `6765bed`)
+- **Two filename forms exist** — long-form with JetPack/host/target encoded, short-form with only timestamp (commit `97b6c61`)
+- **Bracketed board variant tags** like `[8GB_developer_kit_version]` appear in real filenames — regex extended to allow `[]` (commit pending)
+- **Internal layout has a `downloadLogs/` subdirectory** with subsystem-specific session logs; we read concatenated content (agent figures out which subsystem from context)
+- **Real failure signatures** in the 200-line tail include `error: install process failure`, `error: cannot get component by id undefined`, `error: completeSetup failed`, plus telemetry validation errors (`Failed to validate GA4 event. Validation errors: ...`). Each is interpreted by the agent at runtime — we don't pre-classify them.
+
+The first end-to-end troubleshoot run (on a Windows-host export the demo author generated by deliberately triggering a Jetson Thor setup failure) correctly identified the root cause as missing USBIPD on the Windows host and cited [docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html](https://docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html) via web_search — without any pre-classification layer. The agent reading the raw tail was sufficient.
 
 ---
 

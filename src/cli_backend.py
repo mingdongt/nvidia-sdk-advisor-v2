@@ -92,6 +92,19 @@ def _run_claude_cli(args: list[str], timeout: int = 300) -> dict:
 
 def run_with_tools(user_input: str, system_prompt: str, timeout: int = 300) -> str:
     """Run query via claude CLI + our 2 MCP servers. Returns assistant final text."""
+    text, _ = _run_with_tools_internal(user_input, system_prompt, timeout, trace=False)
+    return text
+
+
+def run_with_tools_traced(user_input: str, system_prompt: str, timeout: int = 300) -> tuple[str, list[str]]:
+    """Same as run_with_tools but ALSO returns the ordered list of tool names that fired.
+
+    Used by the cross-backend tool-usage comparison report.
+    """
+    return _run_with_tools_internal(user_input, system_prompt, timeout, trace=True)
+
+
+def _run_with_tools_internal(user_input: str, system_prompt: str, timeout: int, trace: bool) -> tuple[str, list[str]]:
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False, encoding="utf-8",
     ) as f:
@@ -99,19 +112,53 @@ def run_with_tools(user_input: str, system_prompt: str, timeout: int = 300) -> s
         mcp_config_path = f.name
 
     try:
+        output_fmt = "stream-json" if trace else "json"
         args = [
             "-p", user_input,
             "--append-system-prompt", system_prompt,
             "--mcp-config", mcp_config_path,
-            # Allow all tools from our two MCP servers without permission prompts
             "--allowedTools", "mcp__nvidia-knowledge", "mcp__nvidia-corpus-rag",
             "--dangerously-skip-permissions",
-            "--output-format", "json",
+            "--output-format", output_fmt,
             "--no-session-persistence",
+            *(["--verbose"] if trace else []),  # stream-json requires --verbose
             *_model_arg(),
         ]
-        result = _run_claude_cli(args, timeout=timeout)
-        return result.get("result", "")
+        if not trace:
+            result = _run_claude_cli(args, timeout=timeout)
+            return result.get("result", ""), []
+
+        # stream-json: each line is a JSON event
+        exe = _locate_claude()
+        proc = subprocess.run(
+            [exe, *args], capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"claude CLI exit {proc.returncode}: {proc.stderr[:500]}")
+
+        final_text = ""
+        tools_called: list[str] = []
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                evt = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            etype = evt.get("type")
+            if etype == "assistant" and isinstance(evt.get("message"), dict):
+                for block in evt["message"].get("content", []):
+                    if block.get("type") == "tool_use":
+                        # Tool names from MCP are like "mcp__nvidia-knowledge__lookup_target_id"
+                        name = block.get("name", "")
+                        if "__" in name:
+                            name = name.split("__")[-1]
+                        tools_called.append(name)
+            elif etype == "result":
+                final_text = evt.get("result", "") or final_text
+        return final_text, tools_called
     finally:
         try:
             os.unlink(mcp_config_path)

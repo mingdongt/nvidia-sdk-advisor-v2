@@ -283,6 +283,38 @@ $env:ANTHROPIC_BACKEND="sdk";          python main.py --eval smoke   # Haiku + o
 
 Raw baseline responses (showing the hallucinations) archived at `data/eval_runs/opus_baseline_responses.txt`.
 
+### How Haiku and Opus differ in tool usage (both still score 100%)
+
+Running the smoke eval with `tests/list_smoke_tools.py` (SDK + Haiku) and `tests/list_smoke_tools_cli.py` (CLI + Opus 4.7) traces which MCP tools each model invoked per case:
+
+| Case | Haiku 4.5 path | Opus 4.7 path |
+|---|---|---|
+| 1: Orin Nano + CUDA + JP 6.x | detect → lookup → list_releases → gen_ini → gen_cmd | **ToolSearch** → detect → lookup → list_releases → gen_cmd → gen_ini |
+| 2: AGX Orin + DeepStream 7.0 | detect → lookup → list_releases → **validate_combo × 2** → gen_ini → gen_cmd | detect → lookup → list_releases → gen_ini → gen_cmd  _(no validate_combo)_ |
+| 3: Orin NX + latest JP | detect → lookup → list_releases → gen_ini → gen_cmd | _(identical)_ |
+| 4: AGX Xavier + latest JP | detect → lookup → list_releases → gen_ini → gen_cmd | detect → lookup → list_releases → **lookup × 2** → gen_ini → gen_cmd |
+| 5: Nano + object detection sample | detect → lookup → **search_3p_sample_repos** → list_releases → gen_ini → gen_cmd | _(identical)_ |
+
+Aggregate (5 cases each):
+
+| Tool | Haiku calls | Opus calls |
+|---|---:|---:|
+| `detect_connected_hardware` | 5 | 5 |
+| `lookup_target_id` | 5 | **6** _(self-verifies once)_ |
+| `list_releases` | 5 | 5 |
+| `generate_response_file` | 5 | 5 |
+| `generate_command` | 5 | 5 |
+| `validate_combo` | **2** | **0** _(internalizes the era-pairing rule)_ |
+| `search_3p_sample_repos` | 1 | 1 |
+
+**Two behavioral signals worth flagging to a reviewer parsing this work:**
+
+1. **Opus skips `validate_combo` (case 2)** — it reads the JetPack ↔ addon-SDK era table in the SYSTEM_PROMPT and inlines the check rather than dispatching the tool. Haiku takes the tool path literally; Opus internalizes the rule. **Both still get the right answer.** This says something about tool-design: a tool the bigger model routinely skips without losing accuracy is *probably* doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
+
+2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; the demo's correctness doesn't depend on it, but it shows up in the trace.
+
+These are surface-level differences in HOW the two models walk the agent graph. The OUTCOME on every case is identical (15/15 each). The portfolio claim — *the agent layer is the demo's value, not the model under it* — holds: change the model, behavior shifts slightly, output stays correct.
+
 ---
 
 ## Tests

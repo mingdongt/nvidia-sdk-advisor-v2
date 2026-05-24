@@ -50,14 +50,19 @@ Search terms hand-curated for this error class: {search_terms}
 
 ## What you MUST do
 
-Before recommending any fix, issue at least one `web_search` call to look up how this error class is solved in practice. The search tool is restricted to NVIDIA-official domains: `forums.developer.nvidia.com`, `docs.nvidia.com`, `developer.nvidia.com`.
+Before recommending any fix, issue at least one `web_search` call to look up how this error class is solved in practice. Prefer authoritative sources in this order:
+
+1. `docs.nvidia.com` / `developer.nvidia.com` — official NVIDIA documentation
+2. `forums.developer.nvidia.com` — NVIDIA's own developer forums (accepted-solution threads especially)
+3. `askubuntu.com`, `stackoverflow.com`, `unix.stackexchange.com`, `serverfault.com` — for apt / kernel / system errors not specific to NVIDIA
+4. `github.com` issue threads from NVIDIA-AI-IOT, dusty-nv/jetson-containers, NVIDIA-ISAAC-ROS, or similar repos
 
 Construct queries from the search terms above plus the error signature. Examples:
 
 - `"nvidia-jetpack apt unable to locate"`
 - `"flash failed errCode" Orin recovery`
 
-If the first search returns nothing useful, refine and try again (up to 5 searches). Only AFTER you have grounded the recommendation in at least one real source should you write the fix.
+If the first search returns nothing useful, refine and try again (up to 5 searches). Skip any source that looks like an AI-generated blog or content farm. Only AFTER you have grounded the recommendation in at least one real source should you write the fix.
 
 ## Output format
 
@@ -134,17 +139,18 @@ def _synthesize_fix_sync(diagnosis: dict, threads: list[dict]) -> str:
     # web_search_20250305 is a server-side tool — Anthropic performs the search
     # internally; no client-side dispatch loop needed. Results are embedded as
     # citations in the response content.
+    #
+    # No domain whitelist: Claude already prefers authoritative sources (NVIDIA
+    # docs, official forums, Stack Exchange) on its own. Restricting to NVIDIA-
+    # only domains was over-engineering — it crowded out genuinely useful
+    # community fixes for apt/kernel/DNS errors that aren't NVIDIA-specific.
+    # max_uses is the only constraint; it's a cost ceiling, not a trust filter.
     client = anthropic.Anthropic()
     model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     tools = [{
         "type": "web_search_20250305",
         "name": "web_search",
         "max_uses": 5,
-        "allowed_domains": [
-            "forums.developer.nvidia.com",
-            "docs.nvidia.com",
-            "developer.nvidia.com",
-        ],
     }]
     try:
         resp = client.messages.create(

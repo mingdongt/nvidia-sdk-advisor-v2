@@ -485,6 +485,8 @@ A production version needs: structured per-run logs at `~/.sdk-advisor/runs/<run
 
 These gaps are intentional omissions, not oversights. Each is closable, and the work is mostly engineering — not new architecture. The point of enumerating them is to prove they're understood.
 
+Closing them from inside NVIDIA is a data-access story more than an engineering one. The ranked list of internal sources I would ask for on day one — and which existing MCP tool each one replaces — is in [docs/why-this-demo.md → ranked knowledge bases](docs/why-this-demo.md#if-i-joined-the-team-which-internal-knowledge-bases-id-want-ranked).
+
 ---
 
 ## Tests

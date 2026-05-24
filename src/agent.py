@@ -6,6 +6,7 @@ Claude, runs a multi-turn tool-use loop. Higher-level conversational logic
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from pathlib import Path
@@ -119,7 +120,21 @@ def _call_with_retry(client, model, tools, messages, max_attempts=4):
 
 
 async def run_agent_single_turn(user_input: str, on_step: Optional[Callable] = None) -> str:
-    """Single-prompt agent run with BOTH MCP servers connected."""
+    """Single-prompt agent run. Backend dispatch via ANTHROPIC_BACKEND env var.
+
+    - 'sdk' (default): anthropic Python SDK, connects to both MCP servers (current path)
+    - 'cli':           claude CLI subprocess with MCP servers attached
+    - 'cli-no-tools':  claude CLI subprocess, NO tools (baseline for 3-way comparison)
+    """
+    backend = os.getenv("ANTHROPIC_BACKEND", "sdk").lower()
+    if backend == "cli":
+        from src import cli_backend
+        return await asyncio.to_thread(cli_backend.run_with_tools, user_input, SYSTEM_PROMPT)
+    if backend == "cli-no-tools":
+        from src import cli_backend
+        return await asyncio.to_thread(cli_backend.run_no_tools, user_input)
+
+    # Default: anthropic SDK
     import json
     k_params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)])
     r_params = StdioServerParameters(command="python", args=[str(_RAG_SERVER)])

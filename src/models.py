@@ -29,15 +29,19 @@ class InstallConfig:
 
 
 @dataclass
-class LogDiagnosis:
-    """Result of parsing an SDK Manager install/error log."""
-    failed_stage: str           # "download" | "flash" | "apt" | "postinst" | "license" | "unknown"
-    error_signature: str        # the line that matched a pattern (or "" if unknown)
-    error_class: str            # short tag, e.g. "apt-missing-package", "flash-failure"
-    target: Optional[str] = None
-    host_os: Optional[str] = None
-    jetpack_version: Optional[str] = None
-    timestamp: Optional[str] = None
-    last_successful_step: Optional[str] = None
-    raw_excerpt: str = ""        # ±5 lines around the failure
-    search_terms: list[str] = field(default_factory=list)
+class LogExcerpt:
+    """Structured extraction from an SDK Manager log archive.
+
+    Deliberately does NOT classify errors or assign stages — that is the
+    agent's job based on reading tail_text + external web search. This
+    layer is purely deterministic: open the archive, parse the filename,
+    take the tail. Everything else is downstream.
+    """
+    target: Optional[str] = None           # from filename (canonical target_id)
+    host_os: Optional[str] = None          # from filename
+    jetpack_version: Optional[str] = None  # from filename
+    timestamp: Optional[str] = None        # from filename
+    tail_text: str = ""                    # last ~200 lines of concatenated log content
+    file_count: int = 0                    # number of .log/.txt files found in archive
+    total_size_bytes: int = 0              # total bytes scanned
+    source_path: str = ""                  # input path

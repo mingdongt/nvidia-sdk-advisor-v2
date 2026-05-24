@@ -1,13 +1,16 @@
 === SDK Manager Install Log ===
 target: JETSON_AGX_ORIN_TARGETS
 Host OS: ubuntu22.04
-JetPack: 7.0
+JetPack: 6.2
 2026-05-23 09:15:00 starting install
 2026-05-23 09:15:02 Downloading components OK
-2026-05-23 09:18:11 Found NVIDIA device in recovery mode
-2026-05-23 09:18:15 Begin flashing target
-nvflash: starting bootloader
-nvflash: writing partition APP
-NvDeviceFlashFail
-Error: failed to flash, errCode 1042
+2026-05-23 09:18:11 Found NVIDIA device in recovery mode (lsusb: 0955:7e19)
+2026-05-23 09:18:15 Begin flashing target via Linux_for_Tegra/flash.sh
+[ 0.0014 ] tegrarcm_v2 --new_session --chip 0x23 0
+[ 0.0156 ] tegrarcm_v2 --download bct_bootrom mb1_bct_MB1_sigheader.bct.encrypt
+[ 0.3268 ] Sending bct_br
+[ 0.5857 ] ERROR: might be timeout in USB write. Error: Return value 3
+[ 0.5860 ] tegrarcm_v2 --ismb2
+[ 0.6021 ] ERROR: Reading board information failed.
+Parsing board information failed.
 2026-05-23 09:19:08 Install aborted at stage: flash

@@ -15,7 +15,7 @@ Generates output files (`.ini` response files) SDK Manager natively consumes, an
 | **Discover** | Flat list of NVIDIA-branded SDKs; user must already know which fits their use case | `search_3p_sample_repos` (vector search over 21 GitHub repo READMEs) + workload-to-product inference |
 | **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
 | **Install** | Wizard runs install; CLI takes flags. No conversational guided flow | Generates `.ini` matching NVIDIA's official template, optionally drives `NvSDKManager.exe --cli --response-file` as subprocess with streamed status + event classification |
-| **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` (20 regex patterns over 5 stages) → Claude synthesizes `fix.sh` + `diagnosis.md`, using native web search when grounding on forum threads helps |
+| **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` opens the `.zip`, extracts filename metadata + log tail. Agent reads the raw tail itself and uses `web_search` (forums, askubuntu, stackoverflow) to find expert fixes → synthesizes `fix.sh` + `diagnosis.md`. No pre-classification layer |
 
 ---
 
@@ -130,9 +130,8 @@ Last success:    apt-get update completed
     │  Manager itself reads             │  │   (21 repos, Chroma vector) │
     │                                    │  │                              │
     │ + data/resource_model.json        │  │ Tier 3 (forums + docs)       │
-    │ + data/log_patterns.yaml (20)     │  │   delegated to Claude's      │
-    │ + NvSDKManager.exe                │  │   native WebSearch with      │
-    │   --list-connected (subprocess)   │  │   site: hints from prompt    │
+    │ + NvSDKManager.exe                │  │   delegated to Claude's      │
+    │   --list-connected (subprocess)   │  │   native web_search           │
     └────────────────────────────────────┘  └──────────────────────────────┘
 
                                       │ --execute (optional)
@@ -243,6 +242,25 @@ When `--execute` exits non-zero, the agent automatically finds the most recent S
 **The user does NOT need to run `--export-logs` manually.** SDK Manager writes raw session logs during install; we read them directly. `--export-logs` packaging is a sharing convenience, not a prerequisite for our parser. The most-recent file (by mtime) across both sources wins.
 
 `--troubleshoot` itself is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
+
+### Log handling: what's verified vs what production would refine
+
+The log-reading layer is intentionally narrow — open the `.zip`, parse the filename, hand the agent the raw tail. Beyond that, the agent reads the log and decides; there is no pre-classification step.
+
+What's grounded in public evidence:
+
+- `.zip` archive format and filename pattern: confirmed from real SDK Manager exports posted to [forums.developer.nvidia.com](https://forums.developer.nvidia.com)
+- Filename → target / JetPack / host OS / timestamp extraction: deterministic regex
+- Error strings the agent will recognize: standard Linux tool output (apt / dpkg / modprobe / curl) plus NVIDIA-specific strings the model has seen in its training data
+- Web search domain priorities: forums.developer.nvidia.com, askubuntu.com, stackoverflow.com, github.com — based on observed signal density per error type
+
+What this PoC explicitly does NOT have:
+
+- Knowledge of the internal directory layout inside the `.zip` (which subfolder, what each log file represents) — we read all `.log` / `.txt` files and concatenate
+- A curated dictionary of NVIDIA-specific error → fix mappings — earlier versions tried this and the patterns were unreliable; the agent now identifies errors from the log text itself
+- Session-level summary or manifest files (if any) inside the archive
+
+A production version built with SDK Manager team's internal access could refine all three — direct knowledge of the log producer code, the actual error vocabulary, and a curated fix knowledge base. The MCP boundary means swapping in that production-grade `parse_install_log` does not require touching the agent loop, troubleshoot orchestrator, or any other downstream code.
 
 ---
 
@@ -358,7 +376,7 @@ nvidia-sdk-advisor/
 │   ├── resource_estimator.py        # estimate_resources, check_constraints
 │   ├── response_file.py             # 3-section INI generator + validator
 │   ├── command_gen.py               # sdkmanager --cli command builder
-│   ├── log_parser.py                # SDK Manager log → LogDiagnosis (20 regex patterns)
+│   ├── log_parser.py                # SDK Manager log → LogExcerpt (zip+filename+tail; agent reads tail itself)
 │   ├── vector_search.py             # Chroma + sentence-transformers wrapper
 │   ├── knowledge_server.py          # Server A — 13 tools (FastMCP)
 │   ├── rag_server.py                # Server B — 4 tools (FastMCP)
@@ -377,7 +395,6 @@ nvidia-sdk-advisor/
 │   │   ├── ngc/containers.jsonl     # Tier 1 (20 records)
 │   │   └── github/readmes.jsonl     # Tier 2 input (21 READMEs)
 │   ├── resource_model.json          # curated disk/RAM table
-│   ├── log_patterns.yaml            # 20 troubleshoot regex patterns
 │   ├── response_templates/          # NVIDIA's official .ini samples
 │   ├── ngc_seed_list.txt            # curated NGC slugs (20, all verified)
 │   └── github_seed_list.txt         # curated repos (28)
@@ -402,7 +419,7 @@ nvidia-sdk-advisor/
 
 **Add a new sample repo to RAG**: append to `data/github_seed_list.txt`, run `python -m ingest.scrape_github_samples && python -m ingest.build_github_vectordb`.
 
-**Add a new log error pattern**: append to `data/log_patterns.yaml` with `{regex, stage, error_class, search_terms}`. Test: add a sample log to `tests/fixtures/` and a test case to `tests/eval_cases/troubleshoot.jsonl`.
+**Improve troubleshoot for a new error class**: there is no pattern library to extend — the agent reads the raw log tail itself and uses `web_search` to find fixes. To improve coverage of a specific error class, add a representative log fixture to `tests/fixtures/`, add a case to `tests/eval_cases/troubleshoot.jsonl`, and (if needed) refine the synthesis prompt in `src/troubleshoot.py`.
 
 **Use only Server B from a different agent**: `python -m src.rag_server` exposes the 4 RAG tools via stdio MCP — any MCP client can connect and use them in isolation.
 

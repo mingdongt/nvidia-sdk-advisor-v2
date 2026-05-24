@@ -1,5 +1,5 @@
 import pytest
-from src.models import InstallConfig
+from src.models import InstallConfig, LogExcerpt
 
 
 def test_basic_construction():
@@ -51,27 +51,30 @@ def test_invalid_action_rejected():
         )
 
 
-from src.models import LogDiagnosis
+def test_log_excerpt_minimal():
+    """LogExcerpt should construct cleanly with all defaults."""
+    e = LogExcerpt()
+    assert e.target is None
+    assert e.host_os is None
+    assert e.jetpack_version is None
+    assert e.timestamp is None
+    assert e.tail_text == ""
+    assert e.file_count == 0
+    assert e.total_size_bytes == 0
+    assert e.source_path == ""
 
 
-def test_log_diagnosis_minimal():
-    d = LogDiagnosis(failed_stage="apt", error_signature="E: Unable to locate package", error_class="apt-missing-package")
-    assert d.failed_stage == "apt"
-    assert d.target is None
-    assert d.raw_excerpt == ""
-
-
-def test_log_diagnosis_full():
-    d = LogDiagnosis(
-        failed_stage="flash",
-        error_signature="Error: failed to flash, errCode 1042",
-        error_class="flash-failure",
-        target="JETSON_ORIN_NX_TARGETS",
-        host_os="ubuntu22.04",
-        jetpack_version="6.1",
-        timestamp="2026-05-22 14:33:21",
-        last_successful_step="recovery_mode_entry",
-        raw_excerpt="...some context...",
+def test_log_excerpt_full():
+    e = LogExcerpt(
+        target="JETSON_AGX_ORIN_TARGETS",
+        host_os="linux",
+        jetpack_version="6.2",
+        timestamp="2025-01-26 11:41:13",
+        tail_text="...some log content...",
+        file_count=3,
+        total_size_bytes=8192,
+        source_path="/tmp/sdkm-export.zip",
     )
-    assert d.error_class == "flash-failure"
-    assert d.last_successful_step == "recovery_mode_entry"
+    assert e.target == "JETSON_AGX_ORIN_TARGETS"
+    assert e.jetpack_version == "6.2"
+    assert e.file_count == 3

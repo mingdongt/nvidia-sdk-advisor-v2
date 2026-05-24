@@ -1,126 +1,154 @@
-"""SDK Manager install log parser.
+"""SDK Manager install log structural reader.
 
-Scans a .log file or .tar.gz of logs, matches the LAST few hundred lines
-against `data/log_patterns.yaml`, extracts header context, returns LogDiagnosis.
+Reads a .zip (the real SDK Manager export format), .tar.gz (legacy / manually
+packaged), or a single .log file. Extracts metadata from the filename and the
+tail of the log content. Returns a LogExcerpt.
+
+Deliberately does NOT classify errors, assign stages, or pre-curate search
+terms. That is the agent's job: it reads tail_text directly and uses web
+search to identify the actual failure and find expert fixes. This module's
+only job is correct, deterministic ingestion.
+
+Format notes (verified against real SDK Manager exports posted on
+forums.developer.nvidia.com):
+  - Archive is .zip. Filename pattern:
+      SDKM_logs_JetPack_<ver>_<host>_for_Jetson_<board>_<date>_<time>.zip
+    e.g. SDKM_logs_JetPack_6.2_Linux_for_Jetson_AGX_Orin_64GB_2025-01-26_11-41-13.zip
+    All metadata we need (target, JetPack version, host OS, timestamp) is in
+    the filename — more reliable than scanning log content for headers.
+  - Inside the archive there are multiple .log files. We concatenate all of
+    them and take the tail. We do not parse the internal structure (the
+    archive layout is not publicly documented; the agent reads what's there).
 """
 from __future__ import annotations
 
 import re
 import tarfile
-from functools import lru_cache
+import zipfile
 from pathlib import Path
 from typing import Optional
 
-import yaml
+from src.models import LogExcerpt
 
-from src.models import LogDiagnosis
+_TAIL_LINES = 200
 
-_PATTERNS_PATH = Path(__file__).resolve().parents[1] / "data" / "log_patterns.yaml"
-_TAIL_LINES = 300       # how many lines from the end to scan
-_EXCERPT_CONTEXT = 5    # lines before/after match in raw_excerpt
+# Real SDK Manager export filename pattern.
+_FILENAME_RE = re.compile(
+    r"SDKM_logs_JetPack_(?P<jp>[\d.]+)_"
+    r"(?P<host>Linux|Windows|Ubuntu\S*)_"
+    r"for_Jetson_(?P<board>[A-Za-z0-9_]+?)_"
+    r"(?P<date>\d{4}-\d{2}-\d{2})_"
+    r"(?P<time>\d{2}-\d{2}-\d{2})"
+    r"\.(?:zip|tar\.gz|tgz)$",
+    re.IGNORECASE,
+)
+
+# Filename board fragment ('AGX_Orin_64GB') -> canonical target id.
+_FILENAME_BOARD_MAP = {
+    "agx_orin": "JETSON_AGX_ORIN_TARGETS",
+    "orin_nx": "JETSON_ORIN_NX_TARGETS",
+    "orin_nano": "JETSON_ORIN_NANO_TARGETS",
+    "agx_xavier": "JETSON_AGX_XAVIER_TARGETS",
+    "xavier_nx": "JETSON_XAVIER_NX_TARGETS",
+    "agx_thor": "JETSON_AGX_THOR_TARGETS",
+    "nano": "JETSON_NANO_TARGETS",
+    "tx2": "JETSON_TX2_TARGETS",
+    "tx1": "JETSON_TX1_TARGETS",
+}
 
 
-@lru_cache(maxsize=1)
-def _load_patterns() -> dict:
-    # explicit utf-8 — Windows default GBK chokes on unicode chars in the YAML
-    return yaml.safe_load(_PATTERNS_PATH.read_text(encoding="utf-8"))
+def _board_from_filename(fragment: str) -> Optional[str]:
+    """Map filename board fragment ('AGX_Orin_64GB') to canonical target id."""
+    f = fragment.lower()
+    f = re.sub(r"_\d+gb$", "", f)
+    for key, target_id in _FILENAME_BOARD_MAP.items():
+        if key in f:
+            return target_id
+    return None
 
 
-def _read_log_text(log_path_or_archive: str) -> str:
-    """Read a single .log file OR concatenate .log files from a .tar.gz archive."""
-    p = Path(log_path_or_archive)
-    if not p.exists():
-        return ""
-    if p.suffix in (".gz", ".tgz") or ".tar." in p.name:
-        chunks = []
+def _parse_filename(path: Path) -> dict:
+    """Extract structured metadata from an SDK Manager export filename.
+    Returns dict with target / host_os / jetpack_version / timestamp.
+    Any field may be None if the filename does not match the pattern.
+    """
+    out = {"target": None, "host_os": None, "jetpack_version": None, "timestamp": None}
+    m = _FILENAME_RE.search(path.name)
+    if not m:
+        return out
+    out["jetpack_version"] = m.group("jp")
+    out["host_os"] = m.group("host").lower()
+    out["target"] = _board_from_filename(m.group("board"))
+    out["timestamp"] = f"{m.group('date')} {m.group('time').replace('-', ':')}"
+    return out
+
+
+def _read_archive_contents(path: Path) -> list[str]:
+    """Return list of text chunks from the archive, one per .log/.txt file."""
+    chunks: list[str] = []
+
+    if path.suffix.lower() == ".zip" or (path.is_file() and zipfile.is_zipfile(path)):
         try:
-            with tarfile.open(p, "r:*") as tf:
+            with zipfile.ZipFile(path) as zf:
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    if info.filename.lower().endswith((".log", ".txt")):
+                        with zf.open(info) as f:
+                            chunks.append(f.read().decode("utf-8", errors="replace"))
+        except zipfile.BadZipFile:
+            return []
+        return chunks
+
+    if path.suffix.lower() in (".gz", ".tgz") or ".tar." in path.name.lower():
+        try:
+            with tarfile.open(path, "r:*") as tf:
                 for member in tf.getmembers():
-                    if member.name.endswith(".log") or member.name.endswith(".txt"):
+                    if member.name.lower().endswith((".log", ".txt")):
                         f = tf.extractfile(member)
                         if f:
                             chunks.append(f.read().decode("utf-8", errors="replace"))
         except tarfile.TarError:
-            return ""
-        return "\n".join(chunks)
-    return p.read_text(encoding="utf-8", errors="replace")
+            return []
+        return chunks
+
+    # Single text file
+    try:
+        return [path.read_text(encoding="utf-8", errors="replace")]
+    except (OSError, UnicodeDecodeError):
+        return []
 
 
-def _extract_header(text: str) -> dict:
-    """Pull target/host_os/jetpack_version/timestamp from log header."""
-    out: dict[str, Optional[str]] = {
-        "target": None, "host_os": None, "jetpack_version": None, "timestamp": None,
-    }
-    head = "\n".join(text.splitlines()[:50])
-    for hp in _load_patterns().get("header_patterns", []):
-        m = re.search(hp["regex"], head)
-        if m:
-            out[hp["field"]] = m.group(1)
-    return out
-
-
-def _make_excerpt(lines: list[str], match_index: int) -> str:
-    """±_EXCERPT_CONTEXT lines around match_index."""
-    lo = max(0, match_index - _EXCERPT_CONTEXT)
-    hi = min(len(lines), match_index + _EXCERPT_CONTEXT + 1)
-    return "\n".join(lines[lo:hi])
-
-
-def _find_last_success(lines: list[str], failure_index: int) -> Optional[str]:
-    """Scan backward from failure to find the most recent 'OK' / 'completed' / 'succeeded' line."""
-    pattern = re.compile(r"(?i)\b(ok|completed|succeeded|complete)\b")
-    for i in range(failure_index - 1, max(0, failure_index - 100), -1):
-        if pattern.search(lines[i]):
-            return lines[i].strip()[:120]
-    return None
-
-
-def parse_install_log(log_path_or_archive: str) -> LogDiagnosis:
-    """Top-level: read log, scan from end backward, return LogDiagnosis."""
-    text = _read_log_text(log_path_or_archive)
-    if not text:
-        return LogDiagnosis(
-            failed_stage="unknown", error_signature="", error_class="log-not-readable",
-            raw_excerpt="(log file empty or unreadable)",
-        )
-
+def _tail(text: str, n_lines: int) -> str:
     lines = text.splitlines()
-    header = _extract_header(text)
+    return "\n".join(lines[-n_lines:])
 
-    # Scan the tail (failures typically near the end).
-    # Iterate forward through the tail; later, more-specific patterns override the
-    # generic ones at the bottom of the patterns file.
-    tail_start = max(0, len(lines) - _TAIL_LINES)
-    patterns = _load_patterns().get("patterns", [])
 
-    last_winner = None  # (line_index, line, pattern)
-    for i in range(tail_start, len(lines)):
-        line = lines[i]
-        for p in patterns:
-            if re.search(p["regex"], line):
-                # Skip the generic catch-all if a more specific pattern matched this line
-                # Specific patterns appear EARLIER in the list. The first match wins for THIS line.
-                last_winner = (i, line, p)
-                break  # don't let other patterns also match this same line
+def parse_install_log(log_path_or_archive: str) -> LogExcerpt:
+    """Read an SDK Manager log archive (.zip / .tar.gz) or single .log file.
 
-    if last_winner is None:
-        return LogDiagnosis(
-            failed_stage="unknown", error_signature="", error_class="no-pattern-matched",
-            target=header["target"], host_os=header["host_os"],
-            jetpack_version=header["jetpack_version"], timestamp=header["timestamp"],
-            raw_excerpt="\n".join(lines[-20:]),
-        )
+    Returns a LogExcerpt with:
+      - target / host_os / jetpack_version / timestamp parsed from filename
+      - tail_text: last ~200 lines of concatenated log content
+      - file_count / total_size_bytes: how much was read
 
-    idx, sig_line, pat = last_winner
-    return LogDiagnosis(
-        failed_stage=pat["stage"],
-        error_signature=sig_line.strip(),
-        error_class=pat["error_class"],
-        target=header["target"],
-        host_os=header["host_os"],
-        jetpack_version=header["jetpack_version"],
-        timestamp=header["timestamp"],
-        last_successful_step=_find_last_success(lines, idx),
-        raw_excerpt=_make_excerpt(lines, idx),
-        search_terms=pat.get("search_terms", []),
+    Does NOT classify errors. The agent reads tail_text and decides.
+    """
+    path = Path(log_path_or_archive)
+    if not path.exists():
+        return LogExcerpt(source_path=str(path))
+
+    chunks = _read_archive_contents(path)
+    full_text = "\n".join(chunks)
+
+    meta = _parse_filename(path)
+    return LogExcerpt(
+        target=meta["target"],
+        host_os=meta["host_os"],
+        jetpack_version=meta["jetpack_version"],
+        timestamp=meta["timestamp"],
+        tail_text=_tail(full_text, _TAIL_LINES),
+        file_count=len(chunks),
+        total_size_bytes=sum(len(c.encode("utf-8")) for c in chunks),
+        source_path=str(path),
     )

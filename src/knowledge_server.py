@@ -106,15 +106,22 @@ def generate_command(config_json: str) -> str:
 
 @mcp.tool()
 def parse_install_log(log_path_or_archive: str) -> str:
-    """Parse an SDK Manager install/error log; return a structured LogDiagnosis JSON.
+    """Structurally extract from an SDK Manager log archive. Returns LogExcerpt JSON.
 
-    Accepts a path to a single .log file OR a .tar.gz archive of logs
-    (the format produced by `NvSDKManager.exe --export-logs`).
+    Accepts:
+      - .zip — real SDK Manager export format (File → Export Logs / --export-logs)
+      - .tar.gz — backward-compat / manually packaged
+      - single .log file
+
+    Returns LogExcerpt with filename-parsed metadata (target / jetpack_version /
+    host_os / timestamp) and the last ~200 lines of concatenated log content
+    (tail_text). Does NOT classify errors — the agent reads tail_text and
+    decides what failed and how to fix it, optionally via web_search.
     """
     from dataclasses import asdict
     from src import log_parser
-    diagnosis = log_parser.parse_install_log(log_path_or_archive)
-    return json.dumps(asdict(diagnosis))
+    excerpt = log_parser.parse_install_log(log_path_or_archive)
+    return json.dumps(asdict(excerpt))
 
 
 # In-process helpers for tests (no MCP transport)

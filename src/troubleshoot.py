@@ -1,23 +1,25 @@
 """Conversational troubleshoot mode.
 
 Flow:
-1. parse_install_log → LogDiagnosis (in-process, fast).
-2. If failed_stage == 'unknown', show raw tail and exit.
-3. Claude synthesizes a fix recommendation grounded in real NVIDIA-official
-   sources. Web search is mandatory and domain-restricted to:
-     - forums.developer.nvidia.com
-     - docs.nvidia.com
-     - developer.nvidia.com
-   - SDK backend: web_search_20250305 server-side tool attached (paid per call;
-     falls back to training-knowledge synthesis with a disclaimer if the tool
-     is unavailable, e.g. region-restricted).
-   - CLI backend: Claude CLI's built-in WebSearch handles the same role.
+1. parse_install_log → LogExcerpt (in-process, fast). This is purely
+   structural: filename metadata + tail of log content. No pre-classification.
+2. Show the user the extracted context.
+3. Claude reads the raw log tail directly and identifies the failure
+   itself. Web search is used to ground the fix recommendation in real
+   expert sources (forum threads, docs, Stack Exchange).
 4. Optional: write fix.sh + diagnosis.md to output/.
+
+Design rationale: we deliberately do NOT pre-classify errors into
+'error_class' or 'stage' tags. Earlier versions did, with a curated
+log_patterns.yaml — but every classification we encoded was either a
+guess (the NVIDIA-specific strings) or redundant (the agent could read
+the same content itself). The simpler architecture lets the agent
+identify failures from the actual log text, exactly what a human
+expert does when triaging a forum post.
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 import sys
@@ -26,48 +28,57 @@ from pathlib import Path
 from typing import Optional
 
 import anthropic
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
 from rich.console import Console
 from rich.panel import Panel
 
 from src import log_parser
-
-_RAG_SERVER = Path(__file__).parent / "rag_server.py"
 
 console = Console()
 
 
 _TROUBLESHOOT_PROMPT_TEMPLATE = """You are NVIDIA SDK Advisor in troubleshoot mode.
 
-The user's SDK Manager install failed. Here is the parsed diagnosis:
+The user's SDK Manager install failed. Here is what we extracted from their
+log file (deterministically — filename metadata + raw log tail). The agent
+(you) is responsible for identifying the failure itself.
 
-```json
-{diagnosis}
+## Context (parsed from filename)
+
+- Log archive: {source_path}
+- Target board: {target_or_unknown}
+- JetPack version: {jetpack_or_unknown}
+- Host OS: {host_os_or_unknown}
+- Export timestamp: {timestamp_or_unknown}
+- Files scanned: {file_count} ({size_kb} KB total)
+
+## Log tail (last ~200 lines, verbatim)
+
 ```
-
-Search terms hand-curated for this error class: {search_terms}
+{tail_text}
+```
 
 ## What you MUST do
 
-Before recommending any fix, issue at least one `web_search` call to look up how this error class is solved in practice. Prefer authoritative sources in this order:
-
-1. `docs.nvidia.com` / `developer.nvidia.com` — official NVIDIA documentation
-2. `forums.developer.nvidia.com` — NVIDIA's own developer forums (accepted-solution threads especially)
-3. `askubuntu.com`, `stackoverflow.com`, `unix.stackexchange.com`, `serverfault.com` — for apt / kernel / system errors not specific to NVIDIA
-4. `github.com` issue threads from NVIDIA-AI-IOT, dusty-nv/jetson-containers, NVIDIA-ISAAC-ROS, or similar repos
-
-Construct queries from the search terms above plus the error signature. Examples:
-
-- `"nvidia-jetpack apt unable to locate"`
-- `"flash failed errCode" Orin recovery`
-
-If the first search returns nothing useful, refine and try again (up to 5 searches). Skip any source that looks like an AI-generated blog or content farm. Only AFTER you have grounded the recommendation in at least one real source should you write the fix.
+1. Read the log tail above carefully. Identify the actual failure: what
+   line(s) describe the error, what stage the install was in, what tool
+   was running.
+2. Use `web_search` (mandatory, at least one call) to find expert fixes
+   for the failure you identified. Construct queries from the actual
+   error strings you see in the log. Prefer authoritative sources:
+     - `forums.developer.nvidia.com` (NVIDIA's own forums, accepted answers)
+     - `docs.nvidia.com` / `developer.nvidia.com`
+     - `askubuntu.com` (apt / dpkg / Linux issues)
+     - `stackoverflow.com`, `unix.stackexchange.com`, `serverfault.com`
+     - `github.com` issues from NVIDIA-AI-IOT, dusty-nv, NVIDIA-ISAAC-ROS
+3. If a search returns nothing relevant, refine and try again (up to 5
+   searches total).
+4. Skip AI-generated SEO blogs / content farms.
 
 ## Output format
 
 ## Diagnosis
-(one-paragraph plain-English explanation of what went wrong)
+(one paragraph: what the log shows actually went wrong — be specific
+about which line(s) you read this from)
 
 ## Recommended fix
 ```bash
@@ -75,76 +86,63 @@ If the first search returns nothing useful, refine and try again (up to 5 search
 ```
 
 ## Why this works
-(one paragraph — cite the actual forum thread URL(s) or doc page URL(s) you retrieved via web_search. If web search returned nothing usable, say so explicitly and fall back to general principles; do NOT pretend to cite a source you did not retrieve.)
+(one paragraph; cite the actual URL(s) you retrieved via web_search. If
+web_search returned nothing usable, say so explicitly and fall back to
+log evidence — do NOT invent citations.)
 
 ## Risks / when not to run
-(one paragraph — if any command needs sudo, mark it; if the fix is destructive, warn explicitly)
+(one paragraph; flag sudo / destructive commands explicitly)
 
-Be specific. Cite the actual URLs inline. Do not make up commands not grounded in retrieved sources.
+Be specific. Cite the actual URLs inline. Do not invent commands not
+grounded in the log content or in retrieved sources.
 """
 
 
-def _format_diagnosis(diag: dict) -> str:
-    """Pretty-print a LogDiagnosis dict for terminal output."""
+def _format_excerpt_for_terminal(excerpt: dict) -> str:
+    """Pretty-print a LogExcerpt dict for terminal output (before synthesis)."""
+    size_kb = excerpt.get("total_size_bytes", 0) / 1024
+    tail = excerpt.get("tail_text", "")
+    tail_lines = tail.count("\n") + 1 if tail else 0
     return (
-        f"Failed stage:    {diag.get('failed_stage')}\n"
-        f"Error class:     {diag.get('error_class')}\n"
-        f"Error signature: {diag.get('error_signature')}\n"
-        f"Target:          {diag.get('target') or '(unknown)'}\n"
-        f"Host OS:         {diag.get('host_os') or '(unknown)'}\n"
-        f"JetPack:         {diag.get('jetpack_version') or '(unknown)'}\n"
-        f"Timestamp:       {diag.get('timestamp') or '(unknown)'}\n"
-        f"Last success:    {diag.get('last_successful_step') or '(none)'}"
+        f"Target:      {excerpt.get('target') or '(filename did not encode)'}\n"
+        f"JetPack:     {excerpt.get('jetpack_version') or '(filename did not encode)'}\n"
+        f"Host OS:     {excerpt.get('host_os') or '(filename did not encode)'}\n"
+        f"Timestamp:   {excerpt.get('timestamp') or '(filename did not encode)'}\n"
+        f"Files:       {excerpt.get('file_count', 0)} ({size_kb:.1f} KB total)\n"
+        f"Tail lines:  {tail_lines}"
     )
 
 
-async def _search_forums(query: str, k: int = 5) -> list[dict]:
-    """Forum retrieval is deferred to the underlying Claude's native web search
-    during synthesis. We no longer maintain a dedicated MCP tool for this — the
-    synthesis prompt includes a `site:forums.developer.nvidia.com` hint and Claude
-    decides whether to issue a WebSearch call.
+def _build_prompt(excerpt: dict) -> str:
+    return _TROUBLESHOOT_PROMPT_TEMPLATE.format(
+        source_path=excerpt.get("source_path", "(unknown)"),
+        target_or_unknown=excerpt.get("target") or "(unknown — filename did not encode)",
+        jetpack_or_unknown=excerpt.get("jetpack_version") or "(unknown)",
+        host_os_or_unknown=excerpt.get("host_os") or "(unknown)",
+        timestamp_or_unknown=excerpt.get("timestamp") or "(unknown)",
+        file_count=excerpt.get("file_count", 0),
+        size_kb=f"{excerpt.get('total_size_bytes', 0) / 1024:.1f}",
+        tail_text=excerpt.get("tail_text") or "(log file empty or unreadable)",
+    )
 
-    This function is kept as a no-op stub for backward compatibility with the
-    orchestrator's flow; the synthesized fix references the diagnosis directly
-    plus any pattern-derived search_terms.
-    """
-    return []
 
-
-def _synthesize_fix_sync(diagnosis: dict, threads: list[dict]) -> str:
+def _synthesize_fix_sync(excerpt: dict) -> str:
     """Synthesize fix via the configured ANTHROPIC_BACKEND.
 
-    - 'sdk' (default): Anthropic Python SDK
-    - 'cli':           claude CLI subprocess (uses subscription, avoids API quota)
-    - 'cli-no-tools':  claude CLI subprocess, no MCP (same as 'cli' here since
-                       this function doesn't need tools — synthesis is one-shot)
-
-    `threads` is kept as a parameter for backward compatibility with the orchestrator;
-    in the current design _search_forums returns [] (forum retrieval deferred to
-    Claude's native web search at synthesis time).
+    - 'sdk' (default): Anthropic Python SDK + server-side web_search tool
+    - 'cli':           claude CLI subprocess (subscription, uses Claude CLI's
+                       built-in WebSearch)
+    - 'cli-no-tools':  claude CLI subprocess, no tools (baseline; agent
+                       relies on training knowledge only)
     """
-    search_terms = diagnosis.get("search_terms") or []
-    prompt = _TROUBLESHOOT_PROMPT_TEMPLATE.format(
-        diagnosis=json.dumps(diagnosis, indent=2),
-        search_terms=", ".join(search_terms) if search_terms else "(none — diagnosis is generic)",
-    )
+    prompt = _build_prompt(excerpt)
 
     backend = os.getenv("ANTHROPIC_BACKEND", "sdk").lower()
     if backend in ("cli", "cli-no-tools"):
-        # synthesis doesn't need tools — use the no-tools CLI path
         from src.cli_backend import run_no_tools
         return run_no_tools(prompt, timeout=180)
 
-    # Default: SDK path with mandatory web_search tool.
-    # web_search_20250305 is a server-side tool — Anthropic performs the search
-    # internally; no client-side dispatch loop needed. Results are embedded as
-    # citations in the response content.
-    #
-    # No domain whitelist: Claude already prefers authoritative sources (NVIDIA
-    # docs, official forums, Stack Exchange) on its own. Restricting to NVIDIA-
-    # only domains was over-engineering — it crowded out genuinely useful
-    # community fixes for apt/kernel/DNS errors that aren't NVIDIA-specific.
-    # max_uses is the only constraint; it's a cost ceiling, not a trust filter.
+    # Default: SDK path with server-side web_search.
     client = anthropic.Anthropic()
     model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     tools = [{
@@ -159,20 +157,23 @@ def _synthesize_fix_sync(diagnosis: dict, threads: list[dict]) -> str:
             messages=[{"role": "user", "content": prompt}],
         )
     except anthropic.BadRequestError as e:
-        # web_search may be region-restricted or require explicit opt-in.
-        # Fall back to no-tool synthesis with an honest disclaimer in the prompt.
-        console.print(f"[yellow]web_search unavailable ({type(e).__name__}); falling back to training-knowledge-only synthesis[/yellow]")
+        console.print(
+            f"[yellow]web_search unavailable ({type(e).__name__}); "
+            f"falling back to training-knowledge-only synthesis[/yellow]"
+        )
         resp = client.messages.create(
             model=model, max_tokens=2000,
             messages=[{
                 "role": "user",
-                "content": prompt + "\n\n[SYSTEM NOTE: web_search is unavailable in this run; ground your fix in the diagnosis and your training knowledge, and say so explicitly in the 'Why this works' section.]",
+                "content": prompt + (
+                    "\n\n[SYSTEM NOTE: web_search is unavailable in this run; "
+                    "ground the fix in the log evidence and your training "
+                    "knowledge, and say so explicitly in 'Why this works'.]"
+                ),
             }],
         )
-    # Concatenate ALL text blocks. With server-side web_search, the response
-    # has interleaved text + server_tool_use + web_search_tool_result blocks;
-    # the final fix recommendation is in later text blocks after the searches.
-    text_parts = [b.text for b in resp.content if getattr(b, "type", None) == "text" and getattr(b, "text", None)]
+    text_parts = [b.text for b in resp.content
+                  if getattr(b, "type", None) == "text" and getattr(b, "text", None)]
     return "\n\n".join(text_parts)
 
 
@@ -186,18 +187,24 @@ def _extract_fix_script(synthesized: str) -> Optional[str]:
     return m.group(1).strip() if m else None
 
 
-def _write_outputs(diagnosis: dict, synthesized: str, threads: list[dict]) -> dict:
+def _label_from_excerpt(excerpt: dict) -> str:
+    """Derive a filename label from the excerpt (target + jp + timestamp)."""
+    target = (excerpt.get("target") or "unknown").lower()
+    target = re.sub(r"^jetson_", "", target).replace("_targets", "")
+    jp = excerpt.get("jetpack_version") or "unk"
+    return _safe_filename(f"{target}_jp{jp}")
+
+
+def _write_outputs(excerpt: dict, synthesized: str) -> dict:
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
-    label = _safe_filename(diagnosis.get("error_class", "unknown"))
+    label = _label_from_excerpt(excerpt)
 
     diag_path = output_dir / f"{label}_diagnosis.md"
-    threads_md = "\n".join(f"- [{t.get('title', '?')}]({t.get('url', '')})" for t in threads) or "_(no forum threads available)_"
     diag_path.write_text(
-        f"# Troubleshoot diagnosis: {diagnosis.get('error_class')}\n\n"
-        f"## Diagnosis\n\n```\n{_format_diagnosis(diagnosis)}\n```\n\n"
-        f"## Raw excerpt\n\n```\n{diagnosis.get('raw_excerpt', '')}\n```\n\n"
-        f"## Forum threads referenced\n\n{threads_md}\n\n"
+        f"# Troubleshoot diagnosis: {label}\n\n"
+        f"## Extracted context\n\n```\n{_format_excerpt_for_terminal(excerpt)}\n```\n\n"
+        f"## Log tail (last ~200 lines)\n\n```\n{excerpt.get('tail_text', '')}\n```\n\n"
         f"## Recommended fix\n\n{synthesized}\n",
         encoding="utf-8",
     )
@@ -209,7 +216,7 @@ def _write_outputs(diagnosis: dict, synthesized: str, threads: list[dict]) -> di
         fix_path.write_text(
             "#!/bin/bash\n"
             f"# Generated by SDK Advisor troubleshoot mode\n"
-            f"# Error class: {diagnosis.get('error_class')}\n"
+            f"# Source log: {excerpt.get('source_path', '?')}\n"
             f"# Review before running. Some commands need sudo.\n\n"
             f"{fix_script}\n",
             encoding="utf-8",
@@ -231,50 +238,42 @@ async def run_troubleshoot(
 ) -> dict:
     """Top-level troubleshoot orchestrator.
 
-    Returns dict with keys: diagnosis, forum_threads, fix_recommendation, outputs.
+    Returns dict with keys: excerpt, fix_recommendation, outputs.
     """
-    console.print(Panel(f"Parsing SDK Manager log: {log_path}", title="Troubleshoot mode", border_style="yellow"))
+    console.print(Panel(
+        f"Parsing SDK Manager log: {log_path}",
+        title="Troubleshoot mode", border_style="yellow",
+    ))
 
-    # Step 1: parse (in-process, fast)
-    diagnosis_obj = log_parser.parse_install_log(log_path)
-    diagnosis = asdict(diagnosis_obj)
-    console.print(_format_diagnosis(diagnosis))
+    # Step 1: structural extraction (in-process, deterministic)
+    excerpt_obj = log_parser.parse_install_log(log_path)
+    excerpt = asdict(excerpt_obj)
+    console.print(_format_excerpt_for_terminal(excerpt))
 
-    if diagnosis["failed_stage"] == "unknown":
-        console.print("\n[yellow]Could not classify failure. Showing last excerpt:[/yellow]")
-        console.print(diagnosis.get("raw_excerpt", ""))
-        return {"diagnosis": diagnosis, "forum_threads": [], "fix_recommendation": "", "outputs": {}}
+    if not excerpt.get("tail_text"):
+        console.print("\n[red]Log file empty or unreadable.[/red]")
+        return {"excerpt": excerpt, "fix_recommendation": "", "outputs": {}}
 
-    # Step 2: search forum (troubleshoot mode)
-    search_query = " ".join(diagnosis.get("search_terms", []))
-    if not search_query:
-        search_query = diagnosis["error_signature"][:120]
-    console.print(f"\n[dim]→ search_forum_threads(query={search_query!r}, mode=troubleshoot)[/dim]")
-    threads = await _search_forums(search_query, k=5)
-    console.print(f"  found {len(threads)} thread(s)")
-
-    # Step 3: synthesize (wrapped in asyncio.to_thread to avoid blocking stdio event loop)
-    console.print("[dim]→ synthesizing fix recommendation...[/dim]")
-    synthesized = await asyncio.to_thread(_synthesize_fix_sync, diagnosis, threads)
+    # Step 2: agent reads the tail + searches web + synthesizes (one call)
+    console.print("\n[dim]→ synthesizing diagnosis + fix (agent reads log + web_search)...[/dim]")
+    synthesized = await asyncio.to_thread(_synthesize_fix_sync, excerpt)
     try:
-        console.print(Panel(synthesized, title="Recommended fix", border_style="green"))
+        console.print(Panel(synthesized, title="Diagnosis + fix", border_style="green"))
     except (UnicodeEncodeError, UnicodeDecodeError):
-        # Fallback for terminals with narrow encoding (e.g. Windows GBK)
         safe = synthesized.encode("ascii", errors="replace").decode("ascii")
-        console.print(Panel(safe, title="Recommended fix", border_style="green"))
+        console.print(Panel(safe, title="Diagnosis + fix", border_style="green"))
 
-    # Step 4: optionally write outputs
+    # Step 3: optionally write outputs
     outputs = {}
     if write_fix:
         if auto_confirm or _confirm("Write fix script + diagnosis.md to output/?"):
-            outputs = _write_outputs(diagnosis, synthesized, threads)
+            outputs = _write_outputs(excerpt, synthesized)
             for kind, path in outputs.items():
                 if path:
                     console.print(f"[green]✓[/green] {kind}: {path}")
 
     return {
-        "diagnosis": diagnosis,
-        "forum_threads": threads,
+        "excerpt": excerpt,
         "fix_recommendation": synthesized,
         "outputs": outputs,
     }

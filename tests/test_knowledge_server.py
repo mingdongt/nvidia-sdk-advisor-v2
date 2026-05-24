@@ -53,9 +53,18 @@ def test_parse_install_log_in_tools():
 
 
 def test_parse_install_log_via_server():
+    """parse_install_log returns a LogExcerpt JSON with structural fields only —
+    no classification (failed_stage/error_class were removed; agent reads tail_text)."""
     import os
     fixture = os.path.join(os.path.dirname(__file__), "fixtures", "apt_missing_package.log")
     result_json = knowledge_server.call_tool("parse_install_log", {"log_path_or_archive": fixture})
     result = json.loads(result_json)
-    assert result["failed_stage"] == "apt"
-    assert result["error_class"] == "apt-missing-package"
+    # LogExcerpt fields
+    assert "tail_text" in result
+    assert "file_count" in result
+    assert "source_path" in result
+    assert result["file_count"] == 1
+    assert "Unable to locate package" in result["tail_text"]
+    # No classification fields anymore
+    assert "failed_stage" not in result
+    assert "error_class" not in result

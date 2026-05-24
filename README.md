@@ -1,43 +1,47 @@
 # NVIDIA SDK Advisor
 
-A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs, built on the same public data sources SDK Manager itself uses.
+A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs, built on the same public data sources SDK Manager itself uses. Generates `.ini` response files SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
-Generates output files (`.ini` response files) SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
+[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
 
-[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning eval: 3.56/5](https://img.shields.io/badge/reasoning-3.56%2F5-yellow)](#evaluation) [![Troubleshoot eval: 3.66/5](https://img.shields.io/badge/troubleshoot-3.66%2F5-yellow)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
+---
 
-> **A design study with executable evidence.** What an AI assistant inside SDK Manager could look like — and what 80% of production-izing it would actually require.
+## What's in this repo
 
-## Index
+**Why it looks like this** — [Design principles](#design-principles)
 
-**Build** — [What this does](#what-this-does) · [Hero scenarios](#hero-scenarios) · [Architecture](#architecture) · [Setup](#setup) · [Usage](#usage) · [Project structure](#project-structure) · [Implementation history](#implementation-history)
+**The thing itself** — [What it does](#what-it-does) · [Hero scenarios](#hero-scenarios) · [Architecture](#architecture) · [Tested against](#tested-against)
 
-**Evaluate** — [Evaluation](#evaluation) · [Tests](#tests)
+**What I learned** — [If this were to ship](#if-this-were-to-ship--how-i-think-about-it) · [Evaluation](#evaluation)
 
-**Strategy** — [Design principles](#design-principles) · [Production gaps](#production-gaps) · [Troubleshoot evolution roadmap](#troubleshoot-evolution-roadmap) · [Owner perspective](#owner-perspective) · [Deliberate non-goals](#deliberate-non-goals)
+**What's still open** — [What's still missing](#whats-still-missing) · [Troubleshoot evolution](#troubleshoot-evolution) · [If you're working on something similar](#if-youre-working-on-something-similar)
+
+**Running it** — [Setup](#setup) · [Usage](#usage) · [Tests](#tests) · [Project structure](#project-structure) · [Implementation history](#implementation-history)
+
+**Boundaries** — [Deliberate non-goals](#deliberate-non-goals)
 
 ---
 
 ## Design principles
 
-Three judgments shaped what this demo includes and what it excludes:
+Three judgments shaped what this repo includes and what it excludes. Reading these first makes the rest of the README make sense.
 
 1. **The code is evidence, the README is the argument.** Reading the README without running the code should be enough to evaluate the design depth. Running the code without reading the README will miss the point.
 2. **Demonstrate the architecture, not the polish.** Every code path exists to make an architectural claim concrete. Polish — CLI ergonomics, exhaustive error handling, every edge case — is deliberately under-invested where it doesn't strengthen the argument.
-3. **Surface gaps honestly.** Sections below — _Production gaps_, _Troubleshoot evolution roadmap_ — enumerate what a real product would need that this demo doesn't have. The point is to prove these gaps are understood, not to fill them.
+3. **Surface gaps honestly.** Sections below — [What's still missing](#whats-still-missing), [Troubleshoot evolution](#troubleshoot-evolution) — enumerate what a real product would need that this repo doesn't have. The point is to prove the gaps are understood, not to fill them.
 
 This is a design study with executable evidence, not a tool meant to be adopted as-is.
 
 ---
 
-## What this does
+## What it does
 
-| Capability | Current SDK Manager gap | This demo's mechanism |
+| Capability | Where SDK Manager stops today | What this repo adds |
 |---|---|---|
-| **Discover** | Flat list of NVIDIA-branded SDKs; user must already know which fits their use case | `search_3p_sample_repos` (vector search over 21 GitHub repo READMEs) + workload-to-product inference |
+| **Discover** | Flat list of NVIDIA-branded SDKs; you must already know which fits your use case | `search_3p_sample_repos` (vector search over 21 GitHub repo READMEs) + workload-to-product inference |
 | **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
 | **Install** | Wizard runs install; CLI takes flags. No conversational guided flow | Generates `.ini` matching NVIDIA's official template, optionally drives `NvSDKManager.exe --cli --response-file` as subprocess with streamed status + event classification |
-| **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` opens the `.zip`, extracts filename metadata + log tail. Agent reads the raw tail itself and uses `web_search` (forums, askubuntu, stackoverflow) to find expert fixes → synthesizes `fix.sh` + `diagnosis.md`. No pre-classification layer |
+| **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` opens the `.zip`, extracts filename metadata + log tail. The agent reads the raw tail itself and uses `web_search` (forums, askubuntu, stackoverflow) to find expert fixes → synthesizes `fix.sh` + `diagnosis.md`. No pre-classification layer |
 
 ---
 
@@ -164,7 +168,7 @@ Last success:    apt-get update completed
                        └─────────────────────────────┘
 ```
 
-**Two MCP servers, independently runnable.** Server A is deterministic facts from NVIDIA-signed manifests; Server B is semantic + structured retrieval. The agent dispatches via a tool-name → session routing table.
+Two MCP servers, independently runnable. Server A is deterministic facts from NVIDIA-signed manifests; Server B is semantic + structured retrieval. The agent dispatches via a tool-name → session routing table.
 
 The Python REPL is just one consumer. Either server can be spawned standalone:
 
@@ -173,271 +177,80 @@ python -m src.knowledge_server   # 13 tools, stdio MCP
 python -m src.rag_server         # 2 tools, stdio MCP
 ```
 
-Any MCP client — Claude Code, Cursor, a custom Node renderer, anything that speaks stdio MCP — can connect and use these tools without touching the rest of this repo. The agent loop is replaceable; the data layer is not. This separation is the MCP composability story.
+Any MCP client — Claude Code, Cursor, a custom Node renderer, anything that speaks stdio MCP — can connect and use these tools without touching the rest of this repo. The agent loop is replaceable; the data layer is not. That separation was the point of using MCP in the first place.
+
+### Tier 3 (forums + docs) — decision log
+
+An earlier version of this repo wrapped `forums.developer.nvidia.com` and `docs.nvidia.com` searches behind two dedicated MCP tools that called Brave Search under the hood. I removed them. They were ~2-line domain-filter shims, and Claude's native web search handles the same task cleanly. No `BRAVE_API_KEY` setup required.
+
+The two consumers of web search are wired differently:
+
+- **`--troubleshoot` mode (SDK backend)** — the `web_search_20250305` server-side tool is attached automatically. No domain whitelist: Claude is good at preferring NVIDIA docs / official forums / Stack Exchange on its own, and restricting to NVIDIA-only domains crowded out genuinely useful community fixes for apt / kernel / DNS errors that aren't NVIDIA-specific. The synthesis prompt makes at least one `web_search` call mandatory before recommending a fix, and ranks preferred source tiers (NVIDIA docs > NVIDIA forum > SO/AskUbuntu > GitHub issues). `max_uses=5` is the only constraint — a cost ceiling, not a trust filter. Cost: ~$0.01 per troubleshoot run. If `web_search` is unavailable (e.g. region-restricted), the agent falls back to training-knowledge synthesis with an explicit disclaimer.
+- **`--troubleshoot` mode (CLI backend)** — Claude CLI's built-in WebSearch covers the same role; no extra config.
+- **REPL / `--plan` mode** — web search is *not* auto-attached. The agent's primary tools are Server A's deterministic lookups + Server B's local RAG. The SYSTEM_PROMPT mentions `site:forums.developer.nvidia.com` as a hint for the CLI backend; SDK backend uses only deterministic tools for planning.
 
 ---
 
-## Setup
+## Tested against
 
-```powershell
-git clone https://github.com/mingdongt/nvidia-sdk-advisor-v2.git nvidia-sdk-advisor
-cd nvidia-sdk-advisor
-python -m venv .venv
-.venv\Scripts\Activate.ps1                  # Windows
-# source .venv/bin/activate                 # Linux/Mac
-pip install -r requirements.txt
-Copy-Item .env.example .env                 # paste your ANTHROPIC_API_KEY here
-python -m ingest.build_github_vectordb      # rebuild Chroma DB (~30s, one-time)
-```
+All eval numbers below come from real archives, not synthetic ones. Five real `.zip` exports pulled from public NVIDIA Developer Forum posts are committed to [`data/sample_logs/`](data/sample_logs/) — each one is in the corpus because it exercises something the parser or agent has to handle.
 
-**Why the rebuild step:** the Chroma vector store is binary, fast-changing, and would bloat the repo via Git LFS. The committed JSONL corpus is the input; the index is local-rebuild.
+| # | Forum thread | Why this case is in the corpus |
+|---|---|---|
+| 1 | [JetPack 6.1 flash fail, AGX Orin](https://forums.developer.nvidia.com/t/can-not-flash-jetpack-6-1-on-jetson-agx-orin-via-sdk-manager/308377) | First real archive — long-form filename with `JetPack_<ver>_<host>_for_Jetson_<board>` fully encoded |
+| 2 | [MCU firmware flash, AGX Orin 64G DK](https://forums.developer.nvidia.com/t/how-to-flash-mcus-firmware-on-agx-orin-64g-dk/366168) | Newer JetPack 6.2.2 — checks the parser hasn't drifted on schema changes |
+| 3 | [Orin Nano flash via SDK fails](https://forums.developer.nvidia.com/t/flashing-orin-nano-via-sdk-fails/318733) | **Short-form filename** (timestamp only) — agent has to infer target / JetPack from the log body |
+| 4 | [JetPack 6.2 install fail, AGX Orin 64GB](https://forums.developer.nvidia.com/t/install-jetpack-6-2-failed-with-sdk-manager-on-agx-orin-64g/321524) | RAM-tier suffix `_64GB_` in the target name — regex has to accept numeric suffixes |
+| 5 | [`command error code: 11`, Orin Nano](https://forums.developer.nvidia.com/t/flashing-jetpack-6-2-using-sdk-manager-displays-command-error-code-11/327911) | **Bracketed board variant** `[8GB_developer_kit_version]` — drove a regex extension |
 
-### Tier 3 (forums + docs)
-
-Earlier versions of this demo wrapped `forums.developer.nvidia.com` and `docs.nvidia.com` searches behind two dedicated MCP tools (`search_forum_threads`, `search_docs`) that called Brave Search under the hood. We removed them — they were ~2-line domain-filter shims and Claude's native web search handles the same task cleanly.
-
-This means **no `BRAVE_API_KEY` setup required**. The two consumers of web search are wired differently:
-
-- **`--troubleshoot` mode (SDK backend)**: the `web_search_20250305` server-side tool is attached **automatically**. No domain whitelist — Claude is good at preferring NVIDIA docs / official forums / Stack Exchange on its own; restricting to NVIDIA-only domains crowded out genuinely useful community fixes for apt / kernel / DNS errors that aren't NVIDIA-specific. The synthesis prompt makes at least one `web_search` call mandatory before recommending a fix, and ranks preferred source tiers (NVIDIA docs > NVIDIA forum > SO/AskUbuntu > GitHub issues). `max_uses=5` is the only constraint — a cost ceiling, not a trust filter. Cost: ~$0.01 per troubleshoot run. If `web_search` is unavailable (e.g. region-restricted), the agent falls back to training-knowledge synthesis with an explicit disclaimer.
-- **`--troubleshoot` mode (CLI backend)**: Claude CLI's built-in WebSearch covers the same role; no extra config.
-- **REPL / `--plan` mode**: web search is *not* auto-attached — the agent's primary tools are Server A's deterministic lookups + Server B's local RAG. The agent's SYSTEM_PROMPT mentions `site:forums.developer.nvidia.com` as a hint for the CLI backend; SDK backend uses only deterministic tools for planning.
-
-### Optional: GitHub token
-
-```powershell
-# Raises GitHub API rate limit from 60→5000/hr (needed if you re-run scrape_github_samples)
-GH_TOKEN=ghp_...
-```
-
-### Backend selection (use API key OR Claude Code subscription)
-
-The agent supports three backends, switchable via env var:
-
-```powershell
-# Default: Anthropic Python SDK (Haiku 4.5 by default, configurable via ANTHROPIC_MODEL)
-$env:ANTHROPIC_BACKEND="sdk"
-
-# Subscription-based: spawn `claude` CLI as subprocess + our 2 MCP servers
-# (avoids API quota when you already have a Claude Pro/Max subscription)
-$env:ANTHROPIC_BACKEND="cli"
-
-# Baseline (for the ablation study below): claude CLI with no tools attached
-$env:ANTHROPIC_BACKEND="cli-no-tools"
-```
-
-The `cli` backend requires `claude` CLI installed and authenticated (`claude login`).
-
-### Re-running corpus ingestion (optional)
-
-```powershell
-python -m ingest.fetch_manifests         # refresh NVIDIA CDN manifests
-python -m ingest.fetch_ngc_catalog       # refresh NGC container catalog (20 containers)
-python -m ingest.scrape_github_samples   # refresh GitHub READMEs (needs GH_TOKEN to cover all 28)
-python -m ingest.build_github_vectordb   # rebuild Chroma index from latest READMEs
-```
-
----
-
-## Usage
-
-```powershell
-python main.py                           # default — conversational REPL, generates .ini + .command
-python main.py --dry-run                 # invoke NvSDKManager --query against latest plan
-python main.py --execute                 # actually install (confirmation + sudo prompt)
-python main.py --troubleshoot <log>      # diagnose an SDK Manager log archive or .log file
-python main.py --full --mock-install --query "<text>"   # end-to-end: configure → install → troubleshoot → fix → retry
-python main.py --eval smoke              # Plan A eval (5 hand-crafted cases, exact match)
-python main.py --eval reasoning          # Plan B eval (20 LLM-judged cases)
-python main.py --eval troubleshoot       # Plan C eval (8 forum-grounded LLM-judged cases)
-```
-
-### End-to-end mode (`--full`)
-
-`--full --mock-install` chains all five phases of the troubleshoot story into one continuous CLI session:
-
-1. **Configure** [REAL] — agent + MCP + `.ini` / `.command` generation
-2. **Install** [MOCKED] — canned SDK Manager failure log (no real subprocess; no hardware needed)
-3. **Troubleshoot** [REAL] — agent re-reads the mock log, invokes `web_search`, synthesizes `fix.sh` + `diagnosis.md`
-4. **Apply fix** [SIMULATED] — prints `bash fix.sh` command, does not actually execute
-5. **Retry install** [MOCKED] — canned success log
-
-Each phase header in the output is tagged REAL / MOCKED / SIMULATED so the audience sees exactly where grounding ends and canned content begins. Without `--mock-install`, `--full` exits with an error: real-hardware end-to-end isn't built yet (needs a connected Jetson + a deterministic failure recipe — see [Owner perspective](#owner-perspective) Q3 plan).
-
-### Execution mode safety
-
-`--execute` requires explicit `yes` confirmation in the same session. On Linux, also prompts for sudo via `getpass`.
-
-### Self-healing chain on failure
-
-When `--execute` exits non-zero, the agent automatically finds the most recent SDK Manager log and offers to enter `--troubleshoot` on it. Two sources are searched, in priority order:
-
-1. Exported tarballs (`sdkm-*log*.tar*`) in `~`, `~/Downloads`, or `cwd`
-2. Raw session `.log` files in `~/.nvsdkm-logs/` (Linux/Mac) or `~/AppData/Local/NVIDIA Corporation/SDK Manager/logs/` (Windows)
-
-**The user does NOT need to run `--export-logs` manually.** SDK Manager writes raw session logs during install; we read them directly. `--export-logs` packaging is a sharing convenience, not a prerequisite for our parser. The most-recent file (by mtime) across both sources wins.
-
-`--troubleshoot` itself is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
-
-### Log handling: surface-level by design
-
-The log-reading layer is **deliberately surface-level**: open the `.zip`, regex-parse the filename, take the last ~200 lines, hand it all to the agent. That's it. No stage classification, no error vocabulary, no internal-structure assumptions.
-
-This is intentional, not lazy. We are an external project looking at the **finished artifact** of SDK Manager — an opaque `.zip` whose internal layout, log file naming conventions, error code semantics, and severity grading are NVIDIA-internal implementation details. Any pre-classification we wrote without access to those internals would be guesswork. We tried it once (a curated `log_patterns.yaml` of ~20 regexes); too many patterns were hallucinated against training data instead of grounded in real logs. The refactor that removed it is in commit `6765bed`.
-
-What we DO verify works (against five real exports — see "Test corpus" below):
-
-- `.zip` archive format and the two real filename patterns: long (`SDKM_logs_JetPack_<ver>_<host>_for_Jetson_<board>_<date>_<time>.zip`) and short (`SDKM_logs_<date>_<time>.zip`)
-- Filename → target / JetPack / host OS / timestamp extraction (deterministic regex)
-- Concat all `.log` / `.txt` files inside the archive; take the last 200 lines
-
-What only the SDK Manager team can do reliably:
-
-- **Read the log-producer code.** Errors in SDK Manager come from specific code paths (Electron main / renderer / worker subprocess / PowerShell query scripts on Windows / bash scripts on Linux). Knowing which path emits which error string lets you build a real parser that classifies by code site, not by string match.
-- **Surface internal error codes.** Real exports contain `error code is: 2001`, `Task 0x0 failed (err: 0x1f1e050d)`, `command error code: 11` — all NVIDIA-internal numeric/hex codes. Their meanings live in the source.
-- **Use the internal directory layout.** Real archives have `sdkm-*.log` (session log) + `downloadLogs/sdkm_download-*.log` (download subsystem) + likely more subsystem-specific files. Knowing which file represents which subsystem lets you query the relevant one instead of concatenating everything.
-- **Schema-validate the log.** SDK Manager logs follow internal conventions (`HH:MM:SS.mmm - <severity>: <message>`, event-pattern `Event: <COMPONENT>@<TARGET> - status is: <status>`). With the producer source, you parse this as structured records instead of free text.
-
-**Once these are accessible — i.e. once we are SDK Manager team members rather than external researchers — the real, reliable parser gets written.** Until then, the surface-level layer keeps the agent honest: it never trusts a classification we made up, it just reads the actual log content. The MCP boundary localizes the eventual change to a single replaceable function (`parse_install_log`); the agent loop, troubleshoot orchestrator, prompt template, web_search integration, and output writer all stay unchanged.
-
-### Test corpus: real SDK Manager exports
-
-Five real `.zip` exports from public NVIDIA Developer Forum posts are committed to [`data/sample_logs/`](data/sample_logs/) for reproducible validation. The parser + agent runs end-to-end against each:
-
-| # | Source thread | Filename (in `data/sample_logs/`) | Failure scenario |
-|---|---|---|---|
-| 1 | [Can not flash JetPack 6.1 on AGX Orin via SDK Manager](https://forums.developer.nvidia.com/t/can-not-flash-jetpack-6-1-on-jetson-agx-orin-via-sdk-manager/308377) | `SDKM_logs_JetPack_6.1_Linux_for_Jetson_AGX_Orin_modules_2024-09-30_16-09-17.zip` | JetPack 6.1 flash failure on AGX Orin |
-| 2 | [How to flash MCU's firmware on AGX Orin 64G DK](https://forums.developer.nvidia.com/t/how-to-flash-mcus-firmware-on-agx-orin-64g-dk/366168) | `SDKM_logs_JetPack_6.2.2_Linux_for_Jetson_AGX_Orin_modules_2026-04-10_10-51-27.zip` | MCU firmware flash, JetPack 6.2.2 |
-| 3 | [Flashing Orin Nano via SDK Fails](https://forums.developer.nvidia.com/t/flashing-orin-nano-via-sdk-fails/318733) | `SDKM_logs_2025-01-03_13-01-22.zip` | WSL-based flash failure (short filename — only timestamp encoded, agent infers target/JP from log body) |
-| 4 | [Install JetPack 6.2 failed with SDK manager on AGX orin 64G](https://forums.developer.nvidia.com/t/install-jetpack-6-2-failed-with-sdk-manager-on-agx-orin-64g/321524) | `SDKM_logs_JetPack_6.2_Linux_for_Jetson_AGX_Orin_64GB_2025-01-26_11-41-13.zip` | JetPack 6.2 install fail on AGX Orin 64GB |
-| 5 | [Flashing JetPack 6.2 ... command error code: 11](https://forums.developer.nvidia.com/t/flashing-jetpack-6-2-using-sdk-manager-displays-command-error-code-11/327911) | `SDKM_logs_JetPack_6.2_Linux_for_Jetson_Orin_Nano_[8GB_developer_kit_version]_2025-03-21_12-48-45.zip` | JetPack 6.2 Orin Nano + bracketed board variant in filename |
-
-To run troubleshoot against any one:
+To run troubleshoot against any of them:
 
 ```powershell
 python main.py --troubleshoot data/sample_logs/SDKM_logs_2025-01-03_13-01-22.zip
 ```
 
-**Privacy redaction**: archives committed here have been redacted to remove other users' personal content — `/home/<user>/` paths, Windows user folders, email addresses, non-NVIDIA IPs, and identifiable company names are replaced with `REDACTED` / `X.X.X.X`. All error messages, error codes, component names, target IDs, JetPack versions, timestamps, and log structure are preserved verbatim — exactly what the agent needs. See [`data/sample_logs/README.md`](data/sample_logs/README.md) for full provenance + redaction policy. The script that performed the redaction is at [`scripts/redact_logs.py`](scripts/redact_logs.py) (reproducible).
+Plus 3 troubleshoot eval cases that use OP-pasted forum quotes where no `.zip` is available. Total: **8 cases**, all with `source_thread_url` + verification status (`op-confirmed` / `staff-recommended` / `log-grounded-forum-staff-missed-root-cause`) recorded in `tests/eval_cases/troubleshoot.jsonl`. The reasoning eval adds another 20 forum-mined cases on top.
 
-Findings that drove parser changes during this validation pass:
-
-- **Real archive format is `.zip`**, not `.tar.gz` (commit `6765bed`)
-- **Two filename forms exist** — long-form with JetPack/host/target encoded, short-form with only timestamp (commit `97b6c61`)
-- **Bracketed board variant tags** like `[8GB_developer_kit_version]` appear in real filenames — regex extended to allow `[]` (commit pending)
-- **Internal layout has a `downloadLogs/` subdirectory** with subsystem-specific session logs; we read concatenated content (agent figures out which subsystem from context)
-- **Real failure signatures** in the 200-line tail include `error: install process failure`, `error: cannot get component by id undefined`, `error: completeSetup failed`, plus telemetry validation errors (`Failed to validate GA4 event. Validation errors: ...`). Each is interpreted by the agent at runtime — we don't pre-classify them.
-
-The first end-to-end troubleshoot run (on a Windows-host export the demo author generated by deliberately triggering a Jetson Thor setup failure) correctly identified the root cause as missing USBIPD on the Windows host and cited [docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html](https://docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html) via web_search — without any pre-classification layer. The agent reading the raw tail was sufficient.
+**Privacy redaction**: archives have been redacted to remove other users' personal content — `/home/<user>/` paths, Windows user folders, email addresses, non-NVIDIA IPs, and identifiable company names are replaced with `REDACTED` / `X.X.X.X`. All error messages, error codes, component names, target IDs, JetPack versions, timestamps, and log structure are preserved verbatim — exactly what the agent needs. Full policy in [`data/sample_logs/README.md`](data/sample_logs/README.md); the redaction script is [`scripts/redact_logs.py`](scripts/redact_logs.py) (reproducible).
 
 ---
 
-## Evaluation
+## If this were to ship — how I think about it
 
-Three tracks. All run with `python main.py --eval <track>`:
+### Surface choices — CLI is a stand-in
 
-| Track | Method | Cases | Latest score | Target |
-|---|---|---|---|---|
-| Smoke | Exact field match (product / version / target / additional_sdks) | 5 hand-crafted | **15/15 (100%)** | ≥80% |
-| Reasoning | LLM-as-judge, 4 axes, 3× median | 20 forum-mined | **3.56/5** | ≥3.5/5 |
-| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 8 forum-grounded | **3.66/5** | ≥3.5/5 |
+The demo's primary surface is a Python REPL. That's a demo choice — it's the lowest-cost surface that makes the agent loop visible. A production version should be something else.
 
-### Per-axis breakdown
+For SDK Manager's audience, the natural surfaces are:
 
-**Reasoning** (4 axes × 1-5):
-- Factual correctness: 3.20
-- Reasoning quality: 3.35
-- Constraints respected: 4.95
-- INI validity: 2.75
+1. **A panel inside SDK Manager's existing Electron renderer.** SDK Manager is Electron 13 + Vue 3 + Chromium. An "Ask AI" panel that talks to the two MCP servers via the same stdio protocol the demo uses is roughly two days of renderer work. Backend doesn't change.
+2. **A `sdkmanager --advise` CLI subcommand.** For users who already live in the terminal — DevOps, embedded engineers, anyone CI-driven. Same backend, different front-end.
+3. **A "Diagnose with AI" button next to "Export Logs" in the GUI.** This is the most natural integration point because it slots into a workflow users already know. After the GUI generates the tarball, the button feeds it straight to the troubleshoot orchestrator.
 
-**Troubleshoot** (4 axes × 1-5):
-- Error correctly identified: 3.63
-- Fix matches reference: 2.50
-- Fix is actionable: 4.13
-- Safety (sudo warnings, destructive-op flags): 4.38
+None of these require rewriting the agent or the MCP servers. The architecture is deliberately UI-agnostic — the REPL is one consumer, not the consumer.
 
-#### Self-grading bias finding (and the surprising recovery)
+### Risks that worry me
 
-An earlier version of this suite used 15 cases where **I authored the log snippet, I authored the "expected fix," and Claude judged the agent against it**. That suite scored **4.65/5**. When the cases were rewritten using 10 NVIDIA Developer Forum threads — log snippets paraphrased from OP descriptions, "expected fix" set to whatever the NVIDIA staff member or OP confirmed actually worked — the same agent on the same code scored **2.98/5**. **The 1.67-point gap was self-grading bias.**
+1. **The forum dependency.** Half the troubleshoot value comes from `forums.developer.nvidia.com`. If NVIDIA changes that forum (paid support tier, deprecation, fragmentation), the demo's value drops sharply. Mitigation would be indexing the forum content under NVIDIA's own control (internal knowledge base, in-product search).
+2. **Model deprecation.** The agent is wired to Anthropic's Haiku 4.5. When Anthropic deprecates a model version, the agent silently runs on its successor; eval scores may shift in either direction without alarm. Anyone running this in production has to watch deprecation calendars and re-run evals proactively.
+3. **The "AI made me delete my system" event.** Generated `fix.sh` runs `sudo`. Even with the review gate, eventually someone executes something they shouldn't have. Reducing the risk surface (sandboxing, risk classification, telemetry on destructive patterns) is the work that never feels done.
+4. **Adoption inertia.** Embedded developers are unusually skeptical of AI features that mediate tools they rely on. Adoption likely looks like a slow start followed by a tipping point, rather than steady growth.
 
-A second rewrite then tightened the inputs again. For 5 of the 8 cases we have the OP's actual SDK Manager export `.zip` committed to `data/sample_logs/`, so `log_inline` was replaced with **verbatim error lines extracted from the OP's own log file** rather than my paraphrase of the OP's forum description. The other 3 cases use lines the OP literally pasted into their forum post. **Zero cases now contain text I authored.** Score rose to **3.66/5** — above target.
+### Where I'd invest engineering next
 
-The +0.68 swing (2.98 → 3.66) is itself a finding: **richer, real log content lets the agent do its job better**. When fed a paraphrased symptom description ("the install gets stuck at 99%") the agent latches onto a generic 99%-stuck fix and misses the actual root cause; when fed the verbatim log line (`Error: Invalid target board - holoscan-devkit` followed by `failed to read rcm_state`), the agent correctly identifies a board-variant selection issue that even the original forum staff missed (case 6). The lift comes from the input, not from any code change.
+If I had a small team and three quarters:
 
-Where the ceiling still sits: **fix matches reference = 2.50** is the weakest axis. The agent's `web_search` often surfaces *a* plausible fix for the symptom but lands on the wrong forum thread when multiple failure modes share the same symptom. This is the retrieval/grounding gap an SDK Manager team insider with access to internal triage data could close (see `docs/why-this-demo.md`).
+- **Q1** — close the gaps in [What's still missing](#whats-still-missing). PII scrubber, citation persistence, and audit log are existential before shipping anywhere outside an internal dogfood.
+- **Q2** — integrate into SDK Manager's renderer behind a flag. Internal dogfood with NVIDIA's own DevRel and developer-marketing teams to surface real usage patterns; refine prompts against their feedback.
+- **Q3** — open beta to the Jetson community. Wire success metrics (forum-thread volume, first-install success rate, fix-script execution rate, eval drift) into a dashboard. Iterate on which scenarios deserve their own focused subprompts (e.g. flash recovery is so distinct from apt failures that they probably want different prompt branches).
 
-Cases and their provenance: `tests/eval_cases/troubleshoot.jsonl` — each line carries `source_thread_url`, `verification` (`op-confirmed` / `staff-recommended` / `staff-documented-limitation` / `log-grounded-forum-staff-missed-root-cause`), and `log_source` (`zip-tail-real` for 5 cases, `forum-quoted` for 3).
-
-#### Refactor preservation finding
-
-Before the troubleshoot refactor (curated `data/log_patterns.yaml` with hand-encoded `error_class` labels + `search_terms` hints) the *synthetic* suite scored **4.70/5**. After dropping the pattern library entirely it scored **4.65/5** on the same synthetic suite. The forum-grounded rewrite (3.66) supersedes both numbers, but the synthetic-to-synthetic ablation still stands: against the same questions, removing the hand-curated layer made no measurable difference. The classification work the curation did was already being done by `web_search` + Claude reading log content. This is the troubleshoot-side mirror of the smoke-eval ablation below — the "smart" extra layer adds nothing once tools and grounding are in place.
-
-### Ablation: does the RAG layer actually help, or does Claude already know this?
-
-Three-way smoke-eval comparison (same 5 hand-crafted cases, same scorer):
-
-| Configuration | Backend | Tools | Smoke score | Δ vs baseline |
-|---|---|---|---|---|
-| **A** | Anthropic SDK + **Haiku 4.5** | + Server A (13) + Server B (4) | **15/15 (100%)** | +53.3 pp |
-| **B** | Claude CLI + **Opus 4.7** | + Server A (13) + Server B (4) | **15/15 (100%)** | +53.3 pp |
-| **C (baseline)** | Claude CLI + **Opus 4.7** | _none — model alone with format prompt_ | **7/15 (46.7%)** | — |
-
-**Reading the table:** Opus 4.7 alone, even when explicitly told to produce `sdkmanager` commands in the right format, scores 46.7% on factual NVIDIA SDK questions. The misses are all hallucinations the model couldn't ground:
-
-- `--product jetpack` instead of `Jetson` (product/version confusion)
-- `--product JETSON_ORIN_NX_TARGETS` (target ID written into the product field)
-- `JETSON_XAVIER_TARGETS` instead of `JETSON_AGX_XAVIER_TARGETS` (invented variant)
-- Original Jetson Nano (4GB) paired with JetPack 5.0 — but Nano only supports up to 4.6.4
-
-With the RAG + deterministic tool layer, both Haiku 4.5 and Opus 4.7 score perfectly. The tools convert the model's knowledge into **executable, factually-grounded** artifacts. Haiku + our layer **matches** Opus + our layer at this scoring axis.
-
-The takeaway: the tool layer — not the underlying model — is where the accuracy comes from.
-
-Try it yourself:
-```powershell
-$env:ANTHROPIC_BACKEND="cli-no-tools"; python main.py --eval smoke   # Opus alone
-$env:ANTHROPIC_BACKEND="cli";          python main.py --eval smoke   # Opus + our tools
-$env:ANTHROPIC_BACKEND="sdk";          python main.py --eval smoke   # Haiku + our tools (default)
-```
-
-Raw baseline responses (showing the hallucinations) archived at `data/eval_runs/opus_baseline_responses.txt`.
-
-### How Haiku and Opus differ in tool usage (both still score 100%)
-
-Running the smoke eval with `tests/list_smoke_tools.py` (SDK + Haiku) and `tests/list_smoke_tools_cli.py` (CLI + Opus 4.7) traces which MCP tools each model invoked per case:
-
-| Case | Haiku 4.5 path | Opus 4.7 path |
-|---|---|---|
-| 1: Orin Nano + CUDA + JP 6.x | detect → lookup → list_releases → gen_ini → gen_cmd | **ToolSearch** → detect → lookup → list_releases → gen_cmd → gen_ini |
-| 2: AGX Orin + DeepStream 7.0 | detect → lookup → list_releases → **validate_combo × 2** → gen_ini → gen_cmd | detect → lookup → list_releases → gen_ini → gen_cmd  _(no validate_combo)_ |
-| 3: Orin NX + latest JP | detect → lookup → list_releases → gen_ini → gen_cmd | _(identical)_ |
-| 4: AGX Xavier + latest JP | detect → lookup → list_releases → gen_ini → gen_cmd | detect → lookup → list_releases → **lookup × 2** → gen_ini → gen_cmd |
-| 5: Nano + object detection sample | detect → lookup → **search_3p_sample_repos** → list_releases → gen_ini → gen_cmd | _(identical)_ |
-
-Aggregate (5 cases each):
-
-| Tool | Haiku calls | Opus calls |
-|---|---:|---:|
-| `detect_connected_hardware` | 5 | 5 |
-| `lookup_target_id` | 5 | **6** _(self-verifies once)_ |
-| `list_releases` | 5 | 5 |
-| `generate_response_file` | 5 | 5 |
-| `generate_command` | 5 | 5 |
-| `validate_combo` | **2** | **0** _(internalizes the era-pairing rule)_ |
-| `search_3p_sample_repos` | 1 | 1 |
-
-**Two behavioral signals worth noting:**
-
-1. **Opus skips `validate_combo` (case 2)** — it reads the JetPack ↔ addon-SDK era table in the SYSTEM_PROMPT and inlines the check rather than dispatching the tool. Haiku takes the tool path literally; Opus internalizes the rule. **Both still get the right answer.** This says something about tool-design: a tool the bigger model routinely skips without losing accuracy is *probably* doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
-
-2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; the demo's correctness doesn't depend on it, but it shows up in the trace.
-
-These are surface-level differences in HOW the two models walk the agent graph. The OUTCOME on every case is identical (15/15 each). The earlier takeaway — *the tool layer, not the underlying model, is where the accuracy comes from* — holds: change the model, behavior shifts slightly, output stays correct.
+The technical work is the smaller half. The harder half is convincing SDK Manager's existing users to trust an AI in their install path — that's the owner's real job, not the engineer's.
 
 ---
 
-## Production gaps
+## What's still missing
 
-If this demo were to ship as part of SDK Manager — or any product handling real user installs at scale — the 80% of work _not_ in this codebase would look like:
+This repo is the 20%. The other 80% — the part that would actually be hard to ship — I haven't built. These are the gaps I can name; some I have rough plans for, some I don't. If you're working on similar tooling and have figured any of these out, I'd genuinely like to hear how.
 
 ### 1. Privacy / data flow
 
@@ -449,106 +262,45 @@ A production version needs: PII scrubber pre-prompt (regex over `/home/[^/]+/`, 
 
 The agent cites forum URLs. Six months later, threads can be deleted, locked, version-shifted, or merged. `diagnosis.md` quietly becomes a file of dead links.
 
-A production version needs: fetch + snapshot the cited paragraph (not the whole page) at synthesis time, embedded inline in `diagnosis.md`; optional periodic re-validation that flags broken citations.
+Needs: fetch + snapshot the cited paragraph (not the whole page) at synthesis time, embedded inline in `diagnosis.md`; optional periodic re-validation that flags broken citations.
 
 ### 3. Failure feedback loop
 
 The agent generates `fix.sh`. The user runs it. Then nothing — no callback, no signal whether the fix worked, no learning across runs.
 
-A production version needs: post-fix verification (re-run `--execute`, check exit code, run `nvidia-smi`); explicit user feedback prompt ("did this resolve it?"); aggregated success rate per error class to tune prompts; failed cases retained as future eval inputs.
+Needs: post-fix verification (re-run `--execute`, check exit code, run `nvidia-smi`); explicit user feedback prompt ("did this resolve it?"); aggregated success rate per error class to tune prompts; failed cases retained as future eval inputs.
 
 ### 4. Eval drift monitoring
 
 The scores in the badges were measured at a fixed point against a specific model + prompt. Upgrading either drifts the numbers — sometimes silently. Today no one would notice if a prompt edit dropped reasoning from 3.56 to 3.10.
 
-A production version needs: eval wired into CI on every prompt change; per-model baselines tracked over time; variance bars (each case run N times to characterize judge noise); a "score regression > 0.3" gate that blocks merges.
+Needs: eval wired into CI on every prompt change; per-model baselines tracked over time; variance bars (each case run N times to characterize judge noise); a "score regression > 0.3" gate that blocks merges.
 
 ### 5. Cost / abuse controls
 
 `max_uses=5` is a per-troubleshoot cap. There is no per-user-per-day cap. A buggy client or a coordinated abuse pattern could drain the API budget.
 
-A production version needs: per-tenant rate limits enforced at the agent layer; daily / monthly spend ceilings with email alerts; per-feature cost telemetry (`web_search` vs synthesis vs MCP); a graceful "quota exhausted" path that refuses new dispatches without crashing.
+Needs: per-tenant rate limits enforced at the agent layer; daily / monthly spend ceilings with email alerts; per-feature cost telemetry (`web_search` vs synthesis vs MCP); a graceful "quota exhausted" path that refuses new dispatches without crashing.
 
 ### 6. Trust calibration ("I don't know")
 
 The agent always produces a four-section output. When `web_search` returns nothing useful, it still writes a confident-looking `fix.sh` backed only by training knowledge. The "Why this works" paragraph admits this, but a real product should refuse to write executable script in that case.
 
-A production version needs: a genuine `cannot diagnose` output path that produces `forum_draft.md` (escalation-by-helping-the-user-ask) instead of `fix.sh`; per-step confidence scores; UI affordances that visually flag low-confidence recommendations.
+Needs: a genuine `cannot diagnose` output path that produces `forum_draft.md` (escalation-by-helping-the-user-ask) instead of `fix.sh`; per-step confidence scores; UI affordances that visually flag low-confidence recommendations.
 
 ### 7. Observability / audit trail
 
-When a user reports "the fix didn't work," there is no way to reconstruct what the agent saw and decided. Each run leaves only `fix.sh` and `diagnosis.md` — not the queries it issued, the URLs it considered and discarded, the prompt version, the model version, or the temperature.
+When a user reports "the fix didn't work," there's no way to reconstruct what the agent saw and decided. Each run leaves only `fix.sh` and `diagnosis.md` — not the queries it issued, the URLs it considered and discarded, the prompt version, the model version, or the temperature.
 
-A production version needs: structured per-run logs at `~/.sdk-advisor/runs/<run-id>.jsonl` with log hash, all queries, all URLs retrieved, URLs cited in output, model + prompt versions, cost estimate, exit status; a `sdk-advisor history` command to search past runs.
-
----
-
-These gaps are intentional omissions, not oversights. Each is closable, and the work is mostly engineering — not new architecture. The point of enumerating them is to prove they're understood.
-
-Closing them from inside NVIDIA is a data-access story more than an engineering one. The ranked list of internal sources I would ask for on day one — and which existing MCP tool each one replaces — is in [docs/why-this-demo.md → ranked knowledge bases](docs/why-this-demo.md#if-i-joined-the-team-which-internal-knowledge-bases-id-want-ranked).
+Needs: structured per-run logs at `~/.sdk-advisor/runs/<run-id>.jsonl` with log hash, all queries, all URLs retrieved, URLs cited in output, model + prompt versions, cost estimate, exit status; a `sdk-advisor history` command to search past runs.
 
 ---
 
-## Tests
-
-```powershell
-pytest                                   # all 81 unit tests
-pytest tests/test_response_file.py -v    # response file format alignment with NVIDIA template
-pytest tests/test_log_parser.py -v       # 20-pattern log parser against 5 fixture logs
-```
+These aren't theoretical — each one is a problem I want to take on next. The list is long enough to fill a real ship cycle for a small team, and the e2e scenario is clear enough that the work is mostly execution from here. I want to be the one driving it.
 
 ---
 
-## Project structure
-
-```
-nvidia-sdk-advisor/
-├── main.py                          # CLI entry, mode dispatch
-├── src/
-│   ├── models.py                    # InstallConfig, LogDiagnosis dataclasses
-│   ├── manifests.py                 # KnowledgeBase facade over CDN manifests
-│   ├── sdkm_probe.py                # NvSDKManager.exe --list-connected wrapper
-│   ├── resource_estimator.py        # estimate_resources, check_constraints
-│   ├── response_file.py             # 3-section INI generator + validator
-│   ├── command_gen.py               # sdkmanager --cli command builder
-│   ├── log_parser.py                # SDK Manager log → LogExcerpt (zip+filename+tail; agent reads tail itself)
-│   ├── vector_search.py             # Chroma + sentence-transformers wrapper
-│   ├── knowledge_server.py          # Server A — 13 tools (FastMCP)
-│   ├── rag_server.py                # Server B — 4 tools (FastMCP)
-│   ├── agent.py                     # Anthropic agent + dual MCP client + tool loop
-│   ├── repl.py                      # prompt_toolkit conversational shell
-│   ├── troubleshoot.py              # --troubleshoot orchestrator
-│   └── execution.py                 # --plan / --dry-run / --execute dispatch
-├── ingest/
-│   ├── fetch_manifests.py           # NVIDIA CDN manifests
-│   ├── fetch_ngc_catalog.py         # NGC container metadata (Tier 1, 20 entries)
-│   ├── scrape_github_samples.py     # GitHub README scraper (Tier 2 input)
-│   └── build_github_vectordb.py     # Chroma index builder (Tier 2)
-├── data/
-│   ├── manifests/                   # NVIDIA CDN snapshots (committed)
-│   ├── corpus/
-│   │   ├── ngc/containers.jsonl     # Tier 1 (20 records)
-│   │   └── github/readmes.jsonl     # Tier 2 input (21 READMEs)
-│   ├── resource_model.json          # curated disk/RAM table
-│   ├── response_templates/          # NVIDIA's official .ini samples
-│   ├── ngc_seed_list.txt            # curated NGC slugs (20, all verified)
-│   └── github_seed_list.txt         # curated repos (28)
-├── tests/
-│   ├── eval_cases/
-│   │   ├── smoke.jsonl              # 5 hand-crafted golden cases
-│   │   ├── reasoning.jsonl          # 20 forum-mined LLM-judged cases
-│   │   └── troubleshoot.jsonl       # 8 forum-grounded LLM-judged cases (5 with log_inline extracted from real zips in data/sample_logs/, 3 from OP forum quotes)
-│   ├── fixtures/                    # 5 sample SDK Manager logs
-│   ├── test_*.py                    # 81 unit tests across modules
-│   ├── run_smoke_eval.py
-│   ├── run_reasoning_eval.py
-│   └── run_troubleshoot_eval.py
-└── output/                          # generated .ini, .command, fix.sh, diagnosis.md
-```
-
----
-
-## Troubleshoot evolution roadmap
+## Troubleshoot evolution
 
 `--troubleshoot` is the deepest verb in this demo — the only one a static wizard cannot replicate. The current implementation occupies one point in a 3-axis design space; each axis has concrete next steps that don't require architecture changes.
 
@@ -603,69 +355,246 @@ Three principles drove the current anchor point:
 2. **Honest failure beats confident hallucination.** At the right end of the output axis, *escalate* (drafting a forum post) is more useful than producing a low-confidence `fix.sh`. "Cannot diagnose" is a legitimate output, not a degraded one. The forum-post mode makes the agent valuable even when it doesn't know — by transferring the question to humans who do, with a properly-formatted starting point.
 3. **Composable extensions, not rewrites.** Every cell in these tables is reachable from the current architecture without restructuring. The agent doesn't need to know which mode it's running in; `src/troubleshoot.py` is the only file that changes for any of these extensions.
 
-The most under-served quadrant today is **(passive, escalate, full-review)** — when the agent can't fix the issue but *could* still hand the user a high-quality forum post. That's the next thing in the queue.
+The most under-served quadrant today is **(passive, escalate, full-review)** — when the agent can't fix the issue but *could* still hand the user a high-quality forum post. That's what I want to build next.
 
 ---
 
-## Owner perspective
+## If you're working on something similar
 
-Software shipped by an org is the visible artifact of dozens of non-engineering decisions: where it sits in the product portfolio, who maintains it, what surface a user actually touches, how it earns its place against competing budget asks. The technical demo above answers _can this be built_. This section sketches the answers I would give if I owned shipping it.
+This repo is the starting line, not the finish. The e2e scenario — discover → configure → install → troubleshoot — has a lot of room left in it, and the gap between what's here and what a real SDK Manager AI feature would need is mostly execution work. I'd like to lead that work, and I'd like to do it with people who care about the same problems.
 
-### Surface choices — CLI is a stand-in
+A few things I'd want to compare notes on right now:
 
-The demo's primary surface is a Python REPL. That's a demo choice — it's the lowest-cost surface that makes the agent loop visible. **The production surface should be something else.**
+- **MCP tool granularity** — 13 deterministic + 4 RAG tools felt about right for this problem, but I don't have a principled rule for when to merge tools vs split them. My current intuition: split when the LLM gets the wrong combination of args. If you've worked out a better heuristic, I'd like to hear it.
+- **Self-grading bias in LLM-as-judge eval** — the 4.65 → 2.98 gap I hit isn't unique to me. If you've found a clean way to detect this before shipping a number (other than "rewrite all your cases from external sources"), please tell me.
+- **Surface-level log parsing vs internal schema** — I deliberately kept `parse_install_log` dumb (zip + filename regex + tail). For external projects looking at opaque artifacts, this seems like the right tradeoff. Inside the producer team, the calculation flips. I'd love to compare notes with anyone who's worked both sides.
+- **The "I don't know" output path** — I think the more interesting agent behavior is the one that drafts a `forum_draft.md` instead of `fix.sh` when confidence is low. Haven't built it yet — it's at the top of the queue.
 
-For SDK Manager's audience, the natural surfaces are:
-
-1. **A panel inside SDK Manager's existing Electron renderer.** SDK Manager is Electron 13 + Vue 3 + Chromium. An "Ask AI" panel that talks to our two MCP servers via the same stdio protocol the demo uses is roughly two days of renderer work. Backend doesn't change.
-2. **A `sdkmanager --advise` CLI subcommand.** For users who already live in the terminal — DevOps, embedded engineers, anyone CI-driven. Same backend, different front-end.
-3. **A "Diagnose with AI" button next to "Export Logs" in the GUI.** This is the most natural integration point because it slots into a workflow users already know. After the GUI generates the tarball, the button feeds it straight to the troubleshoot orchestrator.
-
-None of these require rewriting the agent or the MCP servers. The demo's architecture is deliberately UI-agnostic — the REPL is one consumer, not the consumer.
-
-### Positioning — where this sits
-
-This would not ship as a standalone product. It sits as **a feature inside SDK Manager**, the same way GitHub Copilot is a feature of VS Code, not a separate IDE.
-
-Compared to NVIDIA's existing AI developer surfaces:
-
-- **NeMo Agent Toolkit** is a framework for building agents. This demo is an agent built with the same kind of primitives — they're complementary, not competing.
-- **AI-Q Blueprints** target enterprise RAG patterns. Our troubleshoot mode shares the RAG-grounding philosophy at a smaller, focused scope.
-- **Nsight Copilot** targets compute-kernel optimization. Different domain, same agentic architecture pattern.
-
-The strategic angle isn't to introduce a new product category — it's to bring SDK Manager onto the same "AI-native developer tool" footing the rest of the portfolio has moved to.
-
-### Success metrics that matter
-
-If this shipped inside SDK Manager, the eval scores in the badges become necessary but not sufficient. The metrics that decide whether the feature stays funded:
-
-| Question | Metric |
-|---|---|
-| Does troubleshoot reduce forum dependency? | Volume of "install failure" forum threads per active user, month-over-month |
-| Does discover broaden the funnel? | First-time SDK Manager users who successfully install vs bounce |
-| Is the AI surface trusted? | Ratio of generated `fix.sh` files that get executed vs reviewed-and-discarded |
-| Is grounding holding up over time? | Monthly re-run of a refreshed forum-mined eval, drift threshold ≤ 0.3 |
-
-### Risks an owner watches
-
-1. **The forum dependency.** Half the troubleshoot value comes from `forums.developer.nvidia.com`. If NVIDIA changes that forum (paid support tier, deprecation, fragmentation), the demo's value drops sharply. Contingency: index the forum content under NVIDIA's own control (internal knowledge base, in-product search).
-2. **Model deprecation.** The agent is wired to Anthropic's Haiku 4.5. When Anthropic deprecates a model version, the agent silently runs on its successor; eval scores may shift in either direction without alarm. An owner watches deprecation calendars and re-runs evals proactively.
-3. **The "AI made me delete my system" event.** Generated `fix.sh` runs `sudo`. Even with the review gate, eventually someone executes something they shouldn't have. The owner's job is to make that event less likely (sandboxing, aggressive risk classification, EULA review, telemetry that catches destructive patterns).
-4. **Adoption inertia.** Embedded developers are unusually skeptical of AI features that mediate tools they rely on. Adoption likely looks like a slow start followed by a tipping point rather than steady growth. The owner accepts this curve when planning headcount and committed timelines.
-
-### Where I'd invest engineering next
-
-If I had a small team and three quarters:
-
-- **Q1** — close the production gaps above. PII scrubber + citation persistence + audit log are existential before shipping anywhere outside an internal dogfood.
-- **Q2** — integrate into SDK Manager's renderer behind a flag. Internal dogfood with NVIDIA's own DevRel and developer-marketing teams to surface real usage patterns; refine prompts against their feedback.
-- **Q3** — open beta to the Jetson community. Wire the four metrics above into a dashboard. Iterate on which scenarios deserve their own focused subprompts (e.g. flash recovery is so distinct from apt failures that they probably want different prompt branches).
-
-The technical work is the smaller half of this. The harder half is convincing SDK Manager's existing users to trust an AI in their install path — that's the owner's real job, not the engineer's.
+Contact: open an issue, start a discussion, or reach me at [github.com/mingdongt](https://github.com/mingdongt).
 
 ---
 
-## Implementation history
+## Evaluation
+
+Two results from building and scoring this changed how I think about agent design. They're written up in detail below — the short versions:
+
+- **The tool layer, not the model, is where the accuracy lives.** Opus 4.7 alone scored 46.7% on factual SDK questions; with the MCP tool layer attached, both Haiku 4.5 and Opus scored 100%. → [Ablation](#ablation-does-the-rag-layer-actually-help-or-does-claude-already-know-this)
+- **Self-grading bias is worth 1.67 points of LLM-as-judge score.** Cases I authored end-to-end scored 4.65/5. The same agent, rescored against cases mined from real forum threads, dropped to 2.98/5. Rebuilt against verbatim log lines from OP's actual `.zip` exports, it recovered to 3.66/5 — above target. → [Self-grading bias finding](#self-grading-bias-finding-and-the-surprising-recovery)
+
+Three tracks. All run with `python main.py --eval <track>`:
+
+| Track | Method | Cases | Latest score | Target |
+|---|---|---|---|---|
+| Smoke | Exact field match (product / version / target / additional_sdks) | 5 hand-crafted | **15/15 (100%)** | ≥80% |
+| Reasoning | LLM-as-judge, 4 axes, 3× median | 20 forum-mined | **3.56/5** | ≥3.5/5 |
+| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 8 forum-grounded | **3.66/5** | ≥3.5/5 |
+
+### Per-axis breakdown
+
+**Reasoning** (4 axes × 1-5):
+- Factual correctness: 3.20
+- Reasoning quality: 3.35
+- Constraints respected: 4.95
+- INI validity: 2.75
+
+**Troubleshoot** (4 axes × 1-5):
+- Error correctly identified: 3.63
+- Fix matches reference: 2.50
+- Fix is actionable: 4.13
+- Safety (sudo warnings, destructive-op flags): 4.38
+
+### Self-grading bias finding (and the surprising recovery)
+
+An earlier version of this suite used 15 cases where **I authored the log snippet, I authored the "expected fix," and Claude judged the agent against it**. That suite scored **4.65/5**. When the cases were rewritten using 10 NVIDIA Developer Forum threads — log snippets paraphrased from OP descriptions, "expected fix" set to whatever the NVIDIA staff member or OP confirmed actually worked — the same agent on the same code scored **2.98/5**. **The 1.67-point gap was self-grading bias.**
+
+A second rewrite then tightened the inputs again. For 5 of the 8 cases I have the OP's actual SDK Manager export `.zip` committed to `data/sample_logs/`, so `log_inline` was replaced with **verbatim error lines extracted from the OP's own log file** rather than my paraphrase of the OP's forum description. The other 3 cases use lines the OP literally pasted into their forum post. **Zero cases now contain text I authored.** Score rose to **3.66/5** — above target.
+
+The +0.68 swing (2.98 → 3.66) is itself a finding: **richer, real log content lets the agent do its job better**. When fed a paraphrased symptom description ("the install gets stuck at 99%") the agent latches onto a generic 99%-stuck fix and misses the actual root cause; when fed the verbatim log line (`Error: Invalid target board - holoscan-devkit` followed by `failed to read rcm_state`), the agent correctly identifies a board-variant selection issue that even the original forum staff missed (case 6). The lift comes from the input, not from any code change.
+
+Where the ceiling still sits: **fix matches reference = 2.50** is the weakest axis. The agent's `web_search` often surfaces *a* plausible fix for the symptom but lands on the wrong forum thread when multiple failure modes share the same symptom. That's the retrieval/grounding gap an SDK Manager team insider with access to internal triage data could close.
+
+Cases and their provenance: `tests/eval_cases/troubleshoot.jsonl` — each line carries `source_thread_url`, `verification` (`op-confirmed` / `staff-recommended` / `staff-documented-limitation` / `log-grounded-forum-staff-missed-root-cause`), and `log_source` (`zip-tail-real` for 5 cases, `forum-quoted` for 3).
+
+### Refactor preservation finding
+
+Before the troubleshoot refactor (curated `data/log_patterns.yaml` with hand-encoded `error_class` labels + `search_terms` hints) the *synthetic* suite scored **4.70/5**. After dropping the pattern library entirely it scored **4.65/5** on the same synthetic suite. The forum-grounded rewrite (3.66) supersedes both numbers, but the synthetic-to-synthetic ablation still stands: against the same questions, removing the hand-curated layer made no measurable difference. The classification work the curation did was already being done by `web_search` + Claude reading log content — the troubleshoot-side mirror of the smoke-eval ablation below.
+
+### Ablation: does the RAG layer actually help, or does Claude already know this?
+
+Three-way smoke-eval comparison (same 5 hand-crafted cases, same scorer):
+
+| Configuration | Backend | Tools | Smoke score | Δ vs baseline |
+|---|---|---|---|---|
+| **A** | Anthropic SDK + **Haiku 4.5** | + Server A (13) + Server B (4) | **15/15 (100%)** | +53.3 pp |
+| **B** | Claude CLI + **Opus 4.7** | + Server A (13) + Server B (4) | **15/15 (100%)** | +53.3 pp |
+| **C (baseline)** | Claude CLI + **Opus 4.7** | _none — model alone with format prompt_ | **7/15 (46.7%)** | — |
+
+Opus 4.7 alone, even when explicitly told to produce `sdkmanager` commands in the right format, scores 46.7% on factual NVIDIA SDK questions. The misses are all hallucinations the model couldn't ground:
+
+- `--product jetpack` instead of `Jetson` (product/version confusion)
+- `--product JETSON_ORIN_NX_TARGETS` (target ID written into the product field)
+- `JETSON_XAVIER_TARGETS` instead of `JETSON_AGX_XAVIER_TARGETS` (invented variant)
+- Original Jetson Nano (4GB) paired with JetPack 5.0 — but Nano only supports up to 4.6.4
+
+With the RAG + deterministic tool layer, both Haiku 4.5 and Opus 4.7 score perfectly. The tools convert the model's knowledge into executable, factually-grounded artifacts. Haiku + this layer matches Opus + this layer at this scoring axis.
+
+Try it:
+
+```powershell
+$env:ANTHROPIC_BACKEND="cli-no-tools"; python main.py --eval smoke   # Opus alone
+$env:ANTHROPIC_BACKEND="cli";          python main.py --eval smoke   # Opus + tools
+$env:ANTHROPIC_BACKEND="sdk";          python main.py --eval smoke   # Haiku + tools (default)
+```
+
+Raw baseline responses (showing the hallucinations) archived at `data/eval_runs/opus_baseline_responses.txt`.
+
+### How Haiku and Opus differ in tool usage (both still score 100%)
+
+Running the smoke eval with `tests/list_smoke_tools.py` (SDK + Haiku) and `tests/list_smoke_tools_cli.py` (CLI + Opus 4.7) traces which MCP tools each model invoked per case:
+
+| Case | Haiku 4.5 path | Opus 4.7 path |
+|---|---|---|
+| 1: Orin Nano + CUDA + JP 6.x | detect → lookup → list_releases → gen_ini → gen_cmd | **ToolSearch** → detect → lookup → list_releases → gen_cmd → gen_ini |
+| 2: AGX Orin + DeepStream 7.0 | detect → lookup → list_releases → **validate_combo × 2** → gen_ini → gen_cmd | detect → lookup → list_releases → gen_ini → gen_cmd  _(no validate_combo)_ |
+| 3: Orin NX + latest JP | detect → lookup → list_releases → gen_ini → gen_cmd | _(identical)_ |
+| 4: AGX Xavier + latest JP | detect → lookup → list_releases → gen_ini → gen_cmd | detect → lookup → list_releases → **lookup × 2** → gen_ini → gen_cmd |
+| 5: Nano + object detection sample | detect → lookup → **search_3p_sample_repos** → list_releases → gen_ini → gen_cmd | _(identical)_ |
+
+Aggregate (5 cases each):
+
+| Tool | Haiku calls | Opus calls |
+|---|---:|---:|
+| `detect_connected_hardware` | 5 | 5 |
+| `lookup_target_id` | 5 | **6** _(self-verifies once)_ |
+| `list_releases` | 5 | 5 |
+| `generate_response_file` | 5 | 5 |
+| `generate_command` | 5 | 5 |
+| `validate_combo` | **2** | **0** _(internalizes the era-pairing rule)_ |
+| `search_3p_sample_repos` | 1 | 1 |
+
+Two behavioral signals worth noting:
+
+1. **Opus skips `validate_combo` (case 2)** — it reads the JetPack ↔ addon-SDK era table in the SYSTEM_PROMPT and inlines the check rather than dispatching the tool. Haiku takes the tool path literally; Opus internalizes the rule. Both still get the right answer. A tool the bigger model routinely skips without losing accuracy is probably doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
+
+2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; correctness doesn't depend on it, but it shows up in the trace.
+
+These are surface-level differences in how the two models walk the agent graph. The outcome on every case is identical (15/15 each). Change the model, behavior shifts slightly, output stays correct.
+
+### Log handling: surface-level by design
+
+The log-reading layer is **deliberately surface-level**: open the `.zip`, regex-parse the filename, take the last ~200 lines, hand it all to the agent. That's it. No stage classification, no error vocabulary, no internal-structure assumptions.
+
+This is intentional, not lazy. This is an external project looking at the **finished artifact** of SDK Manager — an opaque `.zip` whose internal layout, log file naming conventions, error code semantics, and severity grading are NVIDIA-internal implementation details. Any pre-classification written without access to those internals would be guesswork. I tried it once (a curated `log_patterns.yaml` of ~20 regexes); too many patterns were hallucinated against training data instead of grounded in real logs. The refactor that removed it is in commit `6765bed`.
+
+What I verify works (against five real exports — see "Test corpus" below):
+
+- `.zip` archive format and the two real filename patterns: long (`SDKM_logs_JetPack_<ver>_<host>_for_Jetson_<board>_<date>_<time>.zip`) and short (`SDKM_logs_<date>_<time>.zip`)
+- Filename → target / JetPack / host OS / timestamp extraction (deterministic regex)
+- Concat all `.log` / `.txt` files inside the archive; take the last 200 lines
+
+What only the SDK Manager team can do reliably:
+
+- **Read the log-producer code.** Errors in SDK Manager come from specific code paths (Electron main / renderer / worker subprocess / PowerShell query scripts on Windows / bash scripts on Linux). Knowing which path emits which error string lets you build a real parser that classifies by code site, not by string match.
+- **Surface internal error codes.** Real exports contain `error code is: 2001`, `Task 0x0 failed (err: 0x1f1e050d)`, `command error code: 11` — all NVIDIA-internal numeric/hex codes. Their meanings live in the source.
+- **Use the internal directory layout.** Real archives have `sdkm-*.log` (session log) + `downloadLogs/sdkm_download-*.log` (download subsystem) + likely more subsystem-specific files. Knowing which file represents which subsystem lets you query the relevant one instead of concatenating everything.
+- **Schema-validate the log.** SDK Manager logs follow internal conventions (`HH:MM:SS.mmm - <severity>: <message>`, event-pattern `Event: <COMPONENT>@<TARGET> - status is: <status>`). With the producer source, you parse this as structured records instead of free text.
+
+From the outside, the surface-level layer keeps the agent honest: it never trusts a classification I made up, it just reads the actual log content. The MCP boundary localizes any eventual change to a single replaceable function (`parse_install_log`); the agent loop, troubleshoot orchestrator, prompt template, web_search integration, and output writer all stay unchanged.
+
+The parser was validated against the five real exports listed in [Tested against](#tested-against). Findings that drove parser changes during that validation pass:
+
+- **Real archive format is `.zip`**, not `.tar.gz` (commit `6765bed`)
+- **Two filename forms exist** — long-form with JetPack/host/target encoded, short-form with only timestamp (commit `97b6c61`)
+- **Bracketed board variant tags** like `[8GB_developer_kit_version]` appear in real filenames — regex extended to allow `[]` (commit pending)
+- **Internal layout has a `downloadLogs/` subdirectory** with subsystem-specific session logs; the parser reads concatenated content (agent figures out which subsystem from context)
+- **Real failure signatures** in the 200-line tail include `error: install process failure`, `error: cannot get component by id undefined`, `error: completeSetup failed`, plus telemetry validation errors (`Failed to validate GA4 event. Validation errors: ...`). Each is interpreted by the agent at runtime — the parser doesn't pre-classify.
+
+The first end-to-end troubleshoot run (on a Windows-host export generated by deliberately triggering a Jetson Thor setup failure) correctly identified the root cause as missing USBIPD on the Windows host and cited [docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html](https://docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html) via web_search — without any pre-classification layer. The agent reading the raw tail was sufficient.
+
+---
+
+## Running it
+
+### Setup
+
+```powershell
+git clone https://github.com/mingdongt/nvidia-sdk-advisor-v2.git nvidia-sdk-advisor
+cd nvidia-sdk-advisor
+python -m venv .venv
+.venv\Scripts\Activate.ps1                  # Windows
+# source .venv/bin/activate                 # Linux/Mac
+pip install -r requirements.txt
+Copy-Item .env.example .env                 # paste your ANTHROPIC_API_KEY here
+python -m ingest.build_github_vectordb      # rebuild Chroma DB (~30s, one-time)
+```
+
+The Chroma vector store is binary, fast-changing, and would bloat the repo via Git LFS. The committed JSONL corpus is the input; the index is local-rebuild.
+
+Backend selection (Anthropic SDK / `claude` CLI subscription / baseline-no-tools), `GH_TOKEN` for raising the GitHub API rate limit, and corpus re-ingestion options are documented in [`docs/setup.md`](docs/setup.md). The architectural decision behind no Brave API key and no domain whitelist for web_search is logged inline at [Architecture → Tier 3 decision log](#tier-3-forums--docs--decision-log).
+
+### Usage
+
+```powershell
+python main.py                           # default — conversational REPL, generates .ini + .command
+python main.py --dry-run                 # invoke NvSDKManager --query against latest plan
+python main.py --execute                 # actually install (confirmation + sudo prompt)
+python main.py --troubleshoot <log>      # diagnose an SDK Manager log archive or .log file
+python main.py --full --mock-install --query "<text>"   # end-to-end: configure → install → troubleshoot → fix → retry
+python main.py --eval smoke              # Plan A eval (5 hand-crafted cases, exact match)
+python main.py --eval reasoning          # Plan B eval (20 LLM-judged cases)
+python main.py --eval troubleshoot       # Plan C eval (8 forum-grounded LLM-judged cases)
+```
+
+#### End-to-end mode (`--full`)
+
+`--full --mock-install` chains all five phases of the troubleshoot story into one continuous CLI session:
+
+1. **Configure** [REAL] — agent + MCP + `.ini` / `.command` generation
+2. **Install** [MOCKED] — canned SDK Manager failure log (no real subprocess; no hardware needed)
+3. **Troubleshoot** [REAL] — agent re-reads the mock log, invokes `web_search`, synthesizes `fix.sh` + `diagnosis.md`
+4. **Apply fix** [SIMULATED] — prints `bash fix.sh` command, does not actually execute
+5. **Retry install** [MOCKED] — canned success log
+
+Each phase header in the output is tagged REAL / MOCKED / SIMULATED so the audience sees exactly where grounding ends and canned content begins. Without `--mock-install`, `--full` exits with an error: real-hardware end-to-end isn't built yet (needs a connected Jetson + a deterministic failure recipe).
+
+#### Execution mode safety
+
+`--execute` requires explicit `yes` confirmation in the same session. On Linux, also prompts for sudo via `getpass`.
+
+#### Self-healing chain on failure
+
+When `--execute` exits non-zero, the agent automatically finds the most recent SDK Manager log and offers to enter `--troubleshoot` on it. Two sources are searched, in priority order:
+
+1. Exported tarballs (`sdkm-*log*.tar*`) in `~`, `~/Downloads`, or `cwd`
+2. Raw session `.log` files in `~/.nvsdkm-logs/` (Linux/Mac) or `~/AppData/Local/NVIDIA Corporation/SDK Manager/logs/` (Windows)
+
+The user does NOT need to run `--export-logs` manually. SDK Manager writes raw session logs during install; the parser reads them directly. `--export-logs` packaging is a sharing convenience, not a prerequisite. The most-recent file (by mtime) across both sources wins.
+
+`--troubleshoot` itself is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
+
+### Tests
+
+```powershell
+pytest                                   # all 84 unit tests
+pytest tests/test_response_file.py -v    # response file format alignment with NVIDIA template
+pytest tests/test_log_parser.py -v       # 20-pattern log parser against 5 fixture logs
+```
+
+### Project structure
+
+```
+nvidia-sdk-advisor/
+├── main.py                  # CLI entry, mode dispatch
+├── src/                     # agent, MCP servers, parsers, REPL
+├── ingest/                  # NVIDIA CDN / NGC / GitHub README ingestion
+├── data/                    # manifests, corpus, fixtures, sample logs
+├── tests/                   # 84 unit tests + 3 eval suites + fixtures
+└── output/                  # generated .ini, .command, fix.sh, diagnosis.md
+```
+
+Full file-level tree (with one-line description per module) in [`docs/structure.md`](docs/structure.md).
+
+### Implementation history
 
 Plan series (in commit order, tagged in git):
 
@@ -680,15 +609,11 @@ Plan series (in commit order, tagged in git):
 
 ## Deliberate non-goals
 
-To set expectations clearly:
-
 - **Not a package for end-users to install and use daily.** Polished onboarding is out of scope. The Setup section exists so the demo can be verified, not to make it adoptable.
 - **Not a replacement for SDK Manager.** It complements, doesn't compete. The `.ini` it produces is consumed by SDK Manager itself; `NvSDKManager.exe` is treated as a subprocess target.
 - **Not a library to fork and extend.** Data files (manifest snapshots, NGC catalog, log fixtures, README corpus) are project-specific point-in-time captures, not a generalizable starter kit.
-- **Not a complete production-readiness sweep.** See _Production gaps_ above for the explicit list of what's out, and why.
+- **Not a complete production-readiness sweep.** See [What's still missing](#whats-still-missing) for the explicit list of what's out, and why.
 - **Not a NeMo Agent Toolkit or LangGraph competitor.** Those are framework-level products; this is a single-domain agent that happens to use MCP.
-
-Treating it as any of these will lead to disappointment. Treat it as a design study with executable evidence.
 
 ---
 

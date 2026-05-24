@@ -16,3 +16,6 @@ opus_*_run.log
 # Chroma vector DB — rebuild via `python -m ingest.build_github_vectordb`
 # (kept out of git to avoid repo bloat; corpus JSONL is committed for rebuild input)
 data/chroma_db/
+
+# Superpowers brainstorming artifacts (visual companion mockups)
+.superpowers/

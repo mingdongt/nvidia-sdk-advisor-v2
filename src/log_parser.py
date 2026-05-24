@@ -32,16 +32,32 @@ from src.models import LogExcerpt
 
 _TAIL_LINES = 200
 
-# Real SDK Manager export filename pattern.
-_FILENAME_RE = re.compile(
+# Two real-world SDK Manager export filename patterns, both verified against
+# actual exports on the user's machine:
+#
+# Long form (produced after install attempt completes — target/JP known):
+#   SDKM_logs_JetPack_6.2_Linux_for_Jetson_AGX_Orin_64GB_2025-01-26_11-41-13.zip
+#
+# Short form (produced when user exports during setup / before install
+# completes — only timestamp is known):
+#   SDKM_logs_2026-05-24_16-10-36.zip
+#
+# Both yield as much metadata as they encode; the agent infers the rest from
+# the log body content (target IDs and JetPack versions are mentioned in
+# event lines, e.g. "Active bundle loaded: Jetson - 7.1").
+
+_FILENAME_RE_LONG = re.compile(
     r"SDKM_logs_JetPack_(?P<jp>[\d.]+)_"
     r"(?P<host>Linux|Windows|Ubuntu\S*)_"
     r"for_Jetson_(?P<board>[A-Za-z0-9_]+?)_"
     r"(?P<date>\d{4}-\d{2}-\d{2})_"
     r"(?P<time>\d{2}-\d{2}-\d{2})"
-    # .zip / .tar.gz / .tgz are the official export formats. We also accept
-    # .log / .txt so test fixtures and the orchestrator's mock logs (single
-    # files following the same naming convention) parse identically.
+    r"\.(?:zip|tar\.gz|tgz|log|txt)$",
+    re.IGNORECASE,
+)
+
+_FILENAME_RE_SHORT = re.compile(
+    r"SDKM_logs_(?P<date>\d{4}-\d{2}-\d{2})_(?P<time>\d{2}-\d{2}-\d{2})"
     r"\.(?:zip|tar\.gz|tgz|log|txt)$",
     re.IGNORECASE,
 )
@@ -72,17 +88,25 @@ def _board_from_filename(fragment: str) -> Optional[str]:
 
 def _parse_filename(path: Path) -> dict:
     """Extract structured metadata from an SDK Manager export filename.
-    Returns dict with target / host_os / jetpack_version / timestamp.
-    Any field may be None if the filename does not match the pattern.
+
+    Tries the long form first (full target/JP/host info), then short form
+    (timestamp only). Any field not encoded in the filename stays None;
+    the agent infers from log body content.
     """
     out = {"target": None, "host_os": None, "jetpack_version": None, "timestamp": None}
-    m = _FILENAME_RE.search(path.name)
-    if not m:
+
+    m = _FILENAME_RE_LONG.search(path.name)
+    if m:
+        out["jetpack_version"] = m.group("jp")
+        out["host_os"] = m.group("host").lower()
+        out["target"] = _board_from_filename(m.group("board"))
+        out["timestamp"] = f"{m.group('date')} {m.group('time').replace('-', ':')}"
         return out
-    out["jetpack_version"] = m.group("jp")
-    out["host_os"] = m.group("host").lower()
-    out["target"] = _board_from_filename(m.group("board"))
-    out["timestamp"] = f"{m.group('date')} {m.group('time').replace('-', ':')}"
+
+    m = _FILENAME_RE_SHORT.search(path.name)
+    if m:
+        out["timestamp"] = f"{m.group('date')} {m.group('time').replace('-', ':')}"
+
     return out
 
 

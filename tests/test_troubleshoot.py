@@ -40,10 +40,23 @@ def test_format_excerpt_handles_missing_metadata():
 def test_extract_fix_script_pulls_bash_block():
     from src.troubleshoot import _extract_fix_script
     md = "Some prose.\n\n```bash\nsudo apt update\nsudo apt install x\n```\n\nMore prose."
-    script = _extract_fix_script(md)
-    assert script is not None
+    result = _extract_fix_script(md)
+    assert result is not None
+    script, ext = result
+    assert ext == ".sh"
     assert "sudo apt update" in script
     assert "sudo apt install x" in script
+
+
+def test_extract_fix_script_pulls_powershell_block():
+    """Agent writes PowerShell for Windows hosts — must be picked up + tagged .ps1."""
+    from src.troubleshoot import _extract_fix_script
+    md = "Setup steps:\n\n```powershell\nwinget install usbipd-win\n```"
+    result = _extract_fix_script(md)
+    assert result is not None
+    script, ext = result
+    assert ext == ".ps1"
+    assert "winget install usbipd-win" in script
 
 
 def test_extract_fix_script_returns_none_if_no_block():

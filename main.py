@@ -1,6 +1,6 @@
 """NVIDIA SDK Advisor — CLI entry point.
 
-Modes: --plan (default), --dry-run, --execute, --troubleshoot <log_path>.
+Modes: --plan (default), --dry-run, --execute, --troubleshoot <log_path>, --full.
 """
 import argparse
 import asyncio
@@ -21,6 +21,12 @@ def main() -> None:
     mode.add_argument("--execute", action="store_true", help="Actually install via SDK Manager")
     mode.add_argument("--troubleshoot", type=str, metavar="LOG_PATH",
                       help="Diagnose an SDK Manager log archive or .log file")
+    mode.add_argument("--full", action="store_true",
+                      help="End-to-end: configure → install → troubleshoot → fix → retry. Requires --mock-install today.")
+    parser.add_argument("--mock-install", action="store_true",
+                        help="Use a mocked NvSDKManager subprocess (canned failure + retry). Required for --full today.")
+    parser.add_argument("--query", type=str, metavar="USER_INPUT",
+                        help="Pre-supply the natural-language input for --full mode (skips the prompt).")
     parser.add_argument("--eval", nargs="?", const="smoke",
                         choices=["smoke", "reasoning", "troubleshoot"],
                         help="Run an eval suite. Default: smoke")
@@ -42,6 +48,9 @@ def main() -> None:
         if args.troubleshoot:
             from src.troubleshoot import run_troubleshoot
             asyncio.run(run_troubleshoot(args.troubleshoot))
+        elif args.full:
+            from src.orchestrator import run_full_mode_sync
+            run_full_mode_sync(user_input=args.query, mock_install=args.mock_install)
         elif args.dry_run:
             execution.run_dry_run_mode()
         elif args.execute:

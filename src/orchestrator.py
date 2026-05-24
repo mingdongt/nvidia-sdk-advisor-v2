@@ -20,6 +20,7 @@ all the safety considerations that --execute already implements.
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 import time
 from pathlib import Path
@@ -29,6 +30,67 @@ from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
+
+
+# Demo defaults baked into mock log filenames so log_parser extracts metadata.
+# The mock filename follows SDK Manager's official export convention:
+#   SDKM_logs_JetPack_<jp>_<host>_for_Jetson_<board>_<date>_<time>.log
+# log_parser's _FILENAME_RE recognizes this pattern.
+_MOCK_TARGET_BOARD = "Orin_NX_16GB"
+_MOCK_JETPACK = "6.1"
+_MOCK_HOST = "Linux"
+
+
+def _query_to_filename(user_input: str) -> str:
+    """Turn a free-text user query into a filesystem-safe filename stem."""
+    stem = re.sub(r"[^\w\-]", "_", user_input.lower())[:40].strip("_")
+    return stem or "plan"
+
+
+def _extract_code_blocks(text: str) -> dict[str, str]:
+    """Extract sdkmanager command + .ini content from agent's chat response.
+
+    Returns dict with keys 'command' and 'ini' (either may be missing).
+    The chat-rendered .ini may omit [section] headers — see SYSTEM_PROMPT
+    in src/agent.py which now requires them, but real-world rendering can
+    still drop blank-line spacing. We save whatever is in the code block.
+    """
+    out: dict[str, str] = {}
+    # Match ```<lang>\n<content>``` blocks
+    for m in re.finditer(r"```([^\n]*)\n(.*?)```", text, re.DOTALL):
+        lang = m.group(1).strip().lower()
+        body = m.group(2).strip()
+        if "sdkmanager" in body[:200] or lang == "bash":
+            if body.startswith("sdkmanager"):
+                out["command"] = body
+        if lang == "ini" or "[client_arguments]" in body[:200] or "action = install" in body[:200]:
+            out["ini"] = body
+    return out
+
+
+def _save_agent_artifacts(response_text: str, user_input: str) -> dict[str, Optional[Path]]:
+    """Extract code blocks from agent response and save as .command / .ini files.
+
+    Returns {'command': Path or None, 'ini': Path or None}.
+    """
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
+    stem = _query_to_filename(user_input)
+
+    blocks = _extract_code_blocks(response_text)
+    saved: dict[str, Optional[Path]] = {"command": None, "ini": None}
+
+    if cmd := blocks.get("command"):
+        path = output_dir / f"{stem}.command"
+        path.write_text(cmd, encoding="utf-8")
+        saved["command"] = path
+
+    if ini := blocks.get("ini"):
+        path = output_dir / f"{stem}.ini"
+        path.write_text(ini, encoding="utf-8")
+        saved["ini"] = path
+
+    return saved
 
 
 # Canned mock log: a first-time apt failure that troubleshoot can recover from.
@@ -83,12 +145,27 @@ Setting up nvidia-l4t-bsp (6.1) ...
 """
 
 
-def _write_mock_log(content: str, label: str) -> str:
-    """Write mock log to ~/.sdk-advisor-mock/<label>-<timestamp>.log."""
+def _write_mock_log(content: str, retry: bool = False) -> str:
+    """Write mock log to ~/.sdk-advisor-mock/<SDKM-export-style-name>.log.
+
+    Uses SDK Manager's official export filename convention so log_parser
+    extracts target / JetPack / host_os / timestamp from the filename
+    (the parser is filename-driven by design — see src/log_parser.py).
+
+    Format:
+      SDKM_logs_JetPack_<jp>_<host>_for_Jetson_<board>_<date>_<time>.log
+    """
     log_dir = Path.home() / ".sdk-advisor-mock"
     log_dir.mkdir(exist_ok=True)
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    log_path = log_dir / f"{label}-{timestamp}.log"
+    date = time.strftime("%Y-%m-%d")
+    # Retry log gets a slightly later time stamp so the two demo logs are
+    # ordered correctly when listed.
+    hms = time.strftime("%H-%M-%S")
+    name = (
+        f"SDKM_logs_JetPack_{_MOCK_JETPACK}_{_MOCK_HOST}_"
+        f"for_Jetson_{_MOCK_TARGET_BOARD}_{date}_{hms}.log"
+    )
+    log_path = log_dir / name
     log_path.write_text(content, encoding="utf-8")
     return str(log_path)
 
@@ -102,8 +179,10 @@ def run_mock_install(retry: bool = False) -> tuple[int, str]:
     Returns (exit_code, log_path).
     """
     content = MOCK_SUCCESS_LOG if retry else MOCK_FAILURE_LOG
-    label = "mock-retry" if retry else "mock-install"
-    log_path = _write_mock_log(content, label)
+    # Stagger the timestamp on retry so the two log filenames differ.
+    if retry:
+        time.sleep(1)
+    log_path = _write_mock_log(content, retry=retry)
     for line in content.splitlines():
         console.print(f"[dim]{line}[/dim]")
     rc = 0 if retry else 100
@@ -154,17 +233,22 @@ async def run_full_mode(
     response = await run_agent_single_turn(user_input)
     console.print(Panel(response, title="Configure result", border_style="green"))
 
-    # The agent should have generated .ini + .command files in output/.
-    # Locate the latest one for the install step.
-    from src.execution import _latest_plan_ini
-    plan = _latest_plan_ini()
+    # Extract the agent's sdkmanager command + .ini code blocks from the chat
+    # response and save them to output/ with filenames derived from the user's
+    # query. (run_agent_single_turn returns text only — file saving is the
+    # orchestrator's job in --full mode.)
+    saved = _save_agent_artifacts(response, user_input)
+    plan = saved["ini"]
     if not plan:
         console.print(
-            "[yellow]Configure phase did not produce a plan file in output/. "
-            "The agent may have stopped before generation. Aborting --full chain.[/yellow]"
+            "[yellow]Configure phase response did not include an .ini code block. "
+            "Agent may not have called generate_response_file. Aborting --full chain.[/yellow]"
         )
         sys.exit(2)
-    console.print(f"\n[green][OK][/green] Plan generated: [bold]{plan}[/bold]\n")
+    for kind, path in saved.items():
+        if path:
+            console.print(f"[green][OK][/green] {kind} saved: [bold]{path}[/bold]")
+    console.print()
 
     # ─── PHASE 2: Install (mocked) ──────────────────────────────────────
     console.print(Panel("PHASE 2 / 5 — Install  [MOCKED: canned failure log, no NvSDKManager subprocess]", border_style="yellow"))

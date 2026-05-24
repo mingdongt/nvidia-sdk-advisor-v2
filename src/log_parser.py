@@ -39,7 +39,10 @@ _FILENAME_RE = re.compile(
     r"for_Jetson_(?P<board>[A-Za-z0-9_]+?)_"
     r"(?P<date>\d{4}-\d{2}-\d{2})_"
     r"(?P<time>\d{2}-\d{2}-\d{2})"
-    r"\.(?:zip|tar\.gz|tgz)$",
+    # .zip / .tar.gz / .tgz are the official export formats. We also accept
+    # .log / .txt so test fixtures and the orchestrator's mock logs (single
+    # files following the same naming convention) parse identically.
+    r"\.(?:zip|tar\.gz|tgz|log|txt)$",
     re.IGNORECASE,
 )
 

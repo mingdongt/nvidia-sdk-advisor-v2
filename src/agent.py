@@ -46,7 +46,7 @@ Most inputs include enough info to produce a useful plan immediately. For each u
    ```
    Do NOT use: target_id, jetpack_version, release_version, hardware, hardware_id, device_id, board, sdks (use additional_sdks instead).
 6. Call generate_response_file(config_json) and generate_command(config_json) with your config.
-7. Present the result as: a brief explanation paragraph, then the sdkmanager command in a ```bash code block, then the response file in a ``` code block labeled ```ini.
+7. Present the result as: a brief explanation paragraph, then the sdkmanager command in a ```bash code block, then the response file in a ```ini code block. The .ini code block MUST be the verbatim output of generate_response_file — copy the entire tool result, INCLUDING all three section headers `[client_arguments]`, `[pre-flash-settings]`, `[post-flash-settings]`. Do NOT abbreviate, summarize, or drop section headers. The .ini block must be loadable by SDK Manager as-is.
 
 ## Mode classification (your first decision each turn)
 

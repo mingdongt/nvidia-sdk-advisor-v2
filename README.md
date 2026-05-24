@@ -301,17 +301,23 @@ What only the SDK Manager team can do reliably:
 
 ### Test corpus: real SDK Manager exports
 
-To validate the surface-level approach against real-world variability, the parser + agent has been run against five SDK Manager log archives downloaded from public forum posts:
+Five real `.zip` exports from public NVIDIA Developer Forum posts are committed to [`data/sample_logs/`](data/sample_logs/) for reproducible validation. The parser + agent runs end-to-end against each:
 
-| # | Source thread | Filename | Failure scenario |
+| # | Source thread | Filename (in `data/sample_logs/`) | Failure scenario |
 |---|---|---|---|
 | 1 | [Can not flash JetPack 6.1 on AGX Orin via SDK Manager](https://forums.developer.nvidia.com/t/can-not-flash-jetpack-6-1-on-jetson-agx-orin-via-sdk-manager/308377) | `SDKM_logs_JetPack_6.1_Linux_for_Jetson_AGX_Orin_modules_2024-09-30_16-09-17.zip` | JetPack 6.1 flash failure on AGX Orin |
 | 2 | [How to flash MCU's firmware on AGX Orin 64G DK](https://forums.developer.nvidia.com/t/how-to-flash-mcus-firmware-on-agx-orin-64g-dk/366168) | `SDKM_logs_JetPack_6.2.2_Linux_for_Jetson_AGX_Orin_modules_2026-04-10_10-51-27.zip` | MCU firmware flash, JetPack 6.2.2 |
-| 3 | [Flashing Orin Nano via SDK Fails](https://forums.developer.nvidia.com/t/flashing-orin-nano-via-sdk-fails/318733) | `SDKM_logs_2025-01-03_13-01-22.zip` | WSL-based flash failure (short filename — only timestamp encoded) |
-| 4 | [Install JetPack 6.2 failed with SDK manager on AGX orin 64G](https://forums.developer.nvidia.com/t/install-jetpack-6-2-failed-with-sdk-manager-on-agx-orin-64g/321524) | `SDKM_logs_JetPack_6.2_Linux_for_Jetson_AGX_Orin_64GB_2025-01-26_11-41-13.zip` | JetPack 6.2 install fail on AGX Orin |
+| 3 | [Flashing Orin Nano via SDK Fails](https://forums.developer.nvidia.com/t/flashing-orin-nano-via-sdk-fails/318733) | `SDKM_logs_2025-01-03_13-01-22.zip` | WSL-based flash failure (short filename — only timestamp encoded, agent infers target/JP from log body) |
+| 4 | [Install JetPack 6.2 failed with SDK manager on AGX orin 64G](https://forums.developer.nvidia.com/t/install-jetpack-6-2-failed-with-sdk-manager-on-agx-orin-64g/321524) | `SDKM_logs_JetPack_6.2_Linux_for_Jetson_AGX_Orin_64GB_2025-01-26_11-41-13.zip` | JetPack 6.2 install fail on AGX Orin 64GB |
 | 5 | [Flashing JetPack 6.2 ... command error code: 11](https://forums.developer.nvidia.com/t/flashing-jetpack-6-2-using-sdk-manager-displays-command-error-code-11/327911) | `SDKM_logs_JetPack_6.2_Linux_for_Jetson_Orin_Nano_[8GB_developer_kit_version]_2025-03-21_12-48-45.zip` | JetPack 6.2 Orin Nano + bracketed board variant in filename |
 
-These archives are NOT committed to this repo — they belong to the users who posted them, and the log content embeds usernames/paths/IDs that would be a privacy issue to redistribute. They were downloaded for local validation only. Each forum thread URL above is the canonical source.
+To run troubleshoot against any one:
+
+```powershell
+python main.py --troubleshoot data/sample_logs/SDKM_logs_2025-01-03_13-01-22.zip
+```
+
+**Privacy redaction**: archives committed here have been redacted to remove other users' personal content — `/home/<user>/` paths, Windows user folders, email addresses, non-NVIDIA IPs, and identifiable company names are replaced with `REDACTED` / `X.X.X.X`. All error messages, error codes, component names, target IDs, JetPack versions, timestamps, and log structure are preserved verbatim — exactly what the agent needs. See [`data/sample_logs/README.md`](data/sample_logs/README.md) for full provenance + redaction policy. The script that performed the redaction is at [`scripts/redact_logs.py`](scripts/redact_logs.py) (reproducible).
 
 Findings that drove parser changes during this validation pass:
 

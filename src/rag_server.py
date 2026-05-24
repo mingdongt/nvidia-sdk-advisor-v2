@@ -1,9 +1,12 @@
-"""nvidia-corpus-rag MCP server. Hybrid 3-tier retrieval.
+"""nvidia-corpus-rag MCP server. Hybrid 2-tier retrieval.
 
-Tier 1: lookup_container_reqs       - structured NGC catalog lookup (this task)
-Tier 2: search_3p_sample_repos      - vector search over GitHub READMEs (added in B.6)
-Tier 3: search_forum_threads        - Brave Search API (added in B.8)
-        search_docs                  - Brave Search API filtered to docs.nvidia.com (added in B.8)
+Tier 1: lookup_container_reqs       - structured NGC catalog lookup
+Tier 2: search_3p_sample_repos      - vector search over GitHub READMEs
+
+Tier 3 (forum + docs) is left to the underlying Claude's native web search
+(WebSearch for the CLI backend, web_search_20250305 for the SDK backend).
+The agent prompts include site: hints for forums.developer.nvidia.com and
+docs.nvidia.com when those sources are appropriate.
 
 Run as stdio MCP server: python -m src.rag_server
 Tools also callable in-process via rag_server.call_tool(name, args).
@@ -21,7 +24,6 @@ os.environ.setdefault("TQDM_DISABLE", "1")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastmcp import FastMCP
-from src.brave_search import brave_search, BraveSearchError
 
 mcp = FastMCP("nvidia-corpus-rag")
 
@@ -100,36 +102,6 @@ async def search_3p_sample_repos(query: str, k: int = 5) -> str:
     return json.dumps({"hits": hits})
 
 
-@mcp.tool()
-def search_forum_threads(query: str, k: int = 5, mode: str = "general") -> str:
-    """Search NVIDIA Developer Forums (forums.developer.nvidia.com) via Brave Search.
-
-    mode='general' for advice/best-practices queries.
-    mode='troubleshoot' adds error/fix keywords to bias toward fix-related threads.
-    """
-    q = query
-    if mode == "troubleshoot":
-        q = f"{q} error fix solution"
-    try:
-        hits = brave_search(q, k=k, site="forums.developer.nvidia.com")
-    except BraveSearchError as e:
-        return json.dumps({"error": str(e), "hits": []})
-    return json.dumps({"hits": hits, "mode": mode})
-
-
-@mcp.tool()
-def search_docs(query: str, k: int = 5) -> str:
-    """Search NVIDIA documentation (docs.nvidia.com) via Brave Search.
-
-    Use for: release notes, system requirements, SDK install guides, FAQs.
-    """
-    try:
-        hits = brave_search(query, k=k, site="docs.nvidia.com")
-    except BraveSearchError as e:
-        return json.dumps({"error": str(e), "hits": []})
-    return json.dumps({"hits": hits})
-
-
 # In-process helpers (Plan A pattern from knowledge_server.py)
 def _search_3p_sample_repos_sync(query: str, k: int = 5) -> str:
     """Sync wrapper for in-process tests (search_3p_sample_repos is async for MCP)."""
@@ -143,8 +115,6 @@ def _search_3p_sample_repos_sync(query: str, k: int = 5) -> str:
 _UNDECORATED_TOOLS = {
     "lookup_container_reqs": lookup_container_reqs,
     "search_3p_sample_repos": _search_3p_sample_repos_sync,
-    "search_forum_threads": search_forum_threads,
-    "search_docs": search_docs,
 }
 
 

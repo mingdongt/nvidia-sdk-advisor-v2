@@ -15,7 +15,7 @@ Built on the same NVIDIA public data sources SDK Manager itself uses, producing 
 | **Discover** | Flat list of NVIDIA-branded SDKs; user must already know which fits their use case | `search_3p_sample_repos` (vector search over 21 GitHub repo READMEs) + workload-to-product inference |
 | **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
 | **Install** | Wizard runs install; CLI takes flags. No conversational guided flow | Generates `.ini` matching NVIDIA's official template, optionally drives `NvSDKManager.exe --cli --response-file` as subprocess with streamed status + event classification |
-| **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` (20 regex patterns over 5 stages) → forum search via Brave → Claude synthesizes `fix.sh` + `diagnosis.md` |
+| **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` (20 regex patterns over 5 stages) → Claude synthesizes `fix.sh` + `diagnosis.md`, using native web search when grounding on forum threads helps |
 
 ---
 
@@ -76,8 +76,8 @@ Host OS:         ubuntu22.04
 JetPack:         6.1
 Last success:    apt-get update completed
 
-→ search_forum_threads(mode=troubleshoot)
-  found 4 thread(s)
+→ Claude consults forum/docs via native WebSearch
+  site:forums.developer.nvidia.com "nvidia-jetpack apt unable to locate"
 
 → synthesizing fix…
 
@@ -119,8 +119,8 @@ Last success:    apt-get update completed
              ┌─────────────▼───────┐    ┌──────────▼──────────────┐
              │  Server A:           │    │  Server B:              │
              │  nvidia-knowledge    │    │  nvidia-corpus-rag      │
-             │  13 tools            │    │  4 tools                │
-             │  (deterministic)     │    │  (3-tier hybrid)        │
+             │  13 tools            │    │  2 tools                │
+             │  (deterministic)     │    │  (NGC + GitHub RAG)     │
              └─────────────┬────────┘    └──────────┬──────────────┘
                            │                       │
     ┌──────────────────────▼────────────┐  ┌───────▼─────────────────────┐
@@ -128,11 +128,11 @@ Last success:    apt-get update completed
     │  fetched from developer.download  │  │   (20 containers, JSONL)    │
     │  .nvidia.com — same source SDK    │  │ Tier 2: GitHub READMEs      │
     │  Manager itself reads             │  │   (21 repos, Chroma vector) │
-    │                                    │  │ Tier 3: Brave Search        │
-    │ + data/resource_model.json        │  │   (forums + docs, fresh)    │
-    │ + data/log_patterns.yaml (20)     │  │                              │
-    │ + NvSDKManager.exe                │  │                              │
-    │   --list-connected (subprocess)   │  │                              │
+    │                                    │  │                              │
+    │ + data/resource_model.json        │  │ Tier 3 (forums + docs)       │
+    │ + data/log_patterns.yaml (20)     │  │   delegated to Claude's      │
+    │ + NvSDKManager.exe                │  │   native WebSearch with      │
+    │   --list-connected (subprocess)   │  │   site: hints from prompt    │
     └────────────────────────────────────┘  └──────────────────────────────┘
 
                                       │ --execute (optional)
@@ -162,19 +162,21 @@ python -m ingest.build_github_vectordb      # rebuild Chroma DB (~30s, one-time)
 
 **Why the rebuild step:** the Chroma vector store is binary, fast-changing, and would bloat the repo via Git LFS. The committed JSONL corpus is the input; the index is local-rebuild.
 
-### Optional keys (improve eval scores + lift Tier 3 to active)
+### Tier 3 (forums + docs)
+
+Earlier versions of this demo wrapped `forums.developer.nvidia.com` and `docs.nvidia.com` searches behind two dedicated MCP tools (`search_forum_threads`, `search_docs`) that called Brave Search under the hood. We removed them — they were ~2-line domain-filter shims and Claude's native web search handles the same task cleanly. The agent's SYSTEM_PROMPT instructs the model to use its built-in WebSearch with `site:forums.developer.nvidia.com` or `site:docs.nvidia.com` filters when forum/doc grounding helps.
+
+This means **no `BRAVE_API_KEY` setup required**. Tier 3 just works when the backend supports web search:
+
+- CLI backend (`ANTHROPIC_BACKEND=cli`): Claude CLI's WebSearch is included by default
+- SDK backend (`ANTHROPIC_BACKEND=sdk`): add the `web_search_20250305` server-side tool to the tools list (not enabled by default; paid per call)
+
+### Optional: GitHub token
 
 ```powershell
-# Brave Search API (https://api.search.brave.com/) — free tier 2000 req/mo
-# Required to activate Tier 3 (forum threads + docs)
-BRAVE_API_KEY=BSA...
-
-# GitHub token (no scopes needed) — raises rate limit from 60→5000/hr
-# Needed if you re-run scrape_github_samples to expand the corpus
+# Raises GitHub API rate limit from 60→5000/hr (needed if you re-run scrape_github_samples)
 GH_TOKEN=ghp_...
 ```
-
-Without `BRAVE_API_KEY`, Tier 3 returns empty hits and the agent works from Tier 1+2 only (still useful, just narrower).
 
 ### Backend selection (use API key OR Claude Code subscription)
 
@@ -249,7 +251,7 @@ Three tracks. All run with `python main.py --eval <track>`:
 - Fix is actionable: 4.93
 - Safety (sudo warnings): 4.93
 
-Both reasoning and troubleshoot were evaluated **without** Brave Search (Tier 3 silent). With Brave key configured, factual and matches-expert axes are expected to lift further.
+Both reasoning and troubleshoot were evaluated with Tier 3 deferred to the underlying Claude's training knowledge (no live web search invoked during eval, to keep scores reproducible). Production runs with `ANTHROPIC_BACKEND=cli` get WebSearch grounding for free.
 
 ### Ablation: does the RAG layer actually help, or does Claude already know this?
 
@@ -307,7 +309,6 @@ nvidia-sdk-advisor/
 │   ├── command_gen.py               # sdkmanager --cli command builder
 │   ├── log_parser.py                # SDK Manager log → LogDiagnosis (20 regex patterns)
 │   ├── vector_search.py             # Chroma + sentence-transformers wrapper
-│   ├── brave_search.py              # Brave Search API client (Tier 3)
 │   ├── knowledge_server.py          # Server A — 13 tools (FastMCP)
 │   ├── rag_server.py                # Server B — 4 tools (FastMCP)
 │   ├── agent.py                     # Anthropic agent + dual MCP client + tool loop
@@ -364,7 +365,7 @@ Plan series (in commit order, tagged in git):
 |---|---|---|
 | **v2.0.0-a** | Foundation: Server A skeleton + 11 deterministic tools + REPL + `--plan` | A.1–A.15 |
 | _delta_ | `validate_combo` (12th Server A tool) | 1 commit |
-| **v2.0.0-b** | Hybrid 3-tier RAG (Server B) + `--dry-run` + `--execute` modes + reasoning eval | B.1–B.13 |
+| **v2.0.0-b** | RAG layer (Server B: NGC + GitHub) + `--dry-run` + `--execute` modes + reasoning eval | B.1–B.13 |
 | **v2.0.0-c** | `parse_install_log` (13th Server A tool) + `--troubleshoot` mode + troubleshoot eval | C.1–C.10 |
 
 Spec: `docs/superpowers/specs/2026-05-23-nvidia-sdk-advisor-v2-design.md`.

@@ -3,10 +3,12 @@
 Flow:
 1. parse_install_log → LogDiagnosis (in-process, fast)
 2. If failed_stage == 'unknown', show raw tail and exit.
-3. search_forum_threads(mode='troubleshoot') via Server B (Brave Search).
-   If Brave is unavailable, gracefully synthesize without forum context.
-4. Claude synthesizes a fix recommendation.
-5. Optional: write fix.sh + diagnosis.md to output/.
+3. Claude synthesizes a fix recommendation, grounded in the diagnosis +
+   the pattern's pre-curated search_terms. The synthesis prompt instructs
+   the model to use its native web search (when available — CLI backend
+   has WebSearch built-in; SDK backend can be configured with web_search)
+   to find expert forum threads when the diagnosis alone is insufficient.
+4. Optional: write fix.sh + diagnosis.md to output/.
 """
 from __future__ import annotations
 
@@ -40,10 +42,11 @@ The user's SDK Manager install failed. Here is the parsed diagnosis:
 {diagnosis}
 ```
 
-Here are the top {n_threads} forum threads from forums.developer.nvidia.com that match
-this error class:
+Search terms hand-curated for this error class: {search_terms}
 
-{threads}
+If you have a web search tool available, you may use it to look up
+the latest expert advice on `site:forums.developer.nvidia.com` for this
+error class. If not, work from the diagnosis + your training knowledge.
 
 Synthesize a fix recommendation. Format:
 
@@ -56,7 +59,7 @@ Synthesize a fix recommendation. Format:
 ```
 
 ## Why this works
-(one paragraph citing the forum thread URL(s) the recommendation is based on; if no threads were available, cite the documented behavior instead)
+(one paragraph; cite forum thread URL(s) if you found them via web search, else cite the documented behavior)
 
 ## Risks / when not to run
 (one paragraph — if any command needs sudo, mark it; if the fix is destructive, warn explicitly)
@@ -80,38 +83,31 @@ def _format_diagnosis(diag: dict) -> str:
 
 
 async def _search_forums(query: str, k: int = 5) -> list[dict]:
-    """Invoke search_forum_threads via Server B. Returns [] if Brave unavailable."""
-    params = StdioServerParameters(command="python", args=[str(_RAG_SERVER)])
-    try:
-        async with stdio_client(params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(
-                    "search_forum_threads",
-                    arguments={"query": query, "k": k, "mode": "troubleshoot"},
-                )
-                data = json.loads(result.content[0].text)
-                if "error" in data:
-                    console.print(f"[dim yellow]forum search unavailable: {data['error']}[/dim yellow]")
-                    return []
-                return data.get("hits", [])
-    except Exception as e:
-        console.print(f"[dim yellow]forum search error: {e}[/dim yellow]")
-        return []
+    """Forum retrieval is deferred to the underlying Claude's native web search
+    during synthesis. We no longer maintain a dedicated MCP tool for this — the
+    synthesis prompt includes a `site:forums.developer.nvidia.com` hint and Claude
+    decides whether to issue a WebSearch call.
+
+    This function is kept as a no-op stub for backward compatibility with the
+    orchestrator's flow; the synthesized fix references the diagnosis directly
+    plus any pattern-derived search_terms.
+    """
+    return []
 
 
 def _synthesize_fix_sync(diagnosis: dict, threads: list[dict]) -> str:
-    """Synchronous Anthropic call — wrapped in asyncio.to_thread by caller to avoid stdio deadlock."""
+    """Synchronous Anthropic call — wrapped in asyncio.to_thread by caller to avoid stdio deadlock.
+
+    `threads` is kept as a parameter for backward compatibility with the orchestrator;
+    in the current design _search_forums returns [] (forum retrieval deferred to
+    Claude's native web search at synthesis time).
+    """
     client = anthropic.Anthropic()
     model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
-    threads_text = "\n\n".join(
-        f"[{t.get('title', '?')}]({t.get('url', '')})\n{t.get('snippet', '')}"
-        for t in threads
-    )
+    search_terms = diagnosis.get("search_terms") or []
     prompt = _TROUBLESHOOT_PROMPT_TEMPLATE.format(
         diagnosis=json.dumps(diagnosis, indent=2),
-        n_threads=len(threads),
-        threads=threads_text or "(no forum threads found — Brave Search unavailable; rely on diagnosis alone)",
+        search_terms=", ".join(search_terms) if search_terms else "(none — diagnosis is generic)",
     )
     resp = client.messages.create(
         model=model, max_tokens=2000,

@@ -1,269 +1,71 @@
-# NVIDIA SDK Advisor (v2 — Plan A: Foundation)
+# NVIDIA SDK Advisor
 
-Conversational agent that helps developers pick the right NVIDIA SDK Manager configuration for their hardware and use case. Generates a `sdkmanager --cli` command and a `.ini` response file in NVIDIA's official template format.
+A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs — the four AI capabilities named in NVIDIA JR2017783 (Senior SWE Tech Lead — AI Developer Experiences, SDK Manager team).
 
-Portfolio artifact for NVIDIA JR2017783 (Senior SWE Tech Lead — AI Developer Experiences, SDK Manager team, Shanghai).
+Built on the same NVIDIA public data sources SDK Manager itself uses, producing output files (`.ini` response files) SDK Manager natively consumes, and optionally driving `NvSDKManager.exe` to completion via subprocess.
 
-> **Status:** This is **Plan A** of a 5-plan v2 series. Plan A ships the foundation: Knowledge MCP server + conversational REPL + `--plan` mode. Subsequent plans (B-E) add RAG corpus, execution modes, Electron GUI, and polish. See `docs/superpowers/specs/2026-05-23-nvidia-sdk-advisor-v2-design.md` for the complete design.
+[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning eval: 3.56/5](https://img.shields.io/badge/reasoning-3.56%2F5-yellow)](#evaluation) [![Troubleshoot eval: 4.70/5](https://img.shields.io/badge/troubleshoot-4.70%2F5-brightgreen)](#evaluation) [![Unit tests: 81 passing](https://img.shields.io/badge/tests-81%20passing-brightgreen)](#tests)
 
-## What this does
+---
+
+## The four JD verbs, mapped to demo mechanisms
+
+| JD verb | What SDK Manager wizard can't do | What this demo does |
+|---|---|---|
+| **Discover** | Flat list of NVIDIA-branded SDKs; user must already know which fits their use case | `search_3p_sample_repos` (vector search over 21 GitHub repo READMEs) + workload-to-product inference |
+| **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
+| **Install** | Wizard runs install; CLI takes flags. No conversational guided flow | Generates `.ini` matching NVIDIA's official template, optionally drives `NvSDKManager.exe --cli --response-file` as subprocess with streamed status + event classification |
+| **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` (20 regex patterns over 5 stages) → forum search via Brave → Claude synthesizes `fix.sh` + `diagnosis.md` |
+
+---
+
+## Hero scenarios
+
+### Scenario 1: Configure + install (Orin NX → YOLO)
 
 ```
 $ python main.py
 
 ╭───────────────── NVIDIA SDK Advisor ──────────────────╮
-│ Hi - what NVIDIA hardware are you working with?       │
+│ Detected Jetson Orin NX 16GB connected (USB 1-4).     │
+│ What do you want to do with it?                       │
 ╰───────────────────────────────────────────────────────╯
 
-[describe hardware + use case] > Orin NX 8GB, want to run YOLOv8
+> Orin NX, run YOLOv8 object detection at 30fps
 
-  -> Resolving hardware name
-  -> Listing releases
-  -> Generating response file
-  -> Validating against template
-  -> Generating command
+  → Resolving hardware name           JETSON_ORIN_NX_TARGETS
+  → Searching sample repos            jetson-inference DetectNet (top hit)
+  → Listing releases                  JetPack 6.2.2, 6.2.1, 6.2, 6.1, 5.1.6
+  → Estimating resources              target 22GB, host 35GB, RAM 1.7GB
+  → Generating response file
+  → Validating against template       ✓ structurally matches NVIDIA sample
+  → Generating command
 
 Plan:
   Product:      Jetson
   JetPack:      6.2.2
   Target:       JETSON_ORIN_NX_TARGETS
+  Host OS:      ubuntu22.04
   Additional:   DeepStream 7.0
 
-+ saved command: output/orin_nx_8gb__want_to_run_yolov8.command
-+ saved ini:     output/orin_nx_8gb__want_to_run_yolov8.ini
++ saved command: output/orin_nx_yolov8.command
++ saved ini:     output/orin_nx_yolov8.ini
 ```
 
-## Architecture (Plan A)
-
-```
-User NL input
-  |
-  v
-Conversational REPL (prompt_toolkit + rich)
-  |
-  v
-Anthropic Agent (Claude + tool-use loop)
-  |  MCP / stdio
-  v
-Server A: nvidia-knowledge (11 tools)
-  - catalog: list_products, list_releases, get_release, list_hardware, lookup_target_id
-  - probe:   detect_connected_hardware (subprocess -> NvSDKManager.exe)
-  - plan:    estimate_resources, check_constraints
-  - emit:    generate_command, generate_response_file, validate_against_official_sample
-  |
-  v
-NVIDIA's own CDN manifests (data/manifests/, fetched once, committed)
-```
-
-The knowledge layer reads from the same CDN URLs SDK Manager itself uses
-(`developer.download.nvidia.com/sdkmanager/sdkm-config/...`). Response files
-match the format of NVIDIA's bundled
-`responsefiles/Linux/sdkm_responsefile_sample_jetson.ini` — verified
-structurally by `test_response_file_parity`.
-
-## Setup
+Then either:
 
 ```powershell
-git clone <repo>
-cd nvidia-sdk-advisor
-python -m venv .venv
-.venv\Scripts\Activate.ps1     # Windows
-# source .venv/bin/activate    # Linux/Mac
-pip install -r requirements.txt
-Copy-Item .env.example .env    # then paste your ANTHROPIC_API_KEY
+python main.py --dry-run    # have SDK Manager parse the .ini to verify format
+python main.py --execute    # actually install (requires 'yes' confirmation + sudo on Linux)
 ```
 
-Manifests are committed under `data/manifests/`. To refresh from NVIDIA's CDN
-(re-runnable; takes ~30s):
-
-```powershell
-python -m ingest.fetch_manifests
-```
-
-## Usage
-
-```powershell
-# Conversational REPL, generates .ini + .command files (default mode)
-python main.py
-
-# Run smoke eval (5 golden cases via real Anthropic API)
-python main.py --eval
-
-# These modes are stubs in Plan A; implemented in Plan C:
-python main.py --dry-run    # invoke SDK Manager in dry-run mode
-python main.py --execute    # actually install via SDK Manager
-```
-
-## Tests
-
-```powershell
-pytest                                       # all unit tests
-pytest tests/test_response_file.py -v        # response file format alignment
-```
-
-**Plan A test count:** 33 unit tests + 5 smoke eval cases.
-**Smoke eval current:** 14/15 = 93.3% (target: ≥80%).
-
-## What's not yet in Plan A
-
-- RAG layer over forum threads / docs / GitHub samples / NGC catalog (Plan B)
-- `--dry-run` and `--execute` modes — driving NvSDKManager.exe as subprocess (Plan C)
-- Electron + Vue 3 GUI mirroring SDK Manager's stack (Plan D)
-- Full forum-mined eval set + LLM-as-judge reasoning suite + dogfood polish (Plan E)
-
-See `docs/superpowers/specs/2026-05-23-nvidia-sdk-advisor-v2-design.md` for the
-complete design including all four JD verbs (discover / configure / install /
-troubleshoot).
-
-## Project layout
+### Scenario 2: Troubleshoot (apt failure → fix.sh)
 
 ```
-nvidia-sdk-advisor/
-├── main.py                       # CLI entry, mode dispatch
-├── src/
-│   ├── models.py                 # InstallConfig dataclass
-│   ├── manifests.py              # KnowledgeBase facade over CDN manifests
-│   ├── sdkm_probe.py             # NvSDKManager.exe --list-connected wrapper
-│   ├── resource_estimator.py     # estimate_resources, check_constraints
-│   ├── response_file.py          # 3-section INI generator + validator
-│   ├── command_gen.py            # sdkmanager --cli command builder
-│   ├── knowledge_server.py       # MCP server wiring all 11 tools
-│   ├── agent.py                  # Anthropic agent + MCP client + tool loop
-│   ├── repl.py                   # prompt_toolkit conversational shell
-│   └── execution.py              # mode dispatch (--plan / --dry-run / --execute)
-├── ingest/
-│   └── fetch_manifests.py        # CDN bootstrap
-├── data/
-│   ├── manifests/                # NVIDIA-signed JSON, committed
-│   ├── resource_model.json       # curated disk/RAM sizes
-│   └── response_templates/       # copies of NVIDIA's .ini samples
-├── tests/
-│   ├── test_*.py                 # unit tests (per module)
-│   ├── eval_cases/smoke.jsonl    # 5 hand-crafted golden cases
-│   └── run_smoke_eval.py         # end-to-end eval runner
-└── output/                       # generated .ini + .command files
-```
-
----
-
-## Plan B additions: Hybrid RAG + execution modes
-
-### Hybrid RAG architecture (3 tiers)
-
-The agent now retrieves from three sources, each chosen for a different problem class:
-
-| Tier | Source | Backed by | Use case |
-|---|---|---|---|
-| **1** | NGC catalog metadata | Local JSONL (~10 containers) | Container → JetPack/CUDA reqs |
-| **2** | GitHub READMEs | Chroma vector store (~21 repos, 203 chunks) | Workload → which NVIDIA sample to use |
-| **3** | Forum threads + docs | Brave Search API (free tier 2000 req/mo) | Best practices, troubleshooting, fresh content |
-
-Tier 2 uses `sentence-transformers/all-MiniLM-L6-v2` for embeddings (90MB local model, no third-party API).
-
-### Server B: nvidia-corpus-rag
-
-Second MCP server alongside Server A. 4 tools:
-- `lookup_container_reqs(container_id)` — Tier 1
-- `search_3p_sample_repos(query, k)` — Tier 2
-- `search_forum_threads(query, k, mode)` — Tier 3 (forums.developer.nvidia.com)
-- `search_docs(query, k)` — Tier 3 (docs.nvidia.com)
-
-Both servers connect via MCP stdio. The agent dispatches via tool→session routing table.
-
-### Execution modes
-
-```powershell
-python main.py --plan                  # default — generate .ini and .command, exit
-python main.py --dry-run               # invoke NvSDKManager.exe --query to verify .ini format
-python main.py --execute               # actually install (requires confirmation + sudo on Linux)
-```
-
-`--execute` flow:
-1. Locates the most recent `output/*.ini`
-2. Asks user to type `yes` to confirm
-3. Prompts for sudo password (Linux only; Windows skips)
-4. Spawns `NvSDKManager.exe --cli --response-file <plan.ini>` with streamed stdout
-5. Classifies output lines (downloading / installing / flashing / error / success) and prints summary
-
-### Eval results
-
-```powershell
-python main.py --eval smoke            # Plan A smoke (5 hand-crafted cases) — 14/15 = 93.3%
-python main.py --eval reasoning        # Plan B reasoning (20 LLM-judged) — 3.56/5 (target ≥3.5)
-```
-
-### Setup additions for Plan B
-
-```powershell
-# Optional: get a free Brave Search API key (2000 req/mo) for Tier 3
-# https://api.search.brave.com/  →  Data for AI plan  →  Create Key
-# Add to .env:
-BRAVE_API_KEY=BSA...
-
-# Optional: GitHub token for raising scrape rate limit from 60→5000/hr
-# https://github.com/settings/tokens (no scopes needed)
-$env:GH_TOKEN = "ghp_..."
-
-# Then refresh corpus (one-time):
-python -m ingest.fetch_ngc_catalog       # NGC catalog (Tier 1)
-python -m ingest.scrape_github_samples   # GitHub READMEs (Tier 2 data)
-python -m ingest.build_github_vectordb   # Build Chroma index (Tier 2)
-```
-
-The corpus + Chroma DB are committed via Git LFS; a fresh clone does not need to re-run the ingestion scripts.
-
-### Plan B sequence (for reference)
-
-Plan B series (in commit order):
-- B.1: NGC catalog fetcher
-- B.2: Server B skeleton + Tier 1 tool
-- B.3: VectorStore (Chroma + sentence-transformers)
-- B.4: GitHub READMEs scraper
-- B.5: Vector index builder
-- B.6: search_3p_sample_repos
-- B.7: Brave Search client
-- B.8: search_forum_threads + search_docs
-- B.9: Multi-server agent + REPL wire-up
-- B.10: --dry-run execution mode
-- B.11: --execute execution mode
-- B.12: Reasoning eval suite
-
----
-
-## Plan C additions: Troubleshoot mode (the 4th JD verb)
-
-Drop in an SDK Manager log → get a fix recommendation grounded in the diagnosis (and forum context when Brave is configured).
-
-```powershell
-python main.py --troubleshoot ~/sdkm-export-logs.tar.gz
-```
-
-### How troubleshoot works
-
-```
-log file or .tar.gz archive
-  │
-  ▼
-parse_install_log   (regex-driven LogDiagnosis, 20 patterns, 5 stages)
-  │
-  ▼
-search_forum_threads(mode='troubleshoot')   (Tier 3 Brave; optional)
-  │
-  ▼
-Claude synthesizes a fix grounded in diagnosis + threads
-  │
-  ▼
-output/<error_class>_diagnosis.md   ← human-readable explanation + sources
-output/<error_class>_fix.sh         ← runnable shell script (sudo-marked)
-```
-
-### Hero Scenario 2: apt-missing-package recovery
-
-```
-$ python main.py --troubleshoot tests/fixtures/apt_missing_package.log
+$ python main.py --troubleshoot ~/sdkm-export-logs.tar.gz
 
 ╭──────────────── Troubleshoot mode ────────────────╮
-│ Parsing SDK Manager log: tests/fixtures/apt_missing_package.log │
+│ Parsing SDK Manager log…                          │
 ╰────────────────────────────────────────────────────╯
 
 Failed stage:    apt
@@ -272,71 +74,266 @@ Error signature: E: Unable to locate package nvidia-jetpack=6.1*
 Target:          JETSON_ORIN_NX_TARGETS
 Host OS:         ubuntu22.04
 JetPack:         6.1
-Timestamp:       2026-05-22 14:33:21
 Last success:    apt-get update completed
 
-→ search_forum_threads(query='nvidia-jetpack apt unable to locate', mode=troubleshoot)
-  found N thread(s)
+→ search_forum_threads(mode=troubleshoot)
+  found 4 thread(s)
 
-→ synthesizing fix recommendation...
+→ synthesizing fix…
 
 ╭───────────────── Recommended fix ──────────────────╮
 │ ## Diagnosis                                       │
-│ The apt sources list is missing the NVIDIA L4T    │
-│ repository — the jetson-ota-public key + repo URL │
-│ entry never got written during the SDK Manager    │
-│ install path...                                    │
-│                                                     │
-│ ## Recommended fix                                  │
-│ ```bash                                             │
-│ sudo apt-key adv --fetch-keys \                    │
+│ The apt sources list lacks the NVIDIA L4T repo —   │
+│ jetson-ota-public.asc key + repo URL never got    │
+│ written during SDK Manager's install path…         │
+│                                                    │
+│ ## Recommended fix                                 │
+│ ```bash                                            │
+│ sudo apt-key adv --fetch-keys \                   │
 │   https://repo.download.nvidia.com/jetson/jetson-ota-public.asc │
 │ sudo bash -c 'echo "deb https://repo.download.nvidia.com/jetson/common r36.4 main" \ │
 │   > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list' │
-│ sudo apt update                                    │
-│ ```                                                 │
-│                                                     │
-│ ## Why this works                                   │
-│ The NVIDIA jetson-ota-public.asc key authenticates │
-│ the L4T repo; once apt knows about repo.download   │
-│ .nvidia.com it can resolve nvidia-jetpack=6.1*.    │
-╰─────────────────────────────────────────────────────╯
+│ sudo apt update                                   │
+│ ```                                                │
+╰────────────────────────────────────────────────────╯
+
+✓ output/apt-missing-package_diagnosis.md
+✓ output/apt-missing-package_fix.sh
 ```
-
-### Eval results
-
-```powershell
-python main.py --eval troubleshoot     # 15 LLM-judged cases — 4.70/5 (target ≥3.5)
-```
-
-Per-axis (15 cases, 3× median):
-- Identified: 5.00/5 (all 15 errors classified correctly via regex pattern match)
-- Matches expert: 4.00/5
-- Actionable: 4.93/5
-- Safety: 4.93/5
-
-### Adding new log patterns
-
-Edit `data/log_patterns.yaml` — each entry is `{regex, stage, error_class, search_terms}`. The parser scans the last 300 lines of the log; the LAST matching pattern wins. ~20 patterns ship at v2.0.0-c covering apt, flash, kernel module, download, license, and auth failures.
-
-### Plan C sequence (for reference)
-
-- C.1: LogDiagnosis dataclass
-- C.2: log_patterns.yaml (20 patterns)
-- C.3: log_parser.py + 5 fixture logs
-- C.4: parse_install_log MCP tool (13th Server A tool — completes spec)
-- C.5: troubleshoot.py orchestrator
-- C.6: --troubleshoot CLI flag
-- C.7: Auto-enter troubleshoot from --execute failure
-- C.8: Troubleshoot eval suite (15 LLM-judged cases)
 
 ---
 
-## All four JD verbs covered
+## Architecture
 
-| JD verb | Mechanism in this demo |
-|---|---|
-| **Discover** | `search_3p_sample_repos` (GitHub README RAG) + workload inference |
-| **Configure** | Server A's 13 deterministic tools + constraint-aware reasoning |
-| **Install** | `--execute` mode drives `NvSDKManager.exe --cli --response-file` |
-| **Troubleshoot** | `parse_install_log` + Brave forum search + Claude synthesis → `fix.sh` |
+```
+                          User natural-language input
+                                      │
+                                      ▼
+                        ┌──────────────────────────────┐
+                        │  SDK Advisor Agent (Claude)  │
+                        │  • multi-turn REPL           │
+                        │  • mode classifier           │
+                        │  • tool dispatch + synthesis │
+                        └──┬───────────────────────┬───┘
+                           │ MCP/stdio             │ MCP/stdio
+             ┌─────────────▼───────┐    ┌──────────▼──────────────┐
+             │  Server A:           │    │  Server B:              │
+             │  nvidia-knowledge    │    │  nvidia-corpus-rag      │
+             │  13 tools            │    │  4 tools                │
+             │  (deterministic)     │    │  (3-tier hybrid)        │
+             └─────────────┬────────┘    └──────────┬──────────────┘
+                           │                       │
+    ┌──────────────────────▼────────────┐  ┌───────▼─────────────────────┐
+    │ data/manifests/* (~25 JSON)       │  │ Tier 1: NGC catalog         │
+    │  fetched from developer.download  │  │   (20 containers, JSONL)    │
+    │  .nvidia.com — same source SDK    │  │ Tier 2: GitHub READMEs      │
+    │  Manager itself reads             │  │   (21 repos, Chroma vector) │
+    │                                    │  │ Tier 3: Brave Search        │
+    │ + data/resource_model.json        │  │   (forums + docs, fresh)    │
+    │ + data/log_patterns.yaml (20)     │  │                              │
+    │ + NvSDKManager.exe                │  │                              │
+    │   --list-connected (subprocess)   │  │                              │
+    └────────────────────────────────────┘  └──────────────────────────────┘
+
+                                      │ --execute (optional)
+                                      ▼
+                       ┌─────────────────────────────┐
+                       │  NvSDKManager.exe           │
+                       │  --cli --response-file *.ini│
+                       └─────────────────────────────┘
+```
+
+**Two MCP servers, independently runnable.** Server A is deterministic facts from NVIDIA-signed manifests; Server B is semantic + structured retrieval. The agent dispatches via a tool-name → session routing table.
+
+---
+
+## Setup
+
+```powershell
+git clone https://github.com/mingdongt/nvidia-sdk-advisor-v2.git nvidia-sdk-advisor
+cd nvidia-sdk-advisor
+python -m venv .venv
+.venv\Scripts\Activate.ps1                  # Windows
+# source .venv/bin/activate                 # Linux/Mac
+pip install -r requirements.txt
+Copy-Item .env.example .env                 # paste your ANTHROPIC_API_KEY here
+python -m ingest.build_github_vectordb      # rebuild Chroma DB (~30s, one-time)
+```
+
+**Why the rebuild step:** the Chroma vector store is binary, fast-changing, and would bloat the repo via Git LFS. The committed JSONL corpus is the input; the index is local-rebuild.
+
+### Optional keys (improve eval scores + lift Tier 3 to active)
+
+```powershell
+# Brave Search API (https://api.search.brave.com/) — free tier 2000 req/mo
+# Required to activate Tier 3 (forum threads + docs)
+BRAVE_API_KEY=BSA...
+
+# GitHub token (no scopes needed) — raises rate limit from 60→5000/hr
+# Needed if you re-run scrape_github_samples to expand the corpus
+GH_TOKEN=ghp_...
+```
+
+Without `BRAVE_API_KEY`, Tier 3 returns empty hits and the agent works from Tier 1+2 only (still useful, just narrower).
+
+### Re-running corpus ingestion (optional)
+
+```powershell
+python -m ingest.fetch_manifests         # refresh NVIDIA CDN manifests
+python -m ingest.fetch_ngc_catalog       # refresh NGC container catalog (20 containers)
+python -m ingest.scrape_github_samples   # refresh GitHub READMEs (needs GH_TOKEN to cover all 28)
+python -m ingest.build_github_vectordb   # rebuild Chroma index from latest READMEs
+```
+
+---
+
+## Usage
+
+```powershell
+python main.py                           # default — conversational REPL, generates .ini + .command
+python main.py --dry-run                 # invoke NvSDKManager --query against latest plan
+python main.py --execute                 # actually install (confirmation + sudo prompt)
+python main.py --troubleshoot <log>      # diagnose an SDK Manager log archive or .log file
+python main.py --eval smoke              # Plan A eval (5 hand-crafted cases, exact match)
+python main.py --eval reasoning          # Plan B eval (20 LLM-judged cases)
+python main.py --eval troubleshoot       # Plan C eval (15 log-snippet LLM-judged cases)
+```
+
+### Execution mode safety
+
+`--execute` requires explicit `yes` confirmation in the same session. On Linux, also prompts for sudo via `getpass`. On non-zero exit, automatically offers to run `--troubleshoot` on the latest export log.
+
+`--troubleshoot` is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
+
+---
+
+## Evaluation
+
+Three tracks. All run with `python main.py --eval <track>`:
+
+| Track | Method | Cases | Latest score | Target |
+|---|---|---|---|---|
+| Smoke | Exact field match (product / version / target / additional_sdks) | 5 hand-crafted | **15/15 (100%)** | ≥80% |
+| Reasoning | LLM-as-judge, 4 axes, 3× median | 20 forum-mined | **3.56/5** | ≥3.5/5 |
+| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 15 log-snippet | **4.70/5** | ≥3.5/5 |
+
+### Per-axis breakdown
+
+**Reasoning** (4 axes × 1-5):
+- Factual correctness: 3.20
+- Reasoning quality: 3.35
+- Constraints respected: 4.95
+- INI validity: 2.75
+
+**Troubleshoot** (4 axes × 1-5):
+- Error correctly identified: 5.00 (perfect — regex patterns cover all 15 cases)
+- Fix matches expert reference: 4.00
+- Fix is actionable: 4.93
+- Safety (sudo warnings): 4.93
+
+Both reasoning and troubleshoot were evaluated **without** Brave Search (Tier 3 silent). With Brave key configured, factual and matches-expert axes are expected to lift further.
+
+---
+
+## Tests
+
+```powershell
+pytest                                   # all 81 unit tests
+pytest tests/test_response_file.py -v    # response file format alignment with NVIDIA template
+pytest tests/test_log_parser.py -v       # 20-pattern log parser against 5 fixture logs
+```
+
+---
+
+## Project structure
+
+```
+nvidia-sdk-advisor/
+├── main.py                          # CLI entry, mode dispatch
+├── src/
+│   ├── models.py                    # InstallConfig, LogDiagnosis dataclasses
+│   ├── manifests.py                 # KnowledgeBase facade over CDN manifests
+│   ├── sdkm_probe.py                # NvSDKManager.exe --list-connected wrapper
+│   ├── resource_estimator.py        # estimate_resources, check_constraints
+│   ├── response_file.py             # 3-section INI generator + validator
+│   ├── command_gen.py               # sdkmanager --cli command builder
+│   ├── log_parser.py                # SDK Manager log → LogDiagnosis (20 regex patterns)
+│   ├── vector_search.py             # Chroma + sentence-transformers wrapper
+│   ├── brave_search.py              # Brave Search API client (Tier 3)
+│   ├── knowledge_server.py          # Server A — 13 tools (FastMCP)
+│   ├── rag_server.py                # Server B — 4 tools (FastMCP)
+│   ├── agent.py                     # Anthropic agent + dual MCP client + tool loop
+│   ├── repl.py                      # prompt_toolkit conversational shell
+│   ├── troubleshoot.py              # --troubleshoot orchestrator
+│   └── execution.py                 # --plan / --dry-run / --execute dispatch
+├── ingest/
+│   ├── fetch_manifests.py           # NVIDIA CDN manifests
+│   ├── fetch_ngc_catalog.py         # NGC container metadata (Tier 1, 20 entries)
+│   ├── scrape_github_samples.py     # GitHub README scraper (Tier 2 input)
+│   └── build_github_vectordb.py     # Chroma index builder (Tier 2)
+├── data/
+│   ├── manifests/                   # NVIDIA CDN snapshots (committed)
+│   ├── corpus/
+│   │   ├── ngc/containers.jsonl     # Tier 1 (20 records)
+│   │   └── github/readmes.jsonl     # Tier 2 input (21 READMEs)
+│   ├── resource_model.json          # curated disk/RAM table
+│   ├── log_patterns.yaml            # 20 troubleshoot regex patterns
+│   ├── response_templates/          # NVIDIA's official .ini samples
+│   ├── ngc_seed_list.txt            # curated NGC slugs (20, all verified)
+│   └── github_seed_list.txt         # curated repos (28)
+├── tests/
+│   ├── eval_cases/
+│   │   ├── smoke.jsonl              # 5 hand-crafted golden cases
+│   │   ├── reasoning.jsonl          # 20 forum-mined LLM-judged cases
+│   │   └── troubleshoot.jsonl       # 15 log-snippet LLM-judged cases
+│   ├── fixtures/                    # 5 sample SDK Manager logs
+│   ├── test_*.py                    # 81 unit tests across modules
+│   ├── run_smoke_eval.py
+│   ├── run_reasoning_eval.py
+│   └── run_troubleshoot_eval.py
+└── output/                          # generated .ini, .command, fix.sh, diagnosis.md
+```
+
+---
+
+## How to extend
+
+**Add a new NVIDIA product**: append its slug to `data/ngc_seed_list.txt`, run `python -m ingest.fetch_ngc_catalog`.
+
+**Add a new sample repo to RAG**: append to `data/github_seed_list.txt`, run `python -m ingest.scrape_github_samples && python -m ingest.build_github_vectordb`.
+
+**Add a new log error pattern**: append to `data/log_patterns.yaml` with `{regex, stage, error_class, search_terms}`. Test: add a sample log to `tests/fixtures/` and a test case to `tests/eval_cases/troubleshoot.jsonl`.
+
+**Use only Server B from a different agent**: `python -m src.rag_server` exposes the 4 RAG tools via stdio MCP — any MCP client can connect and use them in isolation.
+
+---
+
+## Implementation history
+
+Plan series (in commit order, tagged in git):
+
+| Tag | Scope | Commits |
+|---|---|---|
+| **v2.0.0-a** | Foundation: Server A skeleton + 11 deterministic tools + REPL + `--plan` | A.1–A.15 |
+| _delta_ | `validate_combo` (12th Server A tool) | 1 commit |
+| **v2.0.0-b** | Hybrid 3-tier RAG (Server B) + `--dry-run` + `--execute` modes + reasoning eval | B.1–B.13 |
+| **v2.0.0-c** | `parse_install_log` (13th Server A tool) + `--troubleshoot` mode + troubleshoot eval | C.1–C.10 |
+
+Spec: `docs/superpowers/specs/2026-05-23-nvidia-sdk-advisor-v2-design.md`.
+Plans: `docs/superpowers/plans/2026-05-23-nvidia-sdk-advisor-v2{a,b,c}-*.md`.
+
+---
+
+## Strategic positioning (for NVIDIA reviewers)
+
+This demo addresses the unfilled white space on NVIDIA's "AI everywhere in developer tools" roadmap — the SDK Manager team's product gap. NeMo Agent Toolkit, AI-Q Blueprints, Nsight Copilot, Vera CPU all received agentic upgrades in the past 18 months; SDK Manager's developer-blog tag has zero posts since July 2023, and v2.4.0 release notes mention no AI features.
+
+The pitch in one sentence: *the same agent NVIDIA is building everywhere else, applied to the wizard their docs show users routinely bouncing off of.*
+
+The repo is built on the same data sources SDK Manager itself reads (the public CDN at `developer.download.nvidia.com/sdkmanager/sdkm-config/`), produces output matching NVIDIA's own `.ini` template format, and treats `NvSDKManager.exe` as a subprocess target rather than competing with it. It positions itself as *everything before the wizard fires* — it does not replace `sdkmanager`, it feeds it.
+
+---
+
+## License & attribution
+
+Portfolio artifact. NVIDIA SDK Manager, NGC, JetPack, Jetson, Isaac, DeepStream, etc. are trademarks of NVIDIA Corporation. All NVIDIA data is fetched from public endpoints; this repo redistributes only what is necessary for offline reproducibility (CDN manifest snapshots, GitHub README scraped via API).

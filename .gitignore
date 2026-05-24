@@ -9,6 +9,10 @@ output/*
 .pytest_cache/
 test_responses.txt
 
+# Transient eval run logs (per-invocation; data/eval_runs/ holds curated baselines)
+opus_*_run.log
+*_eval_run.log
+
 # Chroma vector DB — rebuild via `python -m ingest.build_github_vectordb`
 # (kept out of git to avoid repo bloat; corpus JSONL is committed for rebuild input)
 data/chroma_db/

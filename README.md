@@ -4,18 +4,9 @@ A conversational agent that helps developers **discover, configure, install, and
 
 [![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
 
-<table>
-<tr>
-<td width="50%" valign="top">
-<img src="docs/demo/architecture.svg" alt="Architecture: 5 phases on one MCP + RAG backend">
-<p align="center"><sub><b>The architecture.</b> Five phases share one Agent + MCP + RAG backend. Red dashed line = the replaceable boundary. <a href="#mcp-design">MCP design</a> · <a href="#rag-design">RAG design</a></sub></p>
-</td>
-<td width="50%" valign="top">
-<img src="docs/demo/full-mode.gif" alt="End-to-end demo: configure → install → troubleshoot → fix → retry">
-<p align="center"><sub><b>The demo.</b> <code>python main.py --full --mock-install --query "..."</code>. Every MCP tool call + agent reasoning + web_search query is visible. Real Anthropic API calls; install steps mocked because no Jetson is plugged in. <a href="docs/demo/README.md">Recording recipe</a></sub></p>
-</td>
-</tr>
-</table>
+![Architecture: 5 phases on one MCP + RAG backend](docs/demo/architecture.svg)
+
+> **The architecture.** Five phases share one Agent + MCP + RAG backend. Red dashed line = the replaceable boundary. See [MCP design](#mcp-design) · [RAG design](#rag-design) · [End-to-end demo](#end-to-end-demo).
 
 ---
 
@@ -23,7 +14,7 @@ A conversational agent that helps developers **discover, configure, install, and
 
 **Why it looks like this** — [Design principles](#design-principles)
 
-**The thing itself** — [What it does](#what-it-does) · [Hero scenarios](#hero-scenarios) · [Architecture](#architecture) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against)
+**The thing itself** — [What it does](#what-it-does) · [Hero scenarios](#hero-scenarios) · [End-to-end demo](#end-to-end-demo) · [Architecture](#architecture) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against)
 
 **What I learned** — [If this were to ship](#if-this-were-to-ship--how-i-think-about-it) · [Evaluation](#evaluation)
 
@@ -139,6 +130,16 @@ Last success:    apt-get update completed
 ✓ output/apt-missing-package_diagnosis.md
 ✓ output/apt-missing-package_fix.sh
 ```
+
+---
+
+## End-to-end demo
+
+`python main.py --full --mock-install --query "I have an Orin NX 16GB and want to do edge LLM inference"` — chains all five phases (configure → install → troubleshoot → fix → retry) with every tool call, every piece of agent reasoning, and every web_search query rendered as a discrete step.
+
+![End-to-end demo: configure → install → troubleshoot → fix → retry](docs/demo/full-mode.gif)
+
+> **What's mocked, what's real.** Phases 1 (configure) and 3 (troubleshoot) are real Anthropic API calls + real MCP tool dispatch + real `web_search`. Phases 2 (install) and 5 (retry) are mocked — the canned `.zip` failure / success logs stand in for `NvSDKManager.exe` because no Jetson is plugged in. Phase 4 (apply fix) is simulated for the same reason. Each phase carries an explicit REAL / MOCKED / SIMULATED tag in the panel so the boundary stays honest. [Recording recipe](docs/demo/README.md).
 
 ---
 

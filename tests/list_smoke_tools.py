@@ -42,7 +42,7 @@ def main() -> None:
     for i, c in enumerate(cases, 1):
         tools: list[str] = []
 
-        def on_step(tool_name: str, _result_text: str) -> None:
+        def on_step(tool_name: str, _args: dict, _result_text: str) -> None:
             tools.append(tool_name)
 
         try:

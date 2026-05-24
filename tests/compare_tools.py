@@ -37,7 +37,7 @@ def _sdk_trace(user_input: str) -> tuple[str, list[str]]:
     from src.agent import run_agent_single_turn
     tools: list[str] = []
 
-    def on_step(tool_name: str, _result_text: str) -> None:
+    def on_step(tool_name: str, _args: dict, _result_text: str) -> None:
         tools.append(tool_name)
 
     text = asyncio.run(run_agent_single_turn(user_input, on_step=on_step))

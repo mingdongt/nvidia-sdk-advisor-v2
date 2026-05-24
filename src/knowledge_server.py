@@ -63,31 +63,80 @@ def detect_connected_hardware() -> str:
     return json.dumps(sdkm_probe.detect_connected_hardware())
 
 
+def _build_install_config(
+    product: str,
+    version: str,
+    target: str,
+    target_os: str = "Linux",
+    host: bool = True,
+    flash: bool = False,
+    additional_sdks: list[str] | None = None,
+    login_type: str = "devzone",
+    action: str = "install",
+) -> InstallConfig:
+    """Build an InstallConfig from the typed MCP tool args.
+
+    Earlier versions of these tools took a `config_json: str` and called
+    `json.loads()` internally. That made the LLM responsible for serializing
+    a dict into a valid JSON string as a tool argument — JSON inside JSON-RPC,
+    a known anti-pattern. The LLM occasionally produced malformed JSON
+    (missing escape, trailing comma) and the tool would JSONDecodeError.
+    Switching to typed params lets FastMCP generate a clean JSON schema; the
+    LLM never has to hand-build a JSON string.
+    """
+    return InstallConfig(
+        product=product, version=version, target=target,
+        target_os=target_os, host=host, flash=flash,
+        additional_sdks=additional_sdks or [],
+        login_type=login_type, action=action,
+    )
+
+
 @mcp.tool()
-def estimate_resources(config_json: str) -> str:
+def estimate_resources(
+    product: str, version: str, target: str,
+    target_os: str = "Linux", host: bool = True, flash: bool = False,
+    additional_sdks: list[str] | None = None,
+    login_type: str = "devzone", action: str = "install",
+) -> str:
     """Estimate disk + RAM for an InstallConfig."""
-    cfg = InstallConfig(**json.loads(config_json))
+    cfg = _build_install_config(product, version, target, target_os, host, flash,
+                                additional_sdks, login_type, action)
     return json.dumps(resource_estimator.estimate_resources(cfg))
 
 
 @mcp.tool()
-def check_constraints(config_json: str, available_disk_gb: float, available_ram_gb: float) -> str:
+def check_constraints(
+    available_disk_gb: float, available_ram_gb: float,
+    product: str = "", version: str = "", target: str = "",
+    target_os: str = "Linux", host: bool = True, flash: bool = False,
+    additional_sdks: list[str] | None = None,
+    login_type: str = "devzone", action: str = "install",
+) -> str:
     """Check if config fits within disk + RAM budget."""
-    cfg = InstallConfig(**json.loads(config_json))
+    cfg = _build_install_config(product, version, target, target_os, host, flash,
+                                additional_sdks, login_type, action)
     return json.dumps(resource_estimator.check_constraints(cfg, available_disk_gb, available_ram_gb))
 
 
 @mcp.tool()
-def validate_combo(product: str, version: str, target: str = "", additional_sdks_json: str = "[]") -> str:
+def validate_combo(product: str, version: str, target: str = "",
+                   additional_sdks: list[str] | None = None) -> str:
     """Validate a (product, version, target, additional_sdks) combination against manifests."""
-    sdks = json.loads(additional_sdks_json) if additional_sdks_json else []
-    return json.dumps(_kb.validate_combo(product, version, target=target or None, additional_sdks=sdks))
+    return json.dumps(_kb.validate_combo(product, version, target=target or None,
+                                         additional_sdks=additional_sdks or []))
 
 
 @mcp.tool()
-def generate_response_file(config_json: str) -> str:
+def generate_response_file(
+    product: str, version: str, target: str,
+    target_os: str = "Linux", host: bool = True, flash: bool = False,
+    additional_sdks: list[str] | None = None,
+    login_type: str = "devzone", action: str = "install",
+) -> str:
     """Generate a 3-section .ini response file matching NVIDIA's template."""
-    cfg = InstallConfig(**json.loads(config_json))
+    cfg = _build_install_config(product, version, target, target_os, host, flash,
+                                additional_sdks, login_type, action)
     return json.dumps({"content": response_file.generate_response_file(cfg)})
 
 
@@ -98,9 +147,15 @@ def validate_against_official_sample(generated_ini: str, product: str) -> str:
 
 
 @mcp.tool()
-def generate_command(config_json: str) -> str:
+def generate_command(
+    product: str, version: str, target: str,
+    target_os: str = "Linux", host: bool = True, flash: bool = False,
+    additional_sdks: list[str] | None = None,
+    login_type: str = "devzone", action: str = "install",
+) -> str:
     """Build the sdkmanager --cli command string."""
-    cfg = InstallConfig(**json.loads(config_json))
+    cfg = _build_install_config(product, version, target, target_os, host, flash,
+                                additional_sdks, login_type, action)
     return json.dumps({"command": command_gen.generate_command(cfg)})
 
 

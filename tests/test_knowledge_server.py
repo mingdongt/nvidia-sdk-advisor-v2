@@ -22,12 +22,30 @@ def test_lookup_target_id_via_server():
 
 
 def test_generate_response_file_via_server():
-    config_json = json.dumps({
-        "product": "Jetson", "version": "6.1", "target": "JETSON_ORIN_NX_TARGETS",
-        "additional_sdks": ["DeepStream 7.0"],
-    })
-    result = json.loads(knowledge_server.call_tool("generate_response_file", {"config_json": config_json}))
+    """Typed-args call (no JSON-in-string anti-pattern)."""
+    result = json.loads(knowledge_server.call_tool(
+        "generate_response_file",
+        {
+            "product": "Jetson", "version": "6.1", "target": "JETSON_ORIN_NX_TARGETS",
+            "additional_sdks": ["DeepStream 7.0"],
+        },
+    ))
     assert "[client_arguments]" in result["content"]
+
+
+def test_generate_command_via_server():
+    """Regression test for the JSON-in-string bug fixed by typed args.
+    Earlier signature took `config_json: str` and the LLM occasionally
+    produced malformed JSON. Typed args make that class of error impossible.
+    """
+    result = json.loads(knowledge_server.call_tool(
+        "generate_command",
+        {
+            "product": "Jetson", "version": "6.1", "target": "JETSON_ORIN_NX_TARGETS",
+            "additional_sdks": ["DeepStream 7.0"],
+        },
+    ))
+    assert "sdkmanager" in result["command"]
 
 
 def test_validate_combo_via_server():

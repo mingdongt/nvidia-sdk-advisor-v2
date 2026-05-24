@@ -10,7 +10,7 @@ A conversational agent that helps developers **discover, configure, install, and
 
 **Why it looks like this** — [Design principles](#design-principles)
 
-**The thing itself** — [What it does](#what-it-does) · [Hero scenarios](#hero-scenarios) · [Architecture](#architecture) · [Tested against](#tested-against)
+**The thing itself** — [What it does](#what-it-does) · [Hero scenarios](#hero-scenarios) · [Architecture](#architecture) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against)
 
 **What I learned** — [If this were to ship](#if-this-were-to-ship--how-i-think-about-it) · [Evaluation](#evaluation)
 
@@ -188,6 +188,124 @@ The two consumers of web search are wired differently:
 - **`--troubleshoot` mode (SDK backend)** — the `web_search_20250305` server-side tool is attached automatically. No domain whitelist: Claude is good at preferring NVIDIA docs / official forums / Stack Exchange on its own, and restricting to NVIDIA-only domains crowded out genuinely useful community fixes for apt / kernel / DNS errors that aren't NVIDIA-specific. The synthesis prompt makes at least one `web_search` call mandatory before recommending a fix, and ranks preferred source tiers (NVIDIA docs > NVIDIA forum > SO/AskUbuntu > GitHub issues). `max_uses=5` is the only constraint — a cost ceiling, not a trust filter. Cost: ~$0.01 per troubleshoot run. If `web_search` is unavailable (e.g. region-restricted), the agent falls back to training-knowledge synthesis with an explicit disclaimer.
 - **`--troubleshoot` mode (CLI backend)** — Claude CLI's built-in WebSearch covers the same role; no extra config.
 - **REPL / `--plan` mode** — web search is *not* auto-attached. The agent's primary tools are Server A's deterministic lookups + Server B's local RAG. The SYSTEM_PROMPT mentions `site:forums.developer.nvidia.com` as a hint for the CLI backend; SDK backend uses only deterministic tools for planning.
+
+---
+
+## MCP design
+
+The MCP boundary is the architecture's load-bearing decision: every tool below it is independently replaceable, and the agent loop above doesn't know which transport a given tool happens to use today. This section lays out the design rationale, the routing contract the agent is expected to follow, what tests exercise that contract, and where the implementation does (and doesn't) match.
+
+### 1. Why MCP, why split
+
+Three reasons, in priority order:
+
+1. **Replaceability.** Each tool is a function-shaped contract behind a name + JSON schema. The internal NVIDIA data sources I'd want to add on day one (support ticket DB, bug tracker, telemetry — see [docs/why-this-demo.md → ranked knowledge bases](docs/why-this-demo.md#if-i-joined-the-team-which-internal-knowledge-bases-id-want-ranked)) can each replace one tool without touching the agent loop, the prompt, or the output writer. That's the "production deployment is not a rewrite" claim made concrete.
+
+2. **Deterministic vs semantic separation.** Two servers, not one:
+   - `nvidia-knowledge` (13 tools) — deterministic lookups over NVIDIA-signed CDN manifests. Minimal imports, ~1s cold start.
+   - `nvidia-corpus-rag` (2 tools) — semantic retrieval (Chroma + sentence-transformers). Heavy imports, ~5-10s cold start.
+
+   Splitting them means deterministic-tool latency doesn't pay the RAG startup cost, and a deployment that needs only one half can omit the other.
+
+3. **Replaceable consumer.** stdio MCP is wire-protocol-portable. Any client that speaks it (Claude Code, Cursor, a custom Electron renderer, an internal CI bot) can call these tools without touching this repo. The REPL is one consumer; the agent loop is replaceable; the data + tools layer is not.
+
+### 2. The routing contract (what the SYSTEM_PROMPT tells the agent)
+
+Distilled from `src/agent.py:SYSTEM_PROMPT`:
+
+| Step | Tool | Fires when |
+|---|---|---|
+| 1 | `detect_connected_hardware` | Always, once per session |
+| 2 | `lookup_target_id(board_name)` | Whenever a human board name appears (every query in practice) |
+| 3 | `list_releases(product)` | Whenever a JetPack version needs picking |
+| 4a | `validate_combo(jp, sdk)` | User mentions an extra SDK (DeepStream, TensorRT, …) with era-pairing constraints |
+| 4b | `search_3p_sample_repos(query, k)` | User describes a workload without naming a product/SDK |
+| 4c | `lookup_container_reqs(container_id)` | User mentions a specific NGC container by id |
+| 4d | `estimate_resources` + `check_constraints` | User provides disk / RAM constraints |
+| 5 | `generate_response_file` + `generate_command` | Always last — produce the `.ini` + sdkmanager command |
+
+Required path: steps 1, 2, 3, 5. Steps 4a–4d are conditional.
+
+### 3. Tests that exercise the contract
+
+| Test | What it verifies | Where |
+|---|---|---|
+| Smoke 5 cases × 2 models | Tool dispatch under different query shapes | [How Haiku and Opus differ in tool usage](#how-haiku-and-opus-differ-in-tool-usage-both-still-score-100) |
+| `--full --mock-install` demo | Full trace visible — every tool call + its args + result | [`docs/demo/full-mode.gif`](docs/demo/full-mode.gif), code in `src/orchestrator.py` |
+| Ablation: Opus alone vs Opus + tools | The tool layer itself is what closes the 46.7 → 100% gap | [Ablation](#ablation-does-the-rag-layer-actually-help-or-does-claude-already-know-this) |
+| Reasoning eval (20 forum-mined cases) | Tool dispatch under realistic user phrasing | [Evaluation](#evaluation) |
+
+The most revealing test is smoke case 2 (AGX Orin + DeepStream 7.0). Haiku 4.5 dispatches `validate_combo` twice to check the JP↔DeepStream era pairing; Opus 4.7 skips it entirely and inlines the check from the SYSTEM_PROMPT. Both still get the right answer. A tool the bigger model routinely skips without losing accuracy is probably doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
+
+### 4. Spec compliance
+
+Across 10 traces (5 smoke cases × 2 models):
+
+| Spec rule | Compliance |
+|---|---|
+| `detect_connected_hardware` called once first | ✓ 10/10 |
+| `lookup_target_id` called before downstream tools | ✓ 10/10 |
+| `list_releases` called before `generate_response_file` | ✓ 10/10 |
+| `search_3p_sample_repos` fires only for workload-described queries | ✓ 10/10 (only case 5 triggers) |
+| `validate_combo` fires only when extra SDK present | ✓ 10/10 (only case 2 triggers, Haiku side; Opus inlines) |
+| `gen_response_file` + `gen_command` are the last two calls | ✓ 10/10 |
+
+No spec violations observed. The two behavioral differences between models (Opus's `ToolSearch` exploration in case 1, Opus's double `lookup_target_id` in case 4) take a longer compliant path; they don't break the contract.
+
+### 5. Where the design isn't honest yet
+
+- **Always-spawn, not lazy-spawn.** Both MCP servers boot on every agent invocation regardless of whether the query needs RAG. For configure-style queries that never call corpus-rag tools, the chromadb + sentence-transformers import is wasted work (~5-10s). The architecture supports selective spawn — `StdioServerParameters` is per-server — but the current code doesn't use that capability. A production version should add an intent classifier in front of agent.py to decide which servers to spawn.
+- **Tool-list discovery isn't free.** Even if a server doesn't get a single request, the agent pays its startup cost to enumerate tools at session start. Future MCP transports (HTTP, daemon-mode) avoid this; stdio is per-session by design.
+
+---
+
+## RAG design
+
+The RAG layer sits behind one MCP server (`nvidia-corpus-rag`) with two tools serving two distinct retrieval tiers. A third tier (forums + docs) lives outside MCP entirely. This section covers what each tier is for, when it fires, what tests verify it, and the spec it follows.
+
+### 1. The three retrieval tiers
+
+The repo started as a flat "embed everything" RAG and split into three tiers as I worked out what kind of question each one actually answers:
+
+- **Tier 1 — NGC catalog (deterministic lookup).** A pre-curated JSONL of 20 NVIDIA-published containers (nano_llm, jetson-inference, deepstream-l4t, …) with their JetPack / CUDA / L4T requirements. Surfaced via `lookup_container_reqs(container_id)`. No vectorization — when the user names a specific container, you want exact requirements back, not "kind of similar containers."
+
+- **Tier 2 — GitHub README vector search.** 21 hand-curated NVIDIA-AI-IOT + dusty-nv + community sample repos, READMEs embedded with `all-MiniLM-L6-v2` (sentence-transformers), indexed in Chroma. Surfaced via `search_3p_sample_repos(query, k)`. The workload-discovery layer: "I want to do X" → "here's a sample repo that does X."
+
+- **Tier 3 — forums + docs (delegated to web_search).** Not in the MCP layer at all. When the agent needs live forum / doc content, it uses Claude's server-side `web_search` tool. An earlier version wrapped Brave Search behind two domain-filter MCP tools; I removed them because they were 2-line shims that added a `BRAVE_API_KEY` dependency for no real value. Decision log: [Tier 3 forums + docs](#tier-3-forums--docs--decision-log).
+
+The split matters because each tier has a different cost / latency / accuracy profile. Tier 1 is microseconds (JSON lookup). Tier 2 is tens of milliseconds with embedding model already warm. Tier 3 is seconds plus an external API.
+
+### 2. The routing contract (when RAG fires)
+
+| User intent shape | Tool / tier |
+|---|---|
+| "I want to do X" — workload, no product name | `search_3p_sample_repos(query='X')` — Tier 2 |
+| "How do I use dustynv/nano_llm?" — container named by id | `lookup_container_reqs(container_id='dustynv/nano_llm')` — Tier 1 |
+| "What does the forum say about Y?" — live community knowledge | Tier 3 web_search (fires only in `--troubleshoot`) |
+| "Configure Orin NX with JetPack 6.2" — product+version specified | Neither — RAG isn't needed |
+
+RAG is **conditional**, not default. Most configure queries don't trigger it.
+
+### 3. Tests that exercise the spec
+
+| Test | What it verifies | Result |
+|---|---|---|
+| Smoke case 5 — "Nano + object detection sample" | search_3p_sample_repos fires for workload-described query | ✓ Both Haiku and Opus call it; top hit `jetson-inference` (correct) |
+| Smoke cases 1-4 — product-specified queries | search_3p_sample_repos does NOT fire | ✓ Not called in cases 1-4 (verifies "conditional, not default") |
+| `--full` demo: "Orin NX 16GB, edge LLM inference" | RAG triggered; agent gracefully handles a `lookup_container_reqs` miss | ✓ Visible in [`docs/demo/full-mode.gif`](docs/demo/full-mode.gif) — `search_3p_sample_repos` returns sample-repo hits; `lookup_container_reqs('dusty-nv/local_llm')` returns "no NGC entry"; agent continues with other tools |
+| Reasoning eval (20 forum-mined cases) | Mix of discovery + configure queries | RAG fires on workload-described cases, skipped on product-specified ones |
+
+### 4. Spec compliance
+
+- **Selective firing — confirmed.** RAG fires only on workload-described queries, not configure-style. Across smoke + reasoning evals, no false-positive triggers observed.
+- **Graceful failure — confirmed.** When `lookup_container_reqs` returns "no NGC entry" for an unknown container, the agent continues with deterministic tools instead of crashing. Verified in the `--full` demo trace (visible in the GIF).
+- **Tier separation — by code shape.** Tier 1 and Tier 2 are different tools with different schemas, not different parameter values to the same tool. The agent doesn't have to "pick a mode" — the tool name **is** the mode.
+
+### 5. Honest gaps
+
+- **No relevance filter on Tier 2.** `search_3p_sample_repos` returns top-k by cosine similarity unconditionally. For an off-topic query ("hello world"), it still returns the 5 closest hits — barely relevant ones — without an "I don't have a good match" signal. The agent currently doesn't check the similarity score before using a hit. Production should gate on a threshold (or surface the score so the agent can decide).
+- **Corpus is small (21 repos / 20 containers) and hand-curated.** Sized to demonstrate the architecture, not to cover Jetson's actual landscape. Real production would index hundreds of repos automatically, with deduplication and quality scoring.
+- **No re-indexing pipeline.** Chroma index is built once via `python -m ingest.build_github_vectordb`; no scheduled refresh. Real production needs incremental updates as upstream READMEs change.
 
 ---
 

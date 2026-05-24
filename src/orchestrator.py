@@ -20,6 +20,8 @@ all the safety considerations that --execute already implements.
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import re
 import sys
 import time
@@ -30,6 +32,111 @@ from rich.console import Console
 from rich.panel import Panel
 
 console = Console()
+
+
+def _fmt_args(args: dict) -> str:
+    """Compact one-line repr of a tool call's args. Truncates long values so
+    each trace line stays a single visible row even when args carry JSON blobs.
+    """
+    parts = []
+    for k, v in (args or {}).items():
+        if isinstance(v, str):
+            shown = v if len(v) <= 36 else v[:33] + "..."
+            parts.append(f"{k}={shown!r}")
+        elif isinstance(v, (list, tuple)):
+            shown = f"[{len(v)} item{'s' if len(v) != 1 else ''}]" if len(str(v)) > 36 else str(list(v))
+            parts.append(f"{k}={shown}")
+        elif isinstance(v, dict):
+            keys = ",".join(list(v.keys())[:3])
+            more = "..." if len(v) > 3 else ""
+            parts.append(f"{k}={{{keys}{more}}}")
+        else:
+            parts.append(f"{k}={v!r}")
+    return ", ".join(parts)
+
+
+def _fmt_result(name: str, result_text: str) -> str:
+    """Compact one-line summary of a tool result. Tries to surface the most
+    interesting field (target id, count of matches, first .ini section, etc.);
+    falls back to truncated first line.
+    """
+    try:
+        data = json.loads(result_text)
+    except (json.JSONDecodeError, ValueError):
+        first = result_text.strip().split("\n", 1)[0]
+        return first if len(first) <= 80 else first[:77] + "..."
+
+    if isinstance(data, dict):
+        if data.get("error"):
+            return f"ERROR: {data['error']}"
+        # Common fields we know about across the 15 tools.
+        for key in ("target", "target_id", "command", "ini"):
+            if key in data and isinstance(data[key], str):
+                v = data[key]
+                v = v.replace("\n", " | ")
+                return v if len(v) <= 80 else v[:77] + "..."
+        if "releases" in data and isinstance(data["releases"], list):
+            sample = ", ".join(r.get("version", "?") if isinstance(r, dict) else str(r)
+                               for r in data["releases"][:5])
+            extra = f" (+{len(data['releases']) - 5} more)" if len(data["releases"]) > 5 else ""
+            return f"{sample}{extra}"
+        if "matches" in data and isinstance(data["matches"], list):
+            top = data["matches"][0] if data["matches"] else None
+            top_str = (top.get("name") or top.get("repo") or str(top)[:40]) if isinstance(top, dict) else str(top)
+            return f"{len(data['matches'])} match(es); top: {top_str}"
+        if "valid" in data:
+            return "OK" if data["valid"] else f"FAIL: {data.get('reason', 'invalid')}"
+    if isinstance(data, list):
+        return f"[{len(data)} item{'s' if len(data) != 1 else ''}]"
+    # Fallback: first 80 chars of repr
+    s = json.dumps(data) if not isinstance(data, str) else data
+    return s if len(s) <= 80 else s[:77] + "..."
+
+
+_tool_step_counter = 0
+
+
+def _step_pause() -> None:
+    """Demo-only short pause after each printed step so reviewers can read
+    them as discrete events instead of a wall of output. Gated on
+    SDK_ADVISOR_STEP_PAUSE (seconds); silent in normal CLI use.
+    """
+    pause = os.getenv("SDK_ADVISOR_STEP_PAUSE")
+    if pause:
+        try:
+            time.sleep(float(pause))
+        except ValueError:
+            pass
+
+
+def _print_mcp_tool_step(name: str, args: dict, result_text: str) -> None:
+    """Real-time tracer for the agent's MCP tool dispatch loop. Each call
+    prints two lines: the invocation and its compacted result. Surfaces the
+    'techniques behind' the agent — reviewers see exactly which tool was
+    consulted, with what args, and what came back. The leading `[N]` makes
+    the sequence visible at a glance.
+    """
+    global _tool_step_counter
+    _tool_step_counter += 1
+    n = _tool_step_counter
+    console.print(f"  [bold cyan]\\[{n}][/bold cyan] [cyan]→[/cyan] [bold]{name}[/bold]([dim]{_fmt_args(args)}[/dim])")
+    console.print(f"      [green]←[/green] [dim]{_fmt_result(name, result_text)}[/dim]")
+    _step_pause()
+
+
+def _print_agent_thinking(text: str) -> None:
+    """Surface the agent's reasoning text that appears between tool calls.
+    Without this, demo watchers see only tool calls and have to guess WHY
+    the agent picked each one. With it, they read the agent's intent before
+    each call: 'I'll resolve the target id first', 'now I need releases', etc.
+    """
+    # Collapse multi-line reasoning into a single visible block; Rich will
+    # soft-wrap if it exceeds terminal width.
+    compact = " ".join(text.strip().split())
+    if not compact:
+        return
+    console.print(f"  [italic dim cyan]reasoning:[/italic dim cyan] [italic]{compact}[/italic]")
+    _step_pause()
 
 
 # Demo defaults baked into mock log filenames so log_parser extracts metadata.
@@ -230,7 +337,13 @@ async def run_full_mode(
         sys.exit(2)
 
     console.print(f"\n[dim]→ agent: {user_input}[/dim]\n")
-    response = await run_agent_single_turn(user_input)
+    console.print("[dim]Tool trace + reasoning (agent's intermediate text between calls):[/dim]")
+    response = await run_agent_single_turn(
+        user_input,
+        on_step=_print_mcp_tool_step,
+        on_thinking=_print_agent_thinking,
+    )
+    console.print()
     console.print(Panel(response, title="Configure result", border_style="green"))
 
     # Extract the agent's sdkmanager command + .ini code blocks from the chat
@@ -268,21 +381,22 @@ async def run_full_mode(
     result = await run_troubleshoot(failure_log, auto_confirm=True, write_fix=True)
 
     outputs = result.get("outputs", {})
-    fix_path = outputs.get("fix_sh")
+    fix_path = outputs.get("fix_script")
     if not fix_path:
         console.print(
-            "\n[yellow]Troubleshoot did not produce a fix.sh — agent may not have found "
+            "\n[yellow]Troubleshoot did not produce a fix script — agent may not have found "
             "an executable remediation. Aborting --full chain.[/yellow]"
         )
         sys.exit(0)
     console.print(f"\n[green][OK][/green] Fix script generated: [bold]{fix_path}[/bold]\n")
 
     # ─── PHASE 4: Apply fix (simulated) ─────────────────────────────────
-    console.print(Panel("PHASE 4 / 5 — Apply fix  [SIMULATED: prints command, does NOT bash fix.sh]", border_style="yellow"))
-    console.print(f"[dim]Would run: bash {fix_path}[/dim]")
+    runner = "powershell -File" if str(fix_path).endswith(".ps1") else "bash"
+    console.print(Panel(f"PHASE 4 / 5 — Apply fix  [SIMULATED: prints command, does NOT run the script]", border_style="yellow"))
+    console.print(f"[dim]Would run: {runner} {fix_path}[/dim]")
     console.print(
-        "[yellow]Note: fix.sh execution is simulated. A real --full mode would "
-        "prompt the user to review fix.sh before running it under sudo.[/yellow]\n"
+        "[yellow]Note: fix-script execution is simulated. A real --full mode would "
+        "prompt the user to review the script before running it under sudo.[/yellow]\n"
     )
 
     # ─── PHASE 5: Retry install (mocked) ────────────────────────────────

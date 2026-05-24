@@ -32,20 +32,15 @@ Most inputs include enough info to produce a useful plan immediately. For each u
 2. Resolve any board name to a canonical target_id via lookup_target_id. Save the result as `target`.
 3. List products/releases as needed to pick a JetPack version that supports the hardware. Prefer the most recent compatible version unless the user specified one. Save `product` (typically "Jetson") and `version`.
 4. If the user gave resource constraints (disk, RAM), call estimate_resources and check_constraints; otherwise skip.
-5. Build a JSON config object for generate_response_file and generate_command with these EXACT fields:
-   ```json
-   {
-     "product": "Jetson",
-     "version": "6.0",
-     "target": "JETSON_ORIN_NANO_TARGETS",
-     "target_os": "Linux",
-     "host": true,
-     "flash": false,
-     "additional_sdks": ["DeepStream 7.0"]
-   }
-   ```
-   Do NOT use: target_id, jetpack_version, release_version, hardware, hardware_id, device_id, board, sdks (use additional_sdks instead).
-6. Call generate_response_file(config_json) and generate_command(config_json) with your config.
+5. Call `generate_response_file` and `generate_command`. Both take the same typed arguments — pass each field directly, do NOT wrap them in a single JSON string:
+   - `product`: e.g. "Jetson" (NOT "jetpack", NOT a target_id)
+   - `version`: e.g. "6.0" (the JetPack version; not "release_version" or "jetpack_version")
+   - `target`: e.g. "JETSON_ORIN_NANO_TARGETS" (the canonical target_id from lookup_target_id)
+   - `target_os`: "Linux" (default)
+   - `host`: true (default — install host components on this machine)
+   - `flash`: false (default — do not flash unless user explicitly asks)
+   - `additional_sdks`: e.g. ["DeepStream 7.0"] (use this name, not "sdks")
+6. Call `generate_response_file(...)` and `generate_command(...)` with those args. FastMCP handles serialization — never construct a JSON string yourself.
 7. Present the result as: a brief explanation paragraph, then the sdkmanager command in a ```bash code block, then the response file in a ```ini code block. The .ini code block MUST be the verbatim output of generate_response_file — copy the entire tool result, INCLUDING all three section headers `[client_arguments]`, `[pre-flash-settings]`, `[post-flash-settings]`. Do NOT abbreviate, summarize, or drop section headers. The .ini block must be loadable by SDK Manager as-is.
 
 ## Mode classification (your first decision each turn)
@@ -122,7 +117,11 @@ def _call_with_retry(client, model, tools, messages, max_attempts=4):
             time.sleep(15 * (attempt + 1))
 
 
-async def run_agent_single_turn(user_input: str, on_step: Optional[Callable] = None) -> str:
+async def run_agent_single_turn(
+    user_input: str,
+    on_step: Optional[Callable] = None,
+    on_thinking: Optional[Callable[[str], None]] = None,
+) -> str:
     """Single-prompt agent run. Backend dispatch via ANTHROPIC_BACKEND env var.
 
     - 'sdk' (default): anthropic Python SDK, connects to both MCP servers (current path)
@@ -139,8 +138,13 @@ async def run_agent_single_turn(user_input: str, on_step: Optional[Callable] = N
 
     # Default: anthropic SDK
     import json
-    k_params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)])
-    r_params = StdioServerParameters(command="python", args=[str(_RAG_SERVER)])
+    # MCP's stdio_client uses a small env whitelist (PATH/HOME/etc.) and drops
+    # everything else when StdioServerParameters.env is None. Forward FastMCP
+    # control vars explicitly so settings like FASTMCP_SHOW_SERVER_BANNER=false
+    # (used by the demo recording) reach the spawned server process.
+    _mcp_env = {k: v for k, v in os.environ.items() if k.startswith("FASTMCP_")} or None
+    k_params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)], env=_mcp_env)
+    r_params = StdioServerParameters(command="python", args=[str(_RAG_SERVER)], env=_mcp_env)
 
     async with stdio_client(k_params) as (kr, kw), stdio_client(r_params) as (rr, rw):
         async with ClientSession(kr, kw) as k_session, ClientSession(rr, rw) as r_session:
@@ -169,7 +173,14 @@ async def run_agent_single_turn(user_input: str, on_step: Optional[Callable] = N
                 if response.stop_reason == "end_turn":
                     return next((b.text for b in response.content if hasattr(b, "text")), "")
                 tool_results = []
+                # Process blocks in order so on_thinking and on_step fire
+                # interleaved exactly as the model produced them — gives the
+                # demo trace a natural "thinking → tool call → result" flow.
                 for block in response.content:
+                    if block.type == "text":
+                        if on_thinking and getattr(block, "text", None):
+                            on_thinking(block.text)
+                        continue
                     if block.type != "tool_use":
                         continue
                     sess = session_map.get(block.name)
@@ -179,7 +190,7 @@ async def run_agent_single_turn(user_input: str, on_step: Optional[Callable] = N
                         result = await sess.call_tool(block.name, arguments=block.input)
                         result_text = result.content[0].text if result.content else "{}"
                     if on_step:
-                        on_step(block.name, result_text)
+                        on_step(block.name, block.input, result_text)
                     tool_results.append({
                         "type": "tool_result", "tool_use_id": block.id, "content": result_text,
                     })

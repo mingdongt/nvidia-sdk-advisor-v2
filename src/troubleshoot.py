@@ -172,8 +172,85 @@ def _synthesize_fix_sync(excerpt: dict) -> str:
                 ),
             }],
         )
-    text_parts = [b.text for b in resp.content
-                  if getattr(b, "type", None) == "text" and getattr(b, "text", None)]
+    # Stream-print the response blocks in their natural order (reasoning,
+    # web_search calls, URLs, more reasoning, ...) so the demo viewer sees
+    # the agent's troubleshoot work *as steps*, matching Phase 1's rhythm.
+    # Returns the FINAL text block — the structured Diagnosis/Fix/Why/Risks
+    # markdown — for the caller to render in a Panel + save to diagnosis.md.
+    return _stream_print_troubleshoot_response(resp)
+
+
+def _step_pause() -> None:
+    """Demo-only pause after each printed step. Gated on SDK_ADVISOR_STEP_PAUSE
+    (seconds); silent in normal CLI use. Duplicated from orchestrator.py to
+    avoid a circular import (orchestrator imports troubleshoot)."""
+    pause = os.getenv("SDK_ADVISOR_STEP_PAUSE")
+    if pause:
+        try:
+            import time
+            time.sleep(float(pause))
+        except ValueError:
+            pass
+
+
+def _stream_print_troubleshoot_response(resp) -> str:
+    """Walk response.content in order, stream-printing each block with a
+    step pause so demo viewers see the troubleshoot work as discrete steps.
+
+    Returns the FULL concatenated synthesis (all text blocks joined) so:
+      - the caller can save it verbatim to diagnosis.md
+      - _extract_fix_script can find the bash code block (which may be in any
+        text block, not just the last — earlier versions tried "last block only"
+        and lost the fix when the model put Risks/Why-this-works last)
+
+    Block types we expect (Anthropic server-side web_search):
+      - text                       — reasoning OR diagnosis content
+      - server_tool_use            — a web_search invocation
+      - web_search_tool_result     — the URLs that came back
+    """
+    step = 0
+    text_parts: list[str] = []
+    for b in getattr(resp, "content", []) or []:
+        btype = getattr(b, "type", None)
+        if btype == "text":
+            text = getattr(b, "text", "")
+            stripped = text.strip()
+            if not stripped:
+                continue
+            text_parts.append(text)
+            # Show a compact one-line preview in the live trace so the demo
+            # has visible progression here too, without duplicating the full
+            # diagnosis content (the full text gets shown later via the
+            # diagnosis Panel rendered by the caller).
+            compact = " ".join(stripped.split())
+            if len(compact) > 200:
+                compact = compact[:197] + "..."
+            console.print(f"  [italic dim cyan]reasoning:[/italic dim cyan] [italic]{compact}[/italic]")
+            _step_pause()
+        elif btype == "server_tool_use" and getattr(b, "name", None) == "web_search":
+            step += 1
+            q = (getattr(b, "input", {}) or {}).get("query", "")
+            q_show = q if len(q) <= 90 else q[:87] + "..."
+            console.print(f"  [bold cyan]\\[{step}][/bold cyan] [cyan]→[/cyan] web_search([dim]query=[/dim]{q_show!r})")
+            _step_pause()
+        elif btype == "web_search_tool_result":
+            urls: list[str] = []
+            for r in getattr(b, "content", []) or []:
+                url = getattr(r, "url", None) or (r.get("url") if isinstance(r, dict) else None)
+                if url:
+                    urls.append(url)
+            for url in urls[:3]:
+                short = url.replace("https://", "").replace("http://", "")
+                if len(short) > 88:
+                    short = short[:85] + "..."
+                console.print(f"        [green]←[/green] [dim]{short}[/dim]")
+            if len(urls) > 3:
+                console.print(f"        [dim]... +{len(urls) - 3} more[/dim]")
+            _step_pause()
+
+    if step == 0:
+        console.print("[dim]web_search: (no calls — agent answered from log evidence alone)[/dim]")
+
     return "\n\n".join(text_parts)
 
 
@@ -275,14 +352,28 @@ async def run_troubleshoot(
         console.print("\n[red]Log file empty or unreadable.[/red]")
         return {"excerpt": excerpt, "fix_recommendation": "", "outputs": {}}
 
-    # Step 2: agent reads the tail + searches web + synthesizes (one call)
-    console.print("\n[dim]→ synthesizing diagnosis + fix (agent reads log + web_search)...[/dim]")
+    # Step 2: agent reads the tail + searches web + synthesizes (one call).
+    # _synthesize_fix_sync stream-prints reasoning + web_search activity in
+    # order (with per-step pauses), then returns just the final synthesized
+    # fix for the Panel below — so reviewers see the troubleshoot work step
+    # by step instead of one big dump.
+    console.print("\n[dim]→ synthesizing diagnosis + fix (streaming agent's reasoning + web_search):[/dim]\n")
     synthesized = await asyncio.to_thread(_synthesize_fix_sync, excerpt)
+    console.print()
     try:
         console.print(Panel(synthesized, title="Diagnosis + fix", border_style="green"))
     except (UnicodeEncodeError, UnicodeDecodeError):
         safe = synthesized.encode("ascii", errors="replace").decode("ascii")
         console.print(Panel(safe, title="Diagnosis + fix", border_style="green"))
+    # Optional demo-only pause so the final Panel stays on screen long enough
+    # before --full mode prints the next phase panel.
+    # Controlled by SDK_ADVISOR_DEMO_PAUSE (seconds); silent in normal use.
+    _pause = os.getenv("SDK_ADVISOR_DEMO_PAUSE")
+    if _pause:
+        try:
+            await asyncio.sleep(float(_pause))
+        except ValueError:
+            pass
 
     # Step 3: optionally write outputs
     outputs = {}

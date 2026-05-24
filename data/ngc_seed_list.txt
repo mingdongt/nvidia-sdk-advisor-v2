@@ -1,20 +1,28 @@
-nvidia/deepstream-l4t
+# NGC container catalog — curated for SDK Advisor v2 Tier 1 lookup.
+# All slugs verified against https://api.ngc.nvidia.com/v2/repos/<slug>.
+
+# ─── L4T (Jetson-targeted) ─────────────────────────────────────────
 nvidia/l4t-base
+nvidia/l4t-jetpack
+nvidia/l4t-cuda
+nvidia/l4t-ml
 nvidia/l4t-tensorrt
 nvidia/l4t-pytorch
 nvidia/l4t-tensorflow
+nvidia/deepstream-l4t
+
+# ─── Universal (arm64 + Jetson-compatible builds) ─────────────────
 nvidia/cuda-arm64
-nvidia/tensorrt
-dustynv/nano_llm
-dustynv/jetson-inference
-dustynv/jetson-containers
-dustynv/nano-llm
-dustynv/text-generation-webui
-dustynv/whisper
-isaac-amr/isaac_ros_visual_slam
-isaac-amr/isaac_ros_image_proc
-isaac-amr/isaac_ros_dnn_inference
-nvidia/k8s-device-plugin
 nvidia/cuda
+nvidia/cuda-dl-base
+nvidia/tensorrt
+nvidia/deepstream
+nvidia/pytorch
+nvidia/tensorflow
+nvidia/jax
+
+# ─── Adjacent products / orchestration ────────────────────────────
 nvidia/nemo
-nvidia/clara-deploy-base
+nvidia/nemo-curator
+nvidia/clara-train-sdk
+nvidia/k8s-device-plugin

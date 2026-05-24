@@ -50,7 +50,7 @@ def save_catalog(records: list[dict], out_path: Path) -> None:
 def main() -> None:
     seed = Path(__file__).resolve().parents[1] / "data" / "ngc_seed_list.txt"
     out = Path(__file__).resolve().parents[1] / "data" / "corpus" / "ngc" / "containers.jsonl"
-    container_ids = [line.strip() for line in seed.read_text().splitlines()
+    container_ids = [line.strip() for line in seed.read_text(encoding="utf-8").splitlines()
                      if line.strip() and not line.startswith("#")]
 
     print(f"Fetching {len(container_ids)} containers...")

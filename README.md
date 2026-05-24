@@ -145,6 +145,15 @@ Last success:    apt-get update completed
 
 **Two MCP servers, independently runnable.** Server A is deterministic facts from NVIDIA-signed manifests; Server B is semantic + structured retrieval. The agent dispatches via a tool-name → session routing table.
 
+The Python REPL is just one consumer. Either server can be spawned standalone:
+
+```powershell
+python -m src.knowledge_server   # 13 tools, stdio MCP
+python -m src.rag_server         # 2 tools, stdio MCP
+```
+
+Any MCP client — Claude Code, Cursor, a custom Node renderer, anything that speaks stdio MCP — can connect and use these tools without touching the rest of this repo. The agent loop is replaceable; the data layer is not. This separation is the MCP composability story.
+
 ---
 
 ## Setup
@@ -221,9 +230,15 @@ python main.py --eval troubleshoot       # Plan C eval (15 log-snippet LLM-judge
 
 ### Execution mode safety
 
-`--execute` requires explicit `yes` confirmation in the same session. On Linux, also prompts for sudo via `getpass`. On non-zero exit, automatically offers to run `--troubleshoot` on the latest export log.
+`--execute` requires explicit `yes` confirmation in the same session. On Linux, also prompts for sudo via `getpass`.
 
-`--troubleshoot` is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
+### Self-healing chain on failure
+
+When `--execute` exits non-zero, the agent searches `~`, `~/Downloads`, and `cwd` for the most recent `sdkm-*log*.tar*` archive and offers to enter `--troubleshoot` on it. No manual log hunt required if SDK Manager has been used to export logs before.
+
+> **Known gap (planned `--full` mode):** if no exported log tarball exists yet (e.g. fresh user, first failure), the agent prints a one-liner asking the user to run `NvSDKManager.exe --export-logs <folder>` first. A future `--full` orchestration mode will invoke `--export-logs` automatically so the entire plan → execute → troubleshoot → fix → retry chain runs without manual intervention.
+
+`--troubleshoot` itself is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
 
 ---
 

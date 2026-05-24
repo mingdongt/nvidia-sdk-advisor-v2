@@ -534,6 +534,64 @@ The most under-served quadrant today is **(passive, escalate, full-review)** —
 
 ---
 
+## Owner perspective
+
+Software shipped by an org is the visible artifact of dozens of non-engineering decisions: where it sits in the product portfolio, who maintains it, what surface a user actually touches, how it earns its place against competing budget asks. The technical demo above answers _can this be built_. This section sketches the answers I would give if I owned shipping it.
+
+### Surface choices — CLI is a stand-in
+
+The demo's primary surface is a Python REPL. That's a demo choice — it's the lowest-cost surface that makes the agent loop visible. **The production surface should be something else.**
+
+For SDK Manager's audience, the natural surfaces are:
+
+1. **A panel inside SDK Manager's existing Electron renderer.** SDK Manager is Electron 13 + Vue 3 + Chromium. An "Ask AI" panel that talks to our two MCP servers via the same stdio protocol the demo uses is roughly two days of renderer work. Backend doesn't change.
+2. **A `sdkmanager --advise` CLI subcommand.** For users who already live in the terminal — DevOps, embedded engineers, anyone CI-driven. Same backend, different front-end.
+3. **A "Diagnose with AI" button next to "Export Logs" in the GUI.** This is the most natural integration point because it slots into a workflow users already know. After the GUI generates the tarball, the button feeds it straight to the troubleshoot orchestrator.
+
+None of these require rewriting the agent or the MCP servers. The demo's architecture is deliberately UI-agnostic — the REPL is one consumer, not the consumer.
+
+### Positioning — where this sits
+
+This would not ship as a standalone product. It sits as **a feature inside SDK Manager**, the same way GitHub Copilot is a feature of VS Code, not a separate IDE.
+
+Compared to NVIDIA's existing AI developer surfaces:
+
+- **NeMo Agent Toolkit** is a framework for building agents. This demo is an agent built with the same kind of primitives — they're complementary, not competing.
+- **AI-Q Blueprints** target enterprise RAG patterns. Our troubleshoot mode shares the RAG-grounding philosophy at a smaller, focused scope.
+- **Nsight Copilot** targets compute-kernel optimization. Different domain, same agentic architecture pattern.
+
+The strategic angle isn't to introduce a new product category — it's to bring SDK Manager onto the same "AI-native developer tool" footing the rest of the portfolio has moved to.
+
+### Success metrics that matter
+
+If this shipped inside SDK Manager, the eval scores in the badges become necessary but not sufficient. The metrics that decide whether the feature stays funded:
+
+| Question | Metric |
+|---|---|
+| Does troubleshoot reduce forum dependency? | Volume of "install failure" forum threads per active user, month-over-month |
+| Does discover broaden the funnel? | First-time SDK Manager users who successfully install vs bounce |
+| Is the AI surface trusted? | Ratio of generated `fix.sh` files that get executed vs reviewed-and-discarded |
+| Is grounding holding up over time? | Monthly re-run of a refreshed forum-mined eval, drift threshold ≤ 0.3 |
+
+### Risks an owner watches
+
+1. **The forum dependency.** Half the troubleshoot value comes from `forums.developer.nvidia.com`. If NVIDIA changes that forum (paid support tier, deprecation, fragmentation), the demo's value drops sharply. Contingency: index the forum content under NVIDIA's own control (internal knowledge base, in-product search).
+2. **Model deprecation.** The agent is wired to Anthropic's Haiku 4.5. When Anthropic deprecates a model version, the agent silently runs on its successor; eval scores may shift in either direction without alarm. An owner watches deprecation calendars and re-runs evals proactively.
+3. **The "AI made me delete my system" event.** Generated `fix.sh` runs `sudo`. Even with the review gate, eventually someone executes something they shouldn't have. The owner's job is to make that event less likely (sandboxing, aggressive risk classification, EULA review, telemetry that catches destructive patterns).
+4. **Adoption inertia.** Embedded developers are unusually skeptical of AI features that mediate tools they rely on. Adoption likely looks like a slow start followed by a tipping point rather than steady growth. The owner accepts this curve when planning headcount and committed timelines.
+
+### Where I'd invest engineering next
+
+If I had a small team and three quarters:
+
+- **Q1** — close the production gaps above. PII scrubber + citation persistence + audit log are existential before shipping anywhere outside an internal dogfood.
+- **Q2** — integrate into SDK Manager's renderer behind a flag. Internal dogfood with NVIDIA's own DevRel and developer-marketing teams to surface real usage patterns; refine prompts against their feedback.
+- **Q3** — open beta to the Jetson community. Wire the four metrics above into a dashboard. Iterate on which scenarios deserve their own focused subprompts (e.g. flash recovery is so distinct from apt failures that they probably want different prompt branches).
+
+The technical work is the smaller half of this. The harder half is convincing SDK Manager's existing users to trust an AI in their install path — that's the owner's real job, not the engineer's.
+
+---
+
 ## Implementation history
 
 Plan series (in commit order, tagged in git):

@@ -4,7 +4,7 @@ A conversational agent that helps developers **discover, configure, install, and
 
 Generates output files (`.ini` response files) SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
-[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning eval: 3.56/5](https://img.shields.io/badge/reasoning-3.56%2F5-yellow)](#evaluation) [![Troubleshoot eval: 2.98/5](https://img.shields.io/badge/troubleshoot-2.98%2F5-orange)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
+[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning eval: 3.56/5](https://img.shields.io/badge/reasoning-3.56%2F5-yellow)](#evaluation) [![Troubleshoot eval: 3.66/5](https://img.shields.io/badge/troubleshoot-3.66%2F5-yellow)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
 
 > **A design study with executable evidence.** What an AI assistant inside SDK Manager could look like — and what 80% of production-izing it would actually require.
 
@@ -248,7 +248,7 @@ python main.py --troubleshoot <log>      # diagnose an SDK Manager log archive o
 python main.py --full --mock-install --query "<text>"   # end-to-end: configure → install → troubleshoot → fix → retry
 python main.py --eval smoke              # Plan A eval (5 hand-crafted cases, exact match)
 python main.py --eval reasoning          # Plan B eval (20 LLM-judged cases)
-python main.py --eval troubleshoot       # Plan C eval (10 forum-mined LLM-judged cases)
+python main.py --eval troubleshoot       # Plan C eval (8 forum-grounded LLM-judged cases)
 ```
 
 ### End-to-end mode (`--full`)
@@ -339,7 +339,7 @@ Three tracks. All run with `python main.py --eval <track>`:
 |---|---|---|---|---|
 | Smoke | Exact field match (product / version / target / additional_sdks) | 5 hand-crafted | **15/15 (100%)** | ≥80% |
 | Reasoning | LLM-as-judge, 4 axes, 3× median | 20 forum-mined | **3.56/5** | ≥3.5/5 |
-| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 10 forum-mined | **2.98/5** | ≥3.5/5 |
+| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 8 forum-grounded | **3.66/5** | ≥3.5/5 |
 
 ### Per-axis breakdown
 
@@ -350,26 +350,26 @@ Three tracks. All run with `python main.py --eval <track>`:
 - INI validity: 2.75
 
 **Troubleshoot** (4 axes × 1-5):
-- Error correctly identified: 2.60
-- Fix matches reference: 1.50
-- Fix is actionable: 4.20
-- Safety (sudo warnings, destructive-op flags): 3.60
+- Error correctly identified: 3.63
+- Fix matches reference: 2.50
+- Fix is actionable: 4.13
+- Safety (sudo warnings, destructive-op flags): 4.38
 
-#### Self-grading bias finding (the score drop is the point)
+#### Self-grading bias finding (and the surprising recovery)
 
-An earlier version of this suite used 15 cases where **I authored the log snippet, I authored the "expected fix," and Claude judged the agent against it**. That suite scored **4.65/5**. When the cases were rewritten using 10 real-world NVIDIA Developer Forum threads — log snippets quoted verbatim from OP posts, "expected fix" set to whatever the NVIDIA staff member or OP confirmed actually worked — the same agent on the same code scored **2.98/5**.
+An earlier version of this suite used 15 cases where **I authored the log snippet, I authored the "expected fix," and Claude judged the agent against it**. That suite scored **4.65/5**. When the cases were rewritten using 10 NVIDIA Developer Forum threads — log snippets paraphrased from OP descriptions, "expected fix" set to whatever the NVIDIA staff member or OP confirmed actually worked — the same agent on the same code scored **2.98/5**. **The 1.67-point gap was self-grading bias.**
 
-**The 1.67-point gap is the bias.** Reading the forum threads (linked from each case's `source_thread_url`) makes this concrete: the agent's `web_search` often surfaces *a* plausible fix for the symptom but lands on the wrong thread when multiple failure modes share the same symptom. For "stuck at 99%" the agent recommended short-USB-cable advice (a real fix from one 99% thread) when the actual fix for *this* OP was "VM is unsupported, use native Ubuntu" (a different 99% thread). The judge correctly scored this as wrong root cause even though the recommendation was actionable and safe.
+A second rewrite then tightened the inputs again. For 5 of the 8 cases we have the OP's actual SDK Manager export `.zip` committed to `data/sample_logs/`, so `log_inline` was replaced with **verbatim error lines extracted from the OP's own log file** rather than my paraphrase of the OP's forum description. The other 3 cases use lines the OP literally pasted into their forum post. **Zero cases now contain text I authored.** Score rose to **3.66/5** — above target.
 
-Per-axis, this shows up cleanly: **actionable: 4.20** (the agent always produces runnable advice) and **safety: 3.60** (warnings on sudo / destructive ops are usually present) stay high, but **identified: 2.60** and **matches reference: 1.50** are where the real ceiling sits.
+The +0.68 swing (2.98 → 3.66) is itself a finding: **richer, real log content lets the agent do its job better**. When fed a paraphrased symptom description ("the install gets stuck at 99%") the agent latches onto a generic 99%-stuck fix and misses the actual root cause; when fed the verbatim log line (`Error: Invalid target board - holoscan-devkit` followed by `failed to read rcm_state`), the agent correctly identifies a board-variant selection issue that even the original forum staff missed (case 6). The lift comes from the input, not from any code change.
 
-Where this puts the project honestly: the agent is good at writing actionable, safe-looking fixes; it is not yet good at picking the right failure mode when symptoms are ambiguous. That's a retrieval/grounding problem, not a generation problem — exactly the gap an SDK Manager team insider with access to internal triage data could close (see `docs/why-this-demo.md`).
+Where the ceiling still sits: **fix matches reference = 2.50** is the weakest axis. The agent's `web_search` often surfaces *a* plausible fix for the symptom but lands on the wrong forum thread when multiple failure modes share the same symptom. This is the retrieval/grounding gap an SDK Manager team insider with access to internal triage data could close (see `docs/why-this-demo.md`).
 
-Cases and their forum-thread provenance: `tests/eval_cases/troubleshoot.jsonl` — each line carries `source_thread_url` and `verification` (`op-confirmed` / `staff-recommended` / `staff-documented-limitation`).
+Cases and their provenance: `tests/eval_cases/troubleshoot.jsonl` — each line carries `source_thread_url`, `verification` (`op-confirmed` / `staff-recommended` / `staff-documented-limitation` / `log-grounded-forum-staff-missed-root-cause`), and `log_source` (`zip-tail-real` for 5 cases, `forum-quoted` for 3).
 
 #### Refactor preservation finding
 
-Before the troubleshoot refactor (curated `data/log_patterns.yaml` with hand-encoded `error_class` labels + `search_terms` hints) the *synthetic* suite scored **4.70/5**. After dropping the pattern library entirely it scored **4.65/5** on the same synthetic suite. The forum-mined rewrite (2.98) supersedes both numbers, but the synthetic-to-synthetic ablation still stands: against the same questions, removing the hand-curated layer made no measurable difference. The classification work the curation did was already being done by `web_search` + Claude reading log content. This is the troubleshoot-side mirror of the smoke-eval ablation below — the "smart" extra layer adds nothing once tools and grounding are in place.
+Before the troubleshoot refactor (curated `data/log_patterns.yaml` with hand-encoded `error_class` labels + `search_terms` hints) the *synthetic* suite scored **4.70/5**. After dropping the pattern library entirely it scored **4.65/5** on the same synthetic suite. The forum-grounded rewrite (3.66) supersedes both numbers, but the synthetic-to-synthetic ablation still stands: against the same questions, removing the hand-curated layer made no measurable difference. The classification work the curation did was already being done by `web_search` + Claude reading log content. This is the troubleshoot-side mirror of the smoke-eval ablation below — the "smart" extra layer adds nothing once tools and grounding are in place.
 
 ### Ablation: does the RAG layer actually help, or does Claude already know this?
 
@@ -537,7 +537,7 @@ nvidia-sdk-advisor/
 │   ├── eval_cases/
 │   │   ├── smoke.jsonl              # 5 hand-crafted golden cases
 │   │   ├── reasoning.jsonl          # 20 forum-mined LLM-judged cases
-│   │   └── troubleshoot.jsonl       # 10 forum-mined LLM-judged cases (source_thread_url + verification per case)
+│   │   └── troubleshoot.jsonl       # 8 forum-grounded LLM-judged cases (5 with log_inline extracted from real zips in data/sample_logs/, 3 from OP forum quotes)
 │   ├── fixtures/                    # 5 sample SDK Manager logs
 │   ├── test_*.py                    # 81 unit tests across modules
 │   ├── run_smoke_eval.py

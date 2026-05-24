@@ -1,13 +1,17 @@
 """Conversational troubleshoot mode.
 
 Flow:
-1. parse_install_log → LogDiagnosis (in-process, fast)
+1. parse_install_log → LogDiagnosis (in-process, fast).
 2. If failed_stage == 'unknown', show raw tail and exit.
-3. Claude synthesizes a fix recommendation, grounded in the diagnosis +
-   the pattern's pre-curated search_terms. The synthesis prompt instructs
-   the model to use its native web search (when available — CLI backend
-   has WebSearch built-in; SDK backend can be configured with web_search)
-   to find expert forum threads when the diagnosis alone is insufficient.
+3. Claude synthesizes a fix recommendation grounded in real NVIDIA-official
+   sources. Web search is mandatory and domain-restricted to:
+     - forums.developer.nvidia.com
+     - docs.nvidia.com
+     - developer.nvidia.com
+   - SDK backend: web_search_20250305 server-side tool attached (paid per call;
+     falls back to training-knowledge synthesis with a disclaimer if the tool
+     is unavailable, e.g. region-restricted).
+   - CLI backend: Claude CLI's built-in WebSearch handles the same role.
 4. Optional: write fix.sh + diagnosis.md to output/.
 """
 from __future__ import annotations
@@ -44,11 +48,18 @@ The user's SDK Manager install failed. Here is the parsed diagnosis:
 
 Search terms hand-curated for this error class: {search_terms}
 
-If you have a web search tool available, you may use it to look up
-the latest expert advice on `site:forums.developer.nvidia.com` for this
-error class. If not, work from the diagnosis + your training knowledge.
+## What you MUST do
 
-Synthesize a fix recommendation. Format:
+Before recommending any fix, issue at least one `web_search` call to look up how this error class is solved in practice. The search tool is restricted to NVIDIA-official domains: `forums.developer.nvidia.com`, `docs.nvidia.com`, `developer.nvidia.com`.
+
+Construct queries from the search terms above plus the error signature. Examples:
+
+- `"nvidia-jetpack apt unable to locate"`
+- `"flash failed errCode" Orin recovery`
+
+If the first search returns nothing useful, refine and try again (up to 5 searches). Only AFTER you have grounded the recommendation in at least one real source should you write the fix.
+
+## Output format
 
 ## Diagnosis
 (one-paragraph plain-English explanation of what went wrong)
@@ -59,12 +70,12 @@ Synthesize a fix recommendation. Format:
 ```
 
 ## Why this works
-(one paragraph; cite forum thread URL(s) if you found them via web search, else cite the documented behavior)
+(one paragraph — cite the actual forum thread URL(s) or doc page URL(s) you retrieved via web_search. If web search returned nothing usable, say so explicitly and fall back to general principles; do NOT pretend to cite a source you did not retrieve.)
 
 ## Risks / when not to run
 (one paragraph — if any command needs sudo, mark it; if the fix is destructive, warn explicitly)
 
-Be specific. Cite the actual forum thread URL(s) inline when available. Do not make up commands not grounded in the diagnosis or threads.
+Be specific. Cite the actual URLs inline. Do not make up commands not grounded in retrieved sources.
 """
 
 
@@ -96,24 +107,67 @@ async def _search_forums(query: str, k: int = 5) -> list[dict]:
 
 
 def _synthesize_fix_sync(diagnosis: dict, threads: list[dict]) -> str:
-    """Synchronous Anthropic call — wrapped in asyncio.to_thread by caller to avoid stdio deadlock.
+    """Synthesize fix via the configured ANTHROPIC_BACKEND.
+
+    - 'sdk' (default): Anthropic Python SDK
+    - 'cli':           claude CLI subprocess (uses subscription, avoids API quota)
+    - 'cli-no-tools':  claude CLI subprocess, no MCP (same as 'cli' here since
+                       this function doesn't need tools — synthesis is one-shot)
 
     `threads` is kept as a parameter for backward compatibility with the orchestrator;
     in the current design _search_forums returns [] (forum retrieval deferred to
     Claude's native web search at synthesis time).
     """
-    client = anthropic.Anthropic()
-    model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     search_terms = diagnosis.get("search_terms") or []
     prompt = _TROUBLESHOOT_PROMPT_TEMPLATE.format(
         diagnosis=json.dumps(diagnosis, indent=2),
         search_terms=", ".join(search_terms) if search_terms else "(none — diagnosis is generic)",
     )
-    resp = client.messages.create(
-        model=model, max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return next((b.text for b in resp.content if hasattr(b, "text")), "")
+
+    backend = os.getenv("ANTHROPIC_BACKEND", "sdk").lower()
+    if backend in ("cli", "cli-no-tools"):
+        # synthesis doesn't need tools — use the no-tools CLI path
+        from src.cli_backend import run_no_tools
+        return run_no_tools(prompt, timeout=180)
+
+    # Default: SDK path with mandatory web_search tool.
+    # web_search_20250305 is a server-side tool — Anthropic performs the search
+    # internally; no client-side dispatch loop needed. Results are embedded as
+    # citations in the response content.
+    client = anthropic.Anthropic()
+    model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+    tools = [{
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 5,
+        "allowed_domains": [
+            "forums.developer.nvidia.com",
+            "docs.nvidia.com",
+            "developer.nvidia.com",
+        ],
+    }]
+    try:
+        resp = client.messages.create(
+            model=model, max_tokens=2000,
+            tools=tools,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except anthropic.BadRequestError as e:
+        # web_search may be region-restricted or require explicit opt-in.
+        # Fall back to no-tool synthesis with an honest disclaimer in the prompt.
+        console.print(f"[yellow]web_search unavailable ({type(e).__name__}); falling back to training-knowledge-only synthesis[/yellow]")
+        resp = client.messages.create(
+            model=model, max_tokens=2000,
+            messages=[{
+                "role": "user",
+                "content": prompt + "\n\n[SYSTEM NOTE: web_search is unavailable in this run; ground your fix in the diagnosis and your training knowledge, and say so explicitly in the 'Why this works' section.]",
+            }],
+        )
+    # Concatenate ALL text blocks. With server-side web_search, the response
+    # has interleaved text + server_tool_use + web_search_tool_result blocks;
+    # the final fix recommendation is in later text blocks after the searches.
+    text_parts = [b.text for b in resp.content if getattr(b, "type", None) == "text" and getattr(b, "text", None)]
+    return "\n\n".join(text_parts)
 
 
 def _safe_filename(label: str) -> str:

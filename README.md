@@ -173,12 +173,13 @@ python -m ingest.build_github_vectordb      # rebuild Chroma DB (~30s, one-time)
 
 ### Tier 3 (forums + docs)
 
-Earlier versions of this demo wrapped `forums.developer.nvidia.com` and `docs.nvidia.com` searches behind two dedicated MCP tools (`search_forum_threads`, `search_docs`) that called Brave Search under the hood. We removed them — they were ~2-line domain-filter shims and Claude's native web search handles the same task cleanly. The agent's SYSTEM_PROMPT instructs the model to use its built-in WebSearch with `site:forums.developer.nvidia.com` or `site:docs.nvidia.com` filters when forum/doc grounding helps.
+Earlier versions of this demo wrapped `forums.developer.nvidia.com` and `docs.nvidia.com` searches behind two dedicated MCP tools (`search_forum_threads`, `search_docs`) that called Brave Search under the hood. We removed them — they were ~2-line domain-filter shims and Claude's native web search handles the same task cleanly.
 
-This means **no `BRAVE_API_KEY` setup required**. Tier 3 just works when the backend supports web search:
+This means **no `BRAVE_API_KEY` setup required**. The two consumers of web search are wired differently:
 
-- CLI backend (`ANTHROPIC_BACKEND=cli`): Claude CLI's WebSearch is included by default
-- SDK backend (`ANTHROPIC_BACKEND=sdk`): add the `web_search_20250305` server-side tool to the tools list (not enabled by default; paid per call)
+- **`--troubleshoot` mode (SDK backend)**: the `web_search_20250305` server-side tool is attached **automatically** with `allowed_domains` locked to `forums.developer.nvidia.com`, `docs.nvidia.com`, `developer.nvidia.com`. The synthesis prompt makes at least one web_search call mandatory before recommending a fix. Cost: ~$0.01 per troubleshoot run. If `web_search` is unavailable (e.g. region-restricted), the agent falls back to training-knowledge synthesis with an explicit disclaimer.
+- **`--troubleshoot` mode (CLI backend)**: Claude CLI's built-in WebSearch covers the same role; no extra config.
+- **REPL / `--plan` mode**: web search is *not* auto-attached — the agent's primary tools are Server A's deterministic lookups + Server B's local RAG. The agent's SYSTEM_PROMPT mentions `site:forums.developer.nvidia.com` as a hint for the CLI backend; SDK backend uses only deterministic tools for planning.
 
 ### Optional: GitHub token
 

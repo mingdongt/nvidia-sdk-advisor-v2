@@ -14,15 +14,28 @@ Real `.zip` exports downloaded from public NVIDIA Developer Forum posts, used fo
 
 ## Redaction
 
-These archives have been redacted before commit to remove privacy-sensitive content from other users' logs:
+These archives have been redacted before commit to remove privacy-sensitive content from other users' logs. The redaction script (`scripts/redact_logs.py`) has been hardened against a leak class discovered while building the eval — see "Redaction iteration" below.
 
-- `/home/<username>/` → `/home/REDACTED/`
+Patterns redacted:
+
+- `/home/<org>/<user>/<known SDK dir>/` → `/home/REDACTED/<known SDK dir>/` (multi-level; collapses both `/home/<user>/.nvsdkm/` and `/home/<org>/<user>/.nvsdkm/`)
 - `C:\Users\<username>\` → `C:\Users\REDACTED\`
+- `/tmp/<script>.<user>.sh` and `~/tmp_*.<user>.sh` → `...REDACTED.sh` (SDK Manager embeds host username in temp script filenames)
+- `[sudo] password for <user>` → `[sudo] password for REDACTED` (also catches the Windows-style `for DOMAIN\<user>` form)
+- `<user>@192.168.55.X` (ssh to NVIDIA recovery USB IP) → `REDACTED@192.168.55.X`
+- `--username <user>` → `--username REDACTED` (SDK Manager flash flags)
+- `L4T new user <user>` → `L4T new user REDACTED` (target-board account setup)
 - Email addresses → `REDACTED@example.com`
 - Non-NVIDIA IP addresses → `X.X.X.X` (the recovery USB IP `192.168.55.1` is kept because it's a documented NVIDIA constant, not personal)
 - Identifiable company names found in paths → `REDACTED`
 
-All other content — error messages, error codes, component names, target IDs, JetPack versions, timestamps, log structure — is preserved verbatim. The redaction script is at `scripts/redact_logs.py` for reproducibility.
+All other content — error messages, error codes, component names, target IDs, JetPack versions, timestamps, log structure — is preserved verbatim.
+
+### Redaction iteration
+
+First-pass redaction handled only single-level `/home/<user>/`. When the eval suite was rewritten to extract `log_inline` directly from these zips, a verification sweep (`scripts/verify_redaction.py`) caught two leak classes the first pass missed: multi-level `/home/<org>/<user>/` paths (the org-level dir was redacted, the user-level dir was not), and SDK Manager's temp script filenames (`/tmp/tmp_NV_*.<user>.sh`). The script was extended with the patterns above and zips were re-packed. `verify_redaction.py` is committed alongside the redactor so any future contributor can confirm no usernames leaked before adding a new zip.
+
+Residual matches that the verifier still reports (`arrowdown.png`, `arrowright.png`) are false positives — those are glm library doc-icon filenames inside NSIGHT samples installed by SDK Manager, not user-identifying data.
 
 ## Usage
 

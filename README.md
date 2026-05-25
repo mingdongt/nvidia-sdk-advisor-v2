@@ -181,20 +181,6 @@ Two behavioral signals worth noting:
 
 These are surface-level differences in how the two models walk the agent graph. The outcome on every case is identical (15/15 each). Change the model, behavior shifts slightly, output stays correct.
 
-### Log handling: surface-level by design
-
-The log-reading layer **deliberately stays surface-level**: open the `.zip`, regex-parse the filename, take the last ~200 lines, hand it all to the agent. No stage classification, no error vocabulary, no internal-structure assumptions.
-
-This is intentional, not lazy. From outside SDK Manager, an opaque export `.zip`'s internal layout, log file naming, error code semantics, and severity grading are NVIDIA-internal details — any pre-classification without access to those would be guesswork. I tried it once (`data/log_patterns.yaml`, ~20 regexes); patterns hallucinated against training data instead of grounding in real logs. Removed in commit `6765bed`.
-
-What the parser actually does (validated against the 5 real exports in [`data/sample_logs/`](data/sample_logs/)):
-
-- Both filename forms: long (`SDKM_logs_JetPack_<ver>_<host>_for_Jetson_<board>_<date>_<time>.zip`) and short (`SDKM_logs_<date>_<time>.zip`)
-- Filename → target / JetPack / host OS / timestamp via deterministic regex
-- Concat all `.log` / `.txt` files inside the archive; tail 200 lines
-
-The MCP boundary localizes any future change to one function (`parse_install_log`). When NVIDIA internals are accessible, the parser swaps; the agent loop, orchestrator, prompt, web_search integration, and output writer stay unchanged. Per-commit validation findings, the four things only the SDK Manager team can do reliably, and the first end-to-end troubleshoot run (USBIPD on Windows, no pre-classification needed) are in [`docs/log-parser-validation.md`](docs/log-parser-validation.md).
-
 ---
 ## Architecture
 
@@ -479,7 +465,7 @@ When `--execute` exits non-zero, the agent auto-finds the most recent SDK Manage
 ```powershell
 pytest                                   # all 86 unit tests
 pytest tests/test_response_file.py -v    # response file format alignment with NVIDIA template
-pytest tests/test_log_parser.py -v       # filename regex + tail extraction (8 tests, no pre-classification — see "Log handling: surface-level by design")
+pytest tests/test_log_parser.py -v       # filename regex + tail extraction (8 tests, no pre-classification)
 ```
 
 ### Project structure

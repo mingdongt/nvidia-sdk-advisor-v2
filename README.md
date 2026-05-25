@@ -2,7 +2,7 @@
 
 A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs, built on the same public data sources SDK Manager itself uses. Generates `.ini` response files SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
-[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 84 passing](https://img.shields.io/badge/tests-84%20passing-brightgreen)](#tests)
+[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 86 passing](https://img.shields.io/badge/tests-86%20passing-brightgreen)](#tests)
 
 ![End-to-end demo: configure → install → troubleshoot → fix → retry](docs/demo/full-mode.gif)
 
@@ -578,9 +578,9 @@ The user does NOT need to run `--export-logs` manually. SDK Manager writes raw s
 ### Tests
 
 ```powershell
-pytest                                   # all 84 unit tests
+pytest                                   # all 86 unit tests
 pytest tests/test_response_file.py -v    # response file format alignment with NVIDIA template
-pytest tests/test_log_parser.py -v       # 20-pattern log parser against 5 fixture logs
+pytest tests/test_log_parser.py -v       # filename regex + tail extraction (8 tests, no pre-classification — see "Log handling: surface-level by design")
 ```
 
 ### Project structure
@@ -591,7 +591,7 @@ nvidia-sdk-advisor/
 ├── src/                     # agent, MCP servers, parsers, REPL
 ├── ingest/                  # NVIDIA CDN / NGC / GitHub README ingestion
 ├── data/                    # manifests, corpus, fixtures, sample logs
-├── tests/                   # 84 unit tests + 3 eval suites + fixtures
+├── tests/                   # 86 unit tests + 3 eval suites + fixtures
 └── output/                  # generated .ini, .command, fix.sh, diagnosis.md
 ```
 

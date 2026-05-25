@@ -34,11 +34,9 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 
 > **The headline finding.** Opus 4.7 alone scored **46.7%** on factual NVIDIA SDK questions. With the MCP tool layer attached, both Haiku 4.5 and Opus 4.7 scored **100% (15/15)**. The tool layer, not the model, is where the accuracy lives. → [Tool-layer ablation](#tool-layer-ablation)
 
----
-
 ## What's in this repo
 
-**The thing itself** — [What it does](#what-it-does) · [Evaluation](#evaluation) · [Architecture](#architecture) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against)
+**The thing itself** — [What it does](#what-it-does) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against) · [Evaluation](#evaluation)
 
 **Why it looks like this** — [Design principles](#design-principles)
 
@@ -50,8 +48,6 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 
 **Boundaries** — [Deliberate non-goals](#deliberate-non-goals)
 
----
-
 ## What it does
 
 | Capability | Where SDK Manager stops today | What this repo adds |
@@ -60,8 +56,6 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 | **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
 | **Install** | Wizard runs install; CLI takes flags. No conversational guided flow | Generates `.ini` matching NVIDIA's official template, optionally drives `NvSDKManager.exe --cli --response-file` as subprocess with streamed status + event classification |
 | **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` opens the `.zip`, extracts filename metadata + log tail. The agent reads the raw tail itself and uses `web_search` (forums, askubuntu, stackoverflow) to find expert fixes → synthesizes `fix.sh` + `diagnosis.md`. No pre-classification layer |
-
----
 
 ## Design principles
 
@@ -73,7 +67,135 @@ Three judgments shaped what this repo includes and what it excludes.
 
 This is a design study with executable evidence, not a tool meant to be adopted as-is.
 
----
+## MCP design
+
+**Two servers · 15 tools · 5–7 tool calls per typical query · 10/10 spec compliance across smoke traces.**
+
+The MCP boundary is this repo's single load-bearing architectural decision: every tool below it is independently replaceable; the agent loop above it doesn't know which transport a given tool happens to use today. That swappability is what closes the **46.7% → 100%** factual-accuracy gap (see [Tool-layer ablation](#tool-layer-ablation)) — the tool layer, not the model, is where the accuracy lives.
+
+```
+[Server A · nvidia-knowledge · 13 deterministic tools · ~1s cold start]
+
+  USER QUERY
+       │
+       ▼
+   P0  detect_connected_hardware                       (always first)
+       │
+       ▼
+   P1  lookup_target_id   ★HUB                         (free-text → canonical ID)
+       │ target_id ─► consumed by 4 downstream tools
+       ▼
+   P2  list_releases ★HUB · list_products ·            (browse catalog)
+       get_release · list_hardware
+       │
+       ▼
+   P3  validate_combo · estimate_resources ·           (validate + budget,
+       check_constraints                                conditional)
+       │
+       │  ┌──── P4 crosses to Server B (二选一) ────────┐
+       │  │                                              │
+       │  │  [Server B · nvidia-corpus-rag ·             │
+       │  │   2 semantic tools · ~5–10s cold start]      │
+       │  │                                              │
+       │  │   search_3p_sample_repos  (fuzzy)            │
+       │  │   lookup_container_reqs   (exact)            │
+       │  │                                              │
+       │  └─────── output 回填 Server A ─────────────────┘
+       ▼
+   P5  generate_response_file → validate_against_* →   (output, last 3)
+       generate_command
+       │
+       ▼
+    .ini + sdkmanager command
+
+   ⊗ install fails ⊗ → P6: parse_install_log → web_search → fix.sh
+                       (Server A, exception branch)
+```
+
+Split by **dependency weight, not function domain** — the cross-server boundary appears in only one phase of the call chain, which is the ruler for whether the split was worth it.
+
+→ **Design manual (deep dive):** [`docs/mcp-design.md`](docs/mcp-design.md)
+The booklet covers: why MCP and not bare tool use · per-tool design rationale (all 15) · the full data-dependency DAG · hub-node analysis · the routing contract with trace-based compliance · honest gaps production would need to close.
+
+## RAG design
+
+The RAG layer sits behind one MCP server (`nvidia-corpus-rag`) with two tools serving two distinct retrieval tiers. A third tier (forums + docs) lives outside MCP entirely. This section covers what each tier is for, when it fires, what tests verify it, and the spec it follows.
+
+### 1. The three retrieval tiers
+
+The repo started as a flat "embed everything" RAG and split into three tiers as I worked out what kind of question each one actually answers:
+
+- **Tier 1 — NGC catalog (deterministic lookup).** A pre-curated JSONL of 20 NVIDIA-published containers (nano_llm, jetson-inference, deepstream-l4t, …) with their JetPack / CUDA / L4T requirements. Surfaced via `lookup_container_reqs(container_id)`. No vectorization — when the user names a specific container, you want exact requirements back, not "kind of similar containers."
+
+- **Tier 2 — GitHub README vector search.** 21 hand-curated NVIDIA-AI-IOT + dusty-nv + community sample repos, READMEs embedded with `all-MiniLM-L6-v2` (sentence-transformers), indexed in Chroma. Surfaced via `search_3p_sample_repos(query, k)`. The workload-discovery layer: "I want to do X" → "here's a sample repo that does X."
+
+- **Tier 3 — forums + docs (delegated to web_search).** Not in the MCP layer at all — uses Claude's server-side `web_search`. Full wiring + the decision to drop the earlier Brave-Search MCP wrappers is in the [Tier 3 — decision log](#tier-3--decision-log) subsection below.
+
+The split matters because each tier has a different cost / latency / accuracy profile. Tier 1 is microseconds (JSON lookup). Tier 2 is tens of milliseconds with embedding model already warm. Tier 3 is seconds plus an external API.
+
+### Tier 3 — decision log
+
+An earlier version of this repo wrapped `forums.developer.nvidia.com` and `docs.nvidia.com` searches behind two dedicated MCP tools that called Brave Search under the hood. I removed them. They were ~2-line domain-filter shims, and Claude's native web search handles the same task cleanly. No `BRAVE_API_KEY` setup required.
+
+The two consumers of web search are wired differently:
+
+- **`--troubleshoot` mode (SDK backend)** — the `web_search_20250305` server-side tool is attached automatically. No domain whitelist: Claude is good at preferring NVIDIA docs / official forums / Stack Exchange on its own, and restricting to NVIDIA-only domains crowded out genuinely useful community fixes for apt / kernel / DNS errors that aren't NVIDIA-specific. The synthesis prompt makes at least one `web_search` call mandatory before recommending a fix, and ranks preferred source tiers (NVIDIA docs > NVIDIA forum > SO/AskUbuntu > GitHub issues). `max_uses=5` is the only constraint — a cost ceiling, not a trust filter. Cost: ~$0.01 per troubleshoot run. If `web_search` is unavailable (e.g. region-restricted), the agent falls back to training-knowledge synthesis with an explicit disclaimer.
+- **`--troubleshoot` mode (CLI backend)** — Claude CLI's built-in WebSearch covers the same role; no extra config.
+- **REPL / `--plan` mode** — web search is *not* auto-attached. The agent's primary tools are Server A's deterministic lookups + Server B's local RAG. The SYSTEM_PROMPT mentions `site:forums.developer.nvidia.com` as a hint for the CLI backend; SDK backend uses only deterministic tools for planning.
+
+### 2. The routing contract (when RAG fires)
+
+| User intent shape | Tool / tier |
+|---|---|
+| "I want to do X" — workload, no product name | `search_3p_sample_repos(query='X')` — Tier 2 |
+| "How do I use dustynv/nano_llm?" — container named by id | `lookup_container_reqs(container_id='dustynv/nano_llm')` — Tier 1 |
+| "What does the forum say about Y?" — live community knowledge | Tier 3 web_search (fires only in `--troubleshoot`) |
+| "Configure Orin NX with JetPack 6.2" — product+version specified | Neither — RAG isn't needed |
+
+RAG is **conditional**, not default. Most configure queries don't trigger it.
+
+### 3. Tests that exercise the spec
+
+| Test | What it verifies | Result |
+|---|---|---|
+| Smoke case 5 — "Nano + object detection sample" | search_3p_sample_repos fires for workload-described query | ✓ Both Haiku and Opus call it; top hit `jetson-inference` (correct) |
+| Smoke cases 1-4 — product-specified queries | search_3p_sample_repos does NOT fire | ✓ Not called in cases 1-4 (verifies "conditional, not default") |
+| `--full` demo: "Orin NX 16GB, edge LLM inference" | RAG triggered; agent gracefully handles a `lookup_container_reqs` miss | ✓ Visible in [`docs/demo/full-mode.gif`](docs/demo/full-mode.gif) — `search_3p_sample_repos` returns sample-repo hits; `lookup_container_reqs('dusty-nv/local_llm')` returns "no NGC entry"; agent continues with other tools |
+| Reasoning eval (20 forum-mined cases) | Mix of discovery + configure queries | RAG fires on workload-described cases, skipped on product-specified ones |
+
+### 4. Spec compliance
+
+- **Selective firing — confirmed.** RAG fires only on workload-described queries, not configure-style. Across smoke + reasoning evals, no false-positive triggers observed.
+- **Graceful failure — confirmed.** When `lookup_container_reqs` returns "no NGC entry" for an unknown container, the agent continues with deterministic tools instead of crashing. Verified in the `--full` demo trace (visible in the GIF).
+- **Tier separation — by code shape.** Tier 1 and Tier 2 are different tools with different schemas, not different parameter values to the same tool. The agent doesn't have to "pick a mode" — the tool name **is** the mode.
+
+### 5. Honest gaps
+
+- **No relevance filter on Tier 2.** `search_3p_sample_repos` returns top-k by cosine similarity unconditionally. For an off-topic query ("hello world"), it still returns the 5 closest hits — barely relevant ones — without an "I don't have a good match" signal. The agent currently doesn't check the similarity score before using a hit. Production should gate on a threshold (or surface the score so the agent can decide).
+- **Corpus is small (21 repos / 20 containers) and hand-curated.** Sized to demonstrate the architecture, not to cover Jetson's actual landscape. Real production would index hundreds of repos automatically, with deduplication and quality scoring.
+- **No re-indexing pipeline.** Chroma index is built once via `python -m ingest.build_github_vectordb`; no scheduled refresh. Real production needs incremental updates as upstream READMEs change.
+
+## Tested against
+
+All eval numbers below come from real archives, not synthetic ones. Five real `.zip` exports pulled from public NVIDIA Developer Forum posts are committed to [`data/sample_logs/`](data/sample_logs/) — each one is in the corpus because it exercises something the parser or agent has to handle.
+
+| # | Forum thread | Why this case is in the corpus |
+|---|---|---|
+| 1 | [JetPack 6.1 flash fail, AGX Orin](https://forums.developer.nvidia.com/t/can-not-flash-jetpack-6-1-on-jetson-agx-orin-via-sdk-manager/308377) | First real archive — long-form filename with `JetPack_<ver>_<host>_for_Jetson_<board>` fully encoded |
+| 2 | [MCU firmware flash, AGX Orin 64G DK](https://forums.developer.nvidia.com/t/how-to-flash-mcus-firmware-on-agx-orin-64g-dk/366168) | Newer JetPack 6.2.2 — checks the parser hasn't drifted on schema changes |
+| 3 | [Orin Nano flash via SDK fails](https://forums.developer.nvidia.com/t/flashing-orin-nano-via-sdk-fails/318733) | **Short-form filename** (timestamp only) — agent has to infer target / JetPack from the log body |
+| 4 | [JetPack 6.2 install fail, AGX Orin 64GB](https://forums.developer.nvidia.com/t/install-jetpack-6-2-failed-with-sdk-manager-on-agx-orin-64g/321524) | RAM-tier suffix `_64GB_` in the target name — regex has to accept numeric suffixes |
+| 5 | [`command error code: 11`, Orin Nano](https://forums.developer.nvidia.com/t/flashing-jetpack-6-2-using-sdk-manager-displays-command-error-code-11/327911) | **Bracketed board variant** `[8GB_developer_kit_version]` — drove a regex extension |
+
+To run troubleshoot against any of them:
+
+```powershell
+python main.py --troubleshoot data/sample_logs/SDKM_logs_2025-01-03_13-01-22.zip
+```
+
+Plus 3 troubleshoot eval cases that use OP-pasted forum quotes where no `.zip` is available. Total: **8 cases**, all with `source_thread_url` + verification status (`op-confirmed` / `staff-recommended` / `log-grounded-forum-staff-missed-root-cause`) recorded in `tests/eval_cases/troubleshoot.jsonl`. The reasoning eval adds another 20 forum-mined cases on top.
+
+**Privacy redaction**: archives have been redacted to remove other users' personal content — `/home/<user>/` paths, Windows user folders, email addresses, non-NVIDIA IPs, and identifiable company names are replaced with `REDACTED` / `X.X.X.X`. All error messages, error codes, component names, target IDs, JetPack versions, timestamps, and log structure are preserved verbatim — exactly what the agent needs. Full policy in [`data/sample_logs/README.md`](data/sample_logs/README.md); the redaction script is [`scripts/redact_logs.py`](scripts/redact_logs.py) (reproducible).
 
 ## Evaluation
 
@@ -101,8 +223,6 @@ Per-axis breakdown (1-5 each):
 
 **Reasoning**: Factual 3.20 · Reasoning 3.35 · Constraints 4.95 · INI validity 2.75
 **Troubleshoot**: Error identified 3.63 · Fix matches reference 2.50 · Actionable 4.13 · Safety 4.38
-
----
 
 Four findings that came out of building and running this:
 
@@ -179,174 +299,6 @@ Two behavioral signals worth noting:
 
 2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; correctness doesn't depend on it, but it shows up in the trace.
 
----
-## Architecture
-
-The visual is at the top of the README; this section is the prose companion. Two MCP servers, independently runnable. Server A is deterministic facts from NVIDIA-signed manifests; Server B is semantic + structured retrieval. The agent dispatches via a tool-name → session routing table.
-
-The Python REPL is just one consumer. Either server can be spawned standalone:
-
-```powershell
-python -m src.knowledge_server   # 13 tools, stdio MCP
-python -m src.rag_server         # 2 tools, stdio MCP
-```
-
-Any MCP client — Claude Code, Cursor, a custom Node renderer, anything that speaks stdio MCP — can connect and use these tools without touching the rest of this repo. The agent loop is replaceable; the data layer is not. That separation was the point of using MCP in the first place.
-
-### Tier 3 (forums + docs) — decision log
-
-An earlier version of this repo wrapped `forums.developer.nvidia.com` and `docs.nvidia.com` searches behind two dedicated MCP tools that called Brave Search under the hood. I removed them. They were ~2-line domain-filter shims, and Claude's native web search handles the same task cleanly. No `BRAVE_API_KEY` setup required.
-
-The two consumers of web search are wired differently:
-
-- **`--troubleshoot` mode (SDK backend)** — the `web_search_20250305` server-side tool is attached automatically. No domain whitelist: Claude is good at preferring NVIDIA docs / official forums / Stack Exchange on its own, and restricting to NVIDIA-only domains crowded out genuinely useful community fixes for apt / kernel / DNS errors that aren't NVIDIA-specific. The synthesis prompt makes at least one `web_search` call mandatory before recommending a fix, and ranks preferred source tiers (NVIDIA docs > NVIDIA forum > SO/AskUbuntu > GitHub issues). `max_uses=5` is the only constraint — a cost ceiling, not a trust filter. Cost: ~$0.01 per troubleshoot run. If `web_search` is unavailable (e.g. region-restricted), the agent falls back to training-knowledge synthesis with an explicit disclaimer.
-- **`--troubleshoot` mode (CLI backend)** — Claude CLI's built-in WebSearch covers the same role; no extra config.
-- **REPL / `--plan` mode** — web search is *not* auto-attached. The agent's primary tools are Server A's deterministic lookups + Server B's local RAG. The SYSTEM_PROMPT mentions `site:forums.developer.nvidia.com` as a hint for the CLI backend; SDK backend uses only deterministic tools for planning.
-
----
-
-## MCP design
-
-The MCP boundary is the architecture's load-bearing decision: every tool below it is independently replaceable, and the agent loop above doesn't know which transport a given tool happens to use today. This section lays out the design rationale, the routing contract the agent is expected to follow, what tests exercise that contract, and where the implementation does (and doesn't) match.
-
-### 1. Why MCP, why split
-
-Three reasons, in priority order:
-
-1. **Replaceability.** Each tool is a function-shaped contract behind a name + JSON schema. The internal NVIDIA data sources I'd want to add on day one (support ticket DB, bug tracker, telemetry — see [docs/why-this-demo.md → ranked knowledge bases](docs/why-this-demo.md#if-i-joined-the-team-which-internal-knowledge-bases-id-want-ranked)) can each replace one tool without touching the agent loop, the prompt, or the output writer. That's the "production deployment is not a rewrite" claim made concrete.
-
-2. **Deterministic vs semantic separation.** Two servers, not one:
-   - `nvidia-knowledge` (13 tools) — deterministic lookups over NVIDIA-signed CDN manifests. Minimal imports, ~1s cold start.
-   - `nvidia-corpus-rag` (2 tools) — semantic retrieval (Chroma + sentence-transformers). Heavy imports, ~5-10s cold start.
-
-   Splitting them means deterministic-tool latency doesn't pay the RAG startup cost, and a deployment that needs only one half can omit the other.
-
-3. **Replaceable consumer.** stdio MCP is wire-protocol-portable. Any client that speaks it (Claude Code, Cursor, a custom Electron renderer, an internal CI bot) can call these tools without touching this repo. The REPL is one consumer; the agent loop is replaceable; the data + tools layer is not.
-
-### 2. The routing contract (what the SYSTEM_PROMPT tells the agent)
-
-Distilled from `src/agent.py:SYSTEM_PROMPT`:
-
-| Step | Tool | Fires when |
-|---|---|---|
-| 1 | `detect_connected_hardware` | Always, once per session |
-| 2 | `lookup_target_id(board_name)` | Whenever a human board name appears (every query in practice) |
-| 3 | `list_releases(product)` | Whenever a JetPack version needs picking |
-| 4a | `validate_combo(jp, sdk)` | User mentions an extra SDK (DeepStream, TensorRT, …) with era-pairing constraints |
-| 4b | `search_3p_sample_repos(query, k)` | User describes a workload without naming a product/SDK |
-| 4c | `lookup_container_reqs(container_id)` | User mentions a specific NGC container by id |
-| 4d | `estimate_resources` + `check_constraints` | User provides disk / RAM constraints |
-| 5 | `generate_response_file` + `generate_command` | Always last — produce the `.ini` + sdkmanager command |
-
-Required path: steps 1, 2, 3, 5. Steps 4a–4d are conditional.
-
-### 3. Tests that exercise the contract
-
-| Test | What it verifies | Where |
-|---|---|---|
-| Smoke 5 cases × 2 models | Tool dispatch under different query shapes | [Model variation](#model-variation) |
-| `--full --mock-install` demo | Full trace visible — every tool call + its args + result | [`docs/demo/full-mode.gif`](docs/demo/full-mode.gif), code in `src/orchestrator.py` |
-| Ablation: Opus alone vs Opus + tools | The tool layer itself is what closes the 46.7 → 100% gap | [Tool-layer ablation](#tool-layer-ablation) |
-| Reasoning eval (20 forum-mined cases) | Tool dispatch under realistic user phrasing | [Evaluation](#evaluation) |
-
-The most revealing test is smoke case 2 (AGX Orin + DeepStream 7.0). Haiku 4.5 dispatches `validate_combo` twice to check the JP↔DeepStream era pairing; Opus 4.7 skips it entirely and inlines the check from the SYSTEM_PROMPT. Both still get the right answer. A tool the bigger model routinely skips without losing accuracy is probably doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
-
-### 4. Spec compliance
-
-Across 10 traces (5 smoke cases × 2 models):
-
-| Spec rule | Compliance |
-|---|---|
-| `detect_connected_hardware` called once first | ✓ 10/10 |
-| `lookup_target_id` called before downstream tools | ✓ 10/10 |
-| `list_releases` called before `generate_response_file` | ✓ 10/10 |
-| `search_3p_sample_repos` fires only for workload-described queries | ✓ 10/10 (only case 5 triggers) |
-| `validate_combo` fires only when extra SDK present | ✓ 10/10 (only case 2 triggers, Haiku side; Opus inlines) |
-| `gen_response_file` + `gen_command` are the last two calls | ✓ 10/10 |
-
-No spec violations observed. The two behavioral differences between models (Opus's `ToolSearch` exploration in case 1, Opus's double `lookup_target_id` in case 4) take a longer compliant path; they don't break the contract.
-
-### 5. Where the design isn't honest yet
-
-- **Always-spawn, not lazy-spawn.** Both MCP servers boot on every agent invocation regardless of whether the query needs RAG. For configure-style queries that never call corpus-rag tools, the chromadb + sentence-transformers import is wasted work (~5-10s). The architecture supports selective spawn — `StdioServerParameters` is per-server — but the current code doesn't use that capability. A production version should add an intent classifier in front of agent.py to decide which servers to spawn.
-- **Tool-list discovery isn't free.** Even if a server doesn't get a single request, the agent pays its startup cost to enumerate tools at session start. Future MCP transports (HTTP, daemon-mode) avoid this; stdio is per-session by design.
-
----
-
-## RAG design
-
-The RAG layer sits behind one MCP server (`nvidia-corpus-rag`) with two tools serving two distinct retrieval tiers. A third tier (forums + docs) lives outside MCP entirely. This section covers what each tier is for, when it fires, what tests verify it, and the spec it follows.
-
-### 1. The three retrieval tiers
-
-The repo started as a flat "embed everything" RAG and split into three tiers as I worked out what kind of question each one actually answers:
-
-- **Tier 1 — NGC catalog (deterministic lookup).** A pre-curated JSONL of 20 NVIDIA-published containers (nano_llm, jetson-inference, deepstream-l4t, …) with their JetPack / CUDA / L4T requirements. Surfaced via `lookup_container_reqs(container_id)`. No vectorization — when the user names a specific container, you want exact requirements back, not "kind of similar containers."
-
-- **Tier 2 — GitHub README vector search.** 21 hand-curated NVIDIA-AI-IOT + dusty-nv + community sample repos, READMEs embedded with `all-MiniLM-L6-v2` (sentence-transformers), indexed in Chroma. Surfaced via `search_3p_sample_repos(query, k)`. The workload-discovery layer: "I want to do X" → "here's a sample repo that does X."
-
-- **Tier 3 — forums + docs (delegated to web_search).** Not in the MCP layer at all. When the agent needs live forum / doc content, it uses Claude's server-side `web_search` tool. An earlier version wrapped Brave Search behind two domain-filter MCP tools; I removed them because they were 2-line shims that added a `BRAVE_API_KEY` dependency for no real value. Decision log: [Tier 3 forums + docs](#tier-3-forums--docs--decision-log).
-
-The split matters because each tier has a different cost / latency / accuracy profile. Tier 1 is microseconds (JSON lookup). Tier 2 is tens of milliseconds with embedding model already warm. Tier 3 is seconds plus an external API.
-
-### 2. The routing contract (when RAG fires)
-
-| User intent shape | Tool / tier |
-|---|---|
-| "I want to do X" — workload, no product name | `search_3p_sample_repos(query='X')` — Tier 2 |
-| "How do I use dustynv/nano_llm?" — container named by id | `lookup_container_reqs(container_id='dustynv/nano_llm')` — Tier 1 |
-| "What does the forum say about Y?" — live community knowledge | Tier 3 web_search (fires only in `--troubleshoot`) |
-| "Configure Orin NX with JetPack 6.2" — product+version specified | Neither — RAG isn't needed |
-
-RAG is **conditional**, not default. Most configure queries don't trigger it.
-
-### 3. Tests that exercise the spec
-
-| Test | What it verifies | Result |
-|---|---|---|
-| Smoke case 5 — "Nano + object detection sample" | search_3p_sample_repos fires for workload-described query | ✓ Both Haiku and Opus call it; top hit `jetson-inference` (correct) |
-| Smoke cases 1-4 — product-specified queries | search_3p_sample_repos does NOT fire | ✓ Not called in cases 1-4 (verifies "conditional, not default") |
-| `--full` demo: "Orin NX 16GB, edge LLM inference" | RAG triggered; agent gracefully handles a `lookup_container_reqs` miss | ✓ Visible in [`docs/demo/full-mode.gif`](docs/demo/full-mode.gif) — `search_3p_sample_repos` returns sample-repo hits; `lookup_container_reqs('dusty-nv/local_llm')` returns "no NGC entry"; agent continues with other tools |
-| Reasoning eval (20 forum-mined cases) | Mix of discovery + configure queries | RAG fires on workload-described cases, skipped on product-specified ones |
-
-### 4. Spec compliance
-
-- **Selective firing — confirmed.** RAG fires only on workload-described queries, not configure-style. Across smoke + reasoning evals, no false-positive triggers observed.
-- **Graceful failure — confirmed.** When `lookup_container_reqs` returns "no NGC entry" for an unknown container, the agent continues with deterministic tools instead of crashing. Verified in the `--full` demo trace (visible in the GIF).
-- **Tier separation — by code shape.** Tier 1 and Tier 2 are different tools with different schemas, not different parameter values to the same tool. The agent doesn't have to "pick a mode" — the tool name **is** the mode.
-
-### 5. Honest gaps
-
-- **No relevance filter on Tier 2.** `search_3p_sample_repos` returns top-k by cosine similarity unconditionally. For an off-topic query ("hello world"), it still returns the 5 closest hits — barely relevant ones — without an "I don't have a good match" signal. The agent currently doesn't check the similarity score before using a hit. Production should gate on a threshold (or surface the score so the agent can decide).
-- **Corpus is small (21 repos / 20 containers) and hand-curated.** Sized to demonstrate the architecture, not to cover Jetson's actual landscape. Real production would index hundreds of repos automatically, with deduplication and quality scoring.
-- **No re-indexing pipeline.** Chroma index is built once via `python -m ingest.build_github_vectordb`; no scheduled refresh. Real production needs incremental updates as upstream READMEs change.
-
----
-
-## Tested against
-
-All eval numbers below come from real archives, not synthetic ones. Five real `.zip` exports pulled from public NVIDIA Developer Forum posts are committed to [`data/sample_logs/`](data/sample_logs/) — each one is in the corpus because it exercises something the parser or agent has to handle.
-
-| # | Forum thread | Why this case is in the corpus |
-|---|---|---|
-| 1 | [JetPack 6.1 flash fail, AGX Orin](https://forums.developer.nvidia.com/t/can-not-flash-jetpack-6-1-on-jetson-agx-orin-via-sdk-manager/308377) | First real archive — long-form filename with `JetPack_<ver>_<host>_for_Jetson_<board>` fully encoded |
-| 2 | [MCU firmware flash, AGX Orin 64G DK](https://forums.developer.nvidia.com/t/how-to-flash-mcus-firmware-on-agx-orin-64g-dk/366168) | Newer JetPack 6.2.2 — checks the parser hasn't drifted on schema changes |
-| 3 | [Orin Nano flash via SDK fails](https://forums.developer.nvidia.com/t/flashing-orin-nano-via-sdk-fails/318733) | **Short-form filename** (timestamp only) — agent has to infer target / JetPack from the log body |
-| 4 | [JetPack 6.2 install fail, AGX Orin 64GB](https://forums.developer.nvidia.com/t/install-jetpack-6-2-failed-with-sdk-manager-on-agx-orin-64g/321524) | RAM-tier suffix `_64GB_` in the target name — regex has to accept numeric suffixes |
-| 5 | [`command error code: 11`, Orin Nano](https://forums.developer.nvidia.com/t/flashing-jetpack-6-2-using-sdk-manager-displays-command-error-code-11/327911) | **Bracketed board variant** `[8GB_developer_kit_version]` — drove a regex extension |
-
-To run troubleshoot against any of them:
-
-```powershell
-python main.py --troubleshoot data/sample_logs/SDKM_logs_2025-01-03_13-01-22.zip
-```
-
-Plus 3 troubleshoot eval cases that use OP-pasted forum quotes where no `.zip` is available. Total: **8 cases**, all with `source_thread_url` + verification status (`op-confirmed` / `staff-recommended` / `log-grounded-forum-staff-missed-root-cause`) recorded in `tests/eval_cases/troubleshoot.jsonl`. The reasoning eval adds another 20 forum-mined cases on top.
-
-**Privacy redaction**: archives have been redacted to remove other users' personal content — `/home/<user>/` paths, Windows user folders, email addresses, non-NVIDIA IPs, and identifiable company names are replaced with `REDACTED` / `X.X.X.X`. All error messages, error codes, component names, target IDs, JetPack versions, timestamps, and log structure are preserved verbatim — exactly what the agent needs. Full policy in [`data/sample_logs/README.md`](data/sample_logs/README.md); the redaction script is [`scripts/redact_logs.py`](scripts/redact_logs.py) (reproducible).
-
----
-
 ## What's still missing
 
 This repo is the 20%. The other 80% — the part that would actually be hard to ship — I haven't built. These are the gaps I can name; some I have rough plans for, some I don't. If you're working on similar tooling and have figured any of these out, I'd genuinely like to hear how.
@@ -361,11 +313,7 @@ This repo is the 20%. The other 80% — the part that would actually be hard to 
 | 6 | **Trust calibration ("I don't know")** — agent writes a confident `fix.sh` even when `web_search` returned nothing useful | `cannot diagnose` output path → `forum_draft.md` (escalation, not fabrication); per-step confidence scores; UI affordances for low-confidence recommendations |
 | 7 | **Observability / audit trail** — failed runs leave only output files, no trace of what the agent saw / decided | Per-run JSONL at `~/.sdk-advisor/runs/<run-id>.jsonl` (log hash, queries, URLs, model+prompt versions, cost, status); `sdk-advisor history` command |
 
----
-
 These aren't theoretical — each one is a problem I want to take on next. The list is long enough to fill a real ship cycle for a small team, and the e2e scenario is clear enough that the work is mostly execution from here. **I want to be the one driving it** — if you're hiring for work like this, reach me at [github.com/mingdongt](https://github.com/mingdongt).
-
----
 
 ## If this were to ship — how I think about it
 
@@ -390,21 +338,15 @@ None of these require rewriting the agent or the MCP servers. The architecture i
 
 The technical work is the smaller half. The harder half is convincing SDK Manager's existing users to trust an AI in their install path — that's the owner's real job, not the engineer's.
 
----
-
 ## Troubleshoot evolution
 
 The current `--troubleshoot` sits at one point of a 3-axis design space (passive / generate / full-review). The most under-served quadrant — `(passive, escalate, full-review)`, where the agent drafts a high-quality forum post when it can't fix the issue — is what I want to build next. Full design space, status per cell, and cost estimates in [`docs/troubleshoot-evolution.md`](docs/troubleshoot-evolution.md).
-
----
 
 ## If you're working on something similar
 
 A few open questions I'd want to compare notes on: **self-grading bias** in LLM-as-judge eval (the 4.65 → 2.98 gap that drove the [forum-grounded rewrite](#self-grading-bias)); the **"I don't know" output path** (drafting `forum_draft.md` instead of `fix.sh` when confidence is low — top of the queue, not yet built); and **MCP tool granularity** heuristics (when to split vs merge).
 
 Contact: open an issue, start a discussion, or reach me at [github.com/mingdongt](https://github.com/mingdongt).
-
----
 
 ## Running it
 
@@ -423,7 +365,7 @@ python -m ingest.build_github_vectordb      # rebuild Chroma DB (~30s, one-time)
 
 The Chroma vector store is binary, fast-changing, and would bloat the repo via Git LFS. The committed JSONL corpus is the input; the index is local-rebuild.
 
-Backend selection (Anthropic SDK / `claude` CLI subscription / baseline-no-tools), `GH_TOKEN` for raising the GitHub API rate limit, and corpus re-ingestion options are documented in [`docs/setup.md`](docs/setup.md). The architectural decision behind no Brave API key and no domain whitelist for web_search is logged inline at [Architecture → Tier 3 decision log](#tier-3-forums--docs--decision-log).
+Backend selection (Anthropic SDK / `claude` CLI subscription / baseline-no-tools), `GH_TOKEN` for raising the GitHub API rate limit, and corpus re-ingestion options are documented in [`docs/setup.md`](docs/setup.md). The architectural decision behind no Brave API key and no domain whitelist for web_search is logged inline at [RAG design → Tier 3 — decision log](#tier-3--decision-log).
 
 ### Usage
 
@@ -480,8 +422,6 @@ nvidia-sdk-advisor/
 
 Full file-level tree (with one-line description per module) in [`docs/structure.md`](docs/structure.md).
 
----
-
 ## Deliberate non-goals
 
 - **Not a package for end-users to install and use daily.** Polished onboarding is out of scope. The Setup section exists so the demo can be verified, not to make it adoptable.
@@ -489,8 +429,6 @@ Full file-level tree (with one-line description per module) in [`docs/structure.
 - **Not a library to fork and extend.** Data files (manifest snapshots, NGC catalog, log fixtures, README corpus) are project-specific point-in-time captures, not a generalizable starter kit.
 - **Not a complete production-readiness sweep.** See [What's still missing](#whats-still-missing) for the explicit list of what's out, and why.
 - **Not a NeMo Agent Toolkit or LangGraph competitor.** Those are framework-level products; this is a single-domain agent that happens to use MCP.
-
----
 
 ## License & attribution
 

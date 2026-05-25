@@ -32,7 +32,7 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 
 > **The architecture.** Five phases share one Agent + MCP + RAG backend. Red dashed line = the replaceable boundary. See [MCP design](#mcp-design) · [RAG design](#rag-design).
 
-> **The headline finding.** Opus 4.7 alone scored **46.7%** on factual NVIDIA SDK questions. With the MCP tool layer attached, both Haiku 4.5 and Opus 4.7 scored **100% (15/15)**. The tool layer, not the model, is where the accuracy lives. → [Ablation](#ablation-does-the-rag-layer-actually-help-or-does-claude-already-know-this)
+> **The headline finding.** Opus 4.7 alone scored **46.7%** on factual NVIDIA SDK questions. With the MCP tool layer attached, both Haiku 4.5 and Opus 4.7 scored **100% (15/15)**. The tool layer, not the model, is where the accuracy lives. → [Tool-layer ablation](#tool-layer-ablation)
 
 ---
 
@@ -77,52 +77,38 @@ This is a design study with executable evidence, not a tool meant to be adopted 
 
 ## Evaluation
 
-Two results from building and scoring this changed how I think about agent design. They're written up in detail below — the short versions:
+### What the 3 tracks measure
 
-- **The tool layer, not the model, is where the accuracy lives.** Opus 4.7 alone scored 46.7% on factual SDK questions; with the MCP tool layer attached, both Haiku 4.5 and Opus scored 100%. → [Ablation](#ablation-does-the-rag-layer-actually-help-or-does-claude-already-know-this)
-- **Self-grading bias is worth 1.67 points of LLM-as-judge score.** Cases I authored end-to-end scored 4.65/5. The same agent, rescored against cases mined from real forum threads, dropped to 2.98/5. Rebuilt against verbatim log lines from OP's actual `.zip` exports, it recovered to 3.66/5 — above target. → [Self-grading bias finding](#self-grading-bias-finding-and-the-surprising-recovery)
+Each track tests a different layer of the system:
 
-Three tracks. All run with `python main.py --eval <track>`:
+- **Smoke** (5 cases) — configure-phase **output structure**. Regex-checks the agent's `sdkmanager` command for the right `--product` / `--target` / `--version` / `--additional-sdk` fields. Deterministic, CI-fast.
+- **Reasoning** (20 cases) — configure-phase **reasoning quality**. LLM-as-judge compares the agent's natural-language recommendation against a real NVIDIA forum expert's answer to the same hardware-and-workload question. 4 axes (factual / reasoning / constraints / INI validity), 3× median to dampen judge noise.
+- **Troubleshoot** (8 cases) — the entire **troubleshoot verb**. Given a real install-failure log, the agent has to diagnose the root cause and produce a workable `fix.sh`. LLM-as-judge on 4 different axes (error identified / fix matches reference / actionable / safety).
 
-| Track | Method | Cases | Latest score | Target |
-|---|---|---|---|---|
-| Smoke | Exact field match (product / version / target / additional_sdks) | 5 hand-crafted | **15/15 (100%)** | ≥80% |
-| Reasoning | LLM-as-judge, 4 axes, 3× median | 20 forum-mined | **3.56/5** | ≥3.5/5 |
-| Troubleshoot | LLM-as-judge, 4 axes, 3× median | 8 forum-grounded | **3.66/5** | ≥3.5/5 |
+Reference answers in Reasoning and Troubleshoot come from real NVIDIA Developer Forum threads, not from cases I wrote — see [Self-grading bias](#self-grading-bias) for why that matters.
 
-### Per-axis breakdown
+### Scores
 
-**Reasoning** (4 axes × 1-5):
-- Factual correctness: 3.20
-- Reasoning quality: 3.35
-- Constraints respected: 4.95
-- INI validity: 2.75
+All run with `python main.py --eval <track>`:
 
-**Troubleshoot** (4 axes × 1-5):
-- Error correctly identified: 3.63
-- Fix matches reference: 2.50
-- Fix is actionable: 4.13
-- Safety (sudo warnings, destructive-op flags): 4.38
+| Track | Latest score | Target |
+|---|---|---|
+| Smoke | **15/15 (100%)** | ≥80% |
+| Reasoning | **3.56/5** | ≥3.5/5 |
+| Troubleshoot | **3.66/5** | ≥3.5/5 |
 
-### Self-grading bias finding (and the surprising recovery)
+Per-axis breakdown (1-5 each):
 
-An earlier version of this suite used 15 cases where **I authored the log snippet, I authored the "expected fix," and Claude judged the agent against it**. That suite scored **4.65/5**. When the cases were rewritten using 10 NVIDIA Developer Forum threads — log snippets paraphrased from OP descriptions, "expected fix" set to whatever the NVIDIA staff member or OP confirmed actually worked — the same agent on the same code scored **2.98/5**. **The 1.67-point gap was self-grading bias.**
+**Reasoning**: Factual 3.20 · Reasoning 3.35 · Constraints 4.95 · INI validity 2.75
+**Troubleshoot**: Error identified 3.63 · Fix matches reference 2.50 · Actionable 4.13 · Safety 4.38
 
-A second rewrite then tightened the inputs again. For 5 of the 8 cases I have the OP's actual SDK Manager export `.zip` committed to `data/sample_logs/`, so `log_inline` was replaced with **verbatim error lines extracted from the OP's own log file** rather than my paraphrase of the OP's forum description. The other 3 cases use lines the OP literally pasted into their forum post. **Zero cases now contain text I authored.** Score rose to **3.66/5** — above target.
+---
 
-The +0.68 swing (2.98 → 3.66) is itself a finding: **richer, real log content lets the agent do its job better**. When fed a paraphrased symptom description ("the install gets stuck at 99%") the agent latches onto a generic 99%-stuck fix and misses the actual root cause; when fed the verbatim log line (`Error: Invalid target board - holoscan-devkit` followed by `failed to read rcm_state`), the agent correctly identifies a board-variant selection issue that even the original forum staff missed (case 6). The lift comes from the input, not from any code change.
+Four findings that came out of building and running this:
 
-Where the ceiling still sits: **fix matches reference = 2.50** is the weakest axis. The agent's `web_search` often surfaces *a* plausible fix for the symptom but lands on the wrong forum thread when multiple failure modes share the same symptom. That's the retrieval/grounding gap an SDK Manager team insider with access to internal triage data could close.
+### Tool-layer ablation
 
-Cases and their provenance: `tests/eval_cases/troubleshoot.jsonl` — each line carries `source_thread_url`, `verification` (`op-confirmed` / `staff-recommended` / `staff-documented-limitation` / `log-grounded-forum-staff-missed-root-cause`), and `log_source` (`zip-tail-real` for 5 cases, `forum-quoted` for 3).
-
-### Refactor preservation finding
-
-Before the troubleshoot refactor (curated `data/log_patterns.yaml` with hand-encoded `error_class` labels + `search_terms` hints) the *synthetic* suite scored **4.70/5**. After dropping the pattern library entirely it scored **4.65/5** on the same synthetic suite. The forum-grounded rewrite (3.66) supersedes both numbers, but the synthetic-to-synthetic ablation still stands: against the same questions, removing the hand-curated layer made no measurable difference. The classification work the curation did was already being done by `web_search` + Claude reading log content — the troubleshoot-side mirror of the smoke-eval ablation below.
-
-### Ablation: does the RAG layer actually help, or does Claude already know this?
-
-Three-way smoke-eval comparison (same 5 hand-crafted cases, same scorer):
+**46.7% → 100%.** Three-way smoke-eval comparison (same 5 hand-crafted cases, same scorer):
 
 | Configuration | Backend | Tools | Smoke score | Δ vs baseline |
 |---|---|---|---|---|
@@ -149,9 +135,23 @@ $env:ANTHROPIC_BACKEND="sdk";          python main.py --eval smoke   # Haiku + t
 
 Raw baseline responses (showing the hallucinations) archived at `data/eval_runs/opus_baseline_responses.txt`.
 
-### How Haiku and Opus differ in tool usage (both still score 100%)
+### Self-grading bias
 
-Running the smoke eval with `tests/list_smoke_tools.py` (SDK + Haiku) and `tests/list_smoke_tools_cli.py` (CLI + Opus 4.7) traces which MCP tools each model invoked per case:
+**4.65 → 2.98 → 3.66.** An earlier version of the troubleshoot suite used 15 cases where **I authored the log snippet, I authored the "expected fix," and Claude judged the agent against it**. That suite scored **4.65/5**. When the cases were rewritten using 10 NVIDIA Developer Forum threads — log snippets paraphrased from OP descriptions, "expected fix" set to whatever the NVIDIA staff member or OP confirmed actually worked — the same agent on the same code scored **2.98/5**. **The 1.67-point gap was self-grading bias.**
+
+A second rewrite then tightened the inputs again. For 5 of the 8 cases I have the OP's actual SDK Manager export `.zip` committed to `data/sample_logs/`, so `log_inline` was replaced with **verbatim error lines extracted from the OP's own log file** rather than my paraphrase of the OP's forum description. The other 3 cases use lines the OP literally pasted into their forum post. **Zero cases now contain text I authored.** Score rose to **3.66/5** — above target.
+
+The +0.68 swing (2.98 → 3.66) is itself a finding: **richer, real log content lets the agent do its job better**. When fed a paraphrased symptom description ("the install gets stuck at 99%") the agent latches onto a generic 99%-stuck fix and misses the actual root cause; when fed the verbatim log line (`Error: Invalid target board - holoscan-devkit` followed by `failed to read rcm_state`), the agent correctly identifies a board-variant selection issue that even the original forum staff missed (case 6). The lift comes from the input, not from any code change.
+
+Where the ceiling still sits: **fix matches reference = 2.50** is the weakest axis. The agent's `web_search` often surfaces *a* plausible fix for the symptom but lands on the wrong forum thread when multiple failure modes share the same symptom. That's the retrieval/grounding gap an SDK Manager team insider with access to internal triage data could close.
+
+### Pattern-library ablation
+
+**4.70 → 4.65 — no measurable difference.** Before the troubleshoot refactor (curated `data/log_patterns.yaml` with hand-encoded `error_class` labels + `search_terms` hints) the *synthetic* suite scored **4.70/5**. After dropping the pattern library entirely it scored **4.65/5** on the same synthetic suite. The forum-grounded rewrite (3.66) supersedes both numbers, but the synthetic-to-synthetic ablation still stands: against the same questions, removing the hand-curated layer made no measurable difference. The classification work the curation did was already being done by `web_search` + Claude reading log content — the troubleshoot-side mirror of the tool-layer ablation above.
+
+### Model variation
+
+**Behavior shifts slightly across models, output stays correct.** Running the smoke eval with `tests/list_smoke_tools.py` (SDK + Haiku) and `tests/list_smoke_tools_cli.py` (CLI + Opus 4.7) traces which MCP tools each model invoked per case:
 
 | Case | Haiku 4.5 path | Opus 4.7 path |
 |---|---|---|
@@ -178,8 +178,6 @@ Two behavioral signals worth noting:
 1. **Opus skips `validate_combo` (case 2)** — it reads the JetPack ↔ addon-SDK era table in the SYSTEM_PROMPT and inlines the check rather than dispatching the tool. Haiku takes the tool path literally; Opus internalizes the rule. Both still get the right answer. A tool the bigger model routinely skips without losing accuracy is probably doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
 
 2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; correctness doesn't depend on it, but it shows up in the trace.
-
-These are surface-level differences in how the two models walk the agent graph. The outcome on every case is identical (15/15 each). Change the model, behavior shifts slightly, output stays correct.
 
 ---
 ## Architecture
@@ -246,9 +244,9 @@ Required path: steps 1, 2, 3, 5. Steps 4a–4d are conditional.
 
 | Test | What it verifies | Where |
 |---|---|---|
-| Smoke 5 cases × 2 models | Tool dispatch under different query shapes | [How Haiku and Opus differ in tool usage](#how-haiku-and-opus-differ-in-tool-usage-both-still-score-100) |
+| Smoke 5 cases × 2 models | Tool dispatch under different query shapes | [Model variation](#model-variation) |
 | `--full --mock-install` demo | Full trace visible — every tool call + its args + result | [`docs/demo/full-mode.gif`](docs/demo/full-mode.gif), code in `src/orchestrator.py` |
-| Ablation: Opus alone vs Opus + tools | The tool layer itself is what closes the 46.7 → 100% gap | [Ablation](#ablation-does-the-rag-layer-actually-help-or-does-claude-already-know-this) |
+| Ablation: Opus alone vs Opus + tools | The tool layer itself is what closes the 46.7 → 100% gap | [Tool-layer ablation](#tool-layer-ablation) |
 | Reasoning eval (20 forum-mined cases) | Tool dispatch under realistic user phrasing | [Evaluation](#evaluation) |
 
 The most revealing test is smoke case 2 (AGX Orin + DeepStream 7.0). Haiku 4.5 dispatches `validate_combo` twice to check the JP↔DeepStream era pairing; Opus 4.7 skips it entirely and inlines the check from the SYSTEM_PROMPT. Both still get the right answer. A tool the bigger model routinely skips without losing accuracy is probably doing the work the smaller model can't — and removing it would degrade the smaller model. Keep the tool.
@@ -402,7 +400,7 @@ The current `--troubleshoot` sits at one point of a 3-axis design space (passive
 
 ## If you're working on something similar
 
-A few open questions I'd want to compare notes on: **self-grading bias** in LLM-as-judge eval (the 4.65 → 2.98 gap that drove the [forum-grounded rewrite](#self-grading-bias-finding-and-the-surprising-recovery)); the **"I don't know" output path** (drafting `forum_draft.md` instead of `fix.sh` when confidence is low — top of the queue, not yet built); and **MCP tool granularity** heuristics (when to split vs merge).
+A few open questions I'd want to compare notes on: **self-grading bias** in LLM-as-judge eval (the 4.65 → 2.98 gap that drove the [forum-grounded rewrite](#self-grading-bias)); the **"I don't know" output path** (drafting `forum_draft.md` instead of `fix.sh` when confidence is low — top of the queue, not yet built); and **MCP tool granularity** heuristics (when to split vs merge).
 
 Contact: open an issue, start a discussion, or reach me at [github.com/mingdongt](https://github.com/mingdongt).
 

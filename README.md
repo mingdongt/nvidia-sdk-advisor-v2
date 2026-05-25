@@ -1,5 +1,7 @@
 # NVIDIA SDK Advisor
 
+*A design study targeting the NVIDIA SDK Manager + Jetson Developer Experience problem space — agents + MCP + RAG applied to developer tooling.*
+
 A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs, built on the same public data sources SDK Manager itself uses. Generates `.ini` response files SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
 [![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 86 passing](https://img.shields.io/badge/tests-86%20passing-brightgreen)](#tests)
@@ -12,13 +14,15 @@ A conversational agent that helps developers **discover, configure, install, and
 
 > **The architecture.** Five phases share one Agent + MCP + RAG backend. Red dashed line = the replaceable boundary. See [MCP design](#mcp-design) · [RAG design](#rag-design).
 
+> **The headline finding.** Opus 4.7 alone scored **46.7%** on factual NVIDIA SDK questions. With the MCP tool layer attached, both Haiku 4.5 and Opus 4.7 scored **100% (15/15)**. The tool layer, not the model, is where the accuracy lives. → [Ablation](#ablation-does-the-rag-layer-actually-help-or-does-claude-already-know-this)
+
 ---
 
 ## What's in this repo
 
-**Why it looks like this** — [Design principles](#design-principles)
-
 **The thing itself** — [What it does](#what-it-does) · [Evaluation](#evaluation) · [Architecture](#architecture) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against)
+
+**Why it looks like this** — [Design principles](#design-principles)
 
 **What's still open** — [What's still missing](#whats-still-missing) · [Troubleshoot evolution](#troubleshoot-evolution)
 
@@ -30,18 +34,6 @@ A conversational agent that helps developers **discover, configure, install, and
 
 ---
 
-## Design principles
-
-Three judgments shaped what this repo includes and what it excludes. Reading these first makes the rest of the README make sense.
-
-1. **The code is evidence, the README is the argument.** Reading the README without running the code should be enough to evaluate the design depth. Running the code without reading the README will miss the point.
-2. **Demonstrate the architecture, not the polish.** Every code path exists to make an architectural claim concrete. Polish — CLI ergonomics, exhaustive error handling, every edge case — is deliberately under-invested where it doesn't strengthen the argument.
-3. **Surface gaps honestly.** Sections below — [What's still missing](#whats-still-missing), [Troubleshoot evolution](#troubleshoot-evolution) — enumerate what a real product would need that this repo doesn't have. The point is to prove the gaps are understood, not to fill them.
-
-This is a design study with executable evidence, not a tool meant to be adopted as-is.
-
----
-
 ## What it does
 
 | Capability | Where SDK Manager stops today | What this repo adds |
@@ -50,6 +42,18 @@ This is a design study with executable evidence, not a tool meant to be adopted 
 | **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
 | **Install** | Wizard runs install; CLI takes flags. No conversational guided flow | Generates `.ini` matching NVIDIA's official template, optionally drives `NvSDKManager.exe --cli --response-file` as subprocess with streamed status + event classification |
 | **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` opens the `.zip`, extracts filename metadata + log tail. The agent reads the raw tail itself and uses `web_search` (forums, askubuntu, stackoverflow) to find expert fixes → synthesizes `fix.sh` + `diagnosis.md`. No pre-classification layer |
+
+---
+
+## Design principles
+
+Three judgments shaped what this repo includes and what it excludes.
+
+1. **The code is evidence, the README is the argument.** Reading the README without running the code should be enough to evaluate the design depth. Running the code without reading the README will miss the point.
+2. **Demonstrate the architecture, not the polish.** Every code path exists to make an architectural claim concrete. Polish — CLI ergonomics, exhaustive error handling, every edge case — is deliberately under-invested where it doesn't strengthen the argument.
+3. **Surface gaps honestly.** Sections below — [What's still missing](#whats-still-missing), [Troubleshoot evolution](#troubleshoot-evolution) — enumerate what a real product would need that this repo doesn't have. The point is to prove the gaps are understood, not to fill them.
+
+This is a design study with executable evidence, not a tool meant to be adopted as-is.
 
 ---
 

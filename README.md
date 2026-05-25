@@ -8,6 +8,24 @@ A conversational agent that helps developers **discover, configure, install, and
 
 ![End-to-end demo: configure → install → troubleshoot → fix → retry](docs/demo/full-mode.gif)
 
+<details><summary><b>Text-only sample (configure phase, GIF unavailable?)</b></summary>
+
+```
+> Orin NX, run YOLOv8 object detection at 30fps
+
+  → lookup_target_id           JETSON_ORIN_NX_TARGETS
+  → search_3p_sample_repos     jetson-inference DetectNet (top hit)
+  → list_releases              JetPack 6.2.2, 6.2.1, 6.2, 6.1, 5.1.6
+  → estimate_resources         target 22GB, host 35GB, RAM 1.7GB
+  → generate_response_file
+  → generate_command
+
+Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepStream 7.0
+✓ saved: output/orin_nx_yolov8.{ini,command}
+```
+
+</details>
+
 > **The demo.** `python main.py --full --mock-install --query "..."` — chains all five phases (configure → install → troubleshoot → fix → retry) with every MCP tool call, every piece of agent reasoning, and every `web_search` query rendered as a discrete step. Phases 1 (configure) and 3 (troubleshoot) are real Anthropic API + real MCP dispatch + real web_search; phases 2/5 (install/retry) are mocked because no Jetson is plugged in; phase 4 (apply fix) is simulated. Each panel carries an explicit REAL / MOCKED / SIMULATED tag so the boundary stays honest. [Recording recipe](docs/demo/README.md).
 
 ![Architecture: 5 phases on one MCP + RAG backend](docs/demo/architecture.svg)
@@ -366,51 +384,19 @@ Plus 3 troubleshoot eval cases that use OP-pasted forum quotes where no `.zip` i
 
 This repo is the 20%. The other 80% — the part that would actually be hard to ship — I haven't built. These are the gaps I can name; some I have rough plans for, some I don't. If you're working on similar tooling and have figured any of these out, I'd genuinely like to hear how.
 
-### 1. Privacy / data flow
-
-User logs contain hostnames, IPs, usernames, sometimes internal repo paths and project names. Sending them to a cloud LLM API is a compliance event in many environments.
-
-A production version needs: PII scrubber pre-prompt (regex over `/home/[^/]+/`, RFC1918 IPs, hostname patterns); per-tenant data residency (EU users → EU-region inference); audit log of exactly what was sent and to which endpoint; a `--local-only` switch that disables outbound API calls and accepts a small capability loss.
-
-### 2. Citation persistence
-
-The agent cites forum URLs. Six months later, threads can be deleted, locked, version-shifted, or merged. `diagnosis.md` quietly becomes a file of dead links.
-
-Needs: fetch + snapshot the cited paragraph (not the whole page) at synthesis time, embedded inline in `diagnosis.md`; optional periodic re-validation that flags broken citations.
-
-### 3. Failure feedback loop
-
-The agent generates `fix.sh`. The user runs it. Then nothing — no callback, no signal whether the fix worked, no learning across runs.
-
-Needs: post-fix verification (re-run `--execute`, check exit code, run `nvidia-smi`); explicit user feedback prompt ("did this resolve it?"); aggregated success rate per error class to tune prompts; failed cases retained as future eval inputs.
-
-### 4. Eval drift monitoring
-
-The scores in the badges were measured at a fixed point against a specific model + prompt. Upgrading either drifts the numbers — sometimes silently. Today no one would notice if a prompt edit dropped reasoning from 3.56 to 3.10.
-
-Needs: eval wired into CI on every prompt change; per-model baselines tracked over time; variance bars (each case run N times to characterize judge noise); a "score regression > 0.3" gate that blocks merges.
-
-### 5. Cost / abuse controls
-
-`max_uses=5` is a per-troubleshoot cap. There is no per-user-per-day cap. A buggy client or a coordinated abuse pattern could drain the API budget.
-
-Needs: per-tenant rate limits enforced at the agent layer; daily / monthly spend ceilings with email alerts; per-feature cost telemetry (`web_search` vs synthesis vs MCP); a graceful "quota exhausted" path that refuses new dispatches without crashing.
-
-### 6. Trust calibration ("I don't know")
-
-The agent always produces a four-section output. When `web_search` returns nothing useful, it still writes a confident-looking `fix.sh` backed only by training knowledge. The "Why this works" paragraph admits this, but a real product should refuse to write executable script in that case.
-
-Needs: a genuine `cannot diagnose` output path that produces `forum_draft.md` (escalation-by-helping-the-user-ask) instead of `fix.sh`; per-step confidence scores; UI affordances that visually flag low-confidence recommendations.
-
-### 7. Observability / audit trail
-
-When a user reports "the fix didn't work," there's no way to reconstruct what the agent saw and decided. Each run leaves only `fix.sh` and `diagnosis.md` — not the queries it issued, the URLs it considered and discarded, the prompt version, the model version, or the temperature.
-
-Needs: structured per-run logs at `~/.sdk-advisor/runs/<run-id>.jsonl` with log hash, all queries, all URLs retrieved, URLs cited in output, model + prompt versions, cost estimate, exit status; a `sdk-advisor history` command to search past runs.
+| # | Gap | What's needed |
+|---|---|---|
+| 1 | **Privacy / data flow** — logs leak hostnames, IPs, usernames to a cloud LLM API | PII scrubber pre-prompt (regex over `/home/<user>/`, RFC1918 IPs, hostnames); per-tenant data residency; audit log; `--local-only` switch |
+| 2 | **Citation persistence** — forum URLs in `diagnosis.md` rot over months (threads deleted, locked, merged) | Snapshot the cited paragraph inline at synthesis time; periodic re-validation that flags broken citations |
+| 3 | **Failure feedback loop** — no signal whether `fix.sh` actually worked, no learning across runs | Post-fix verification (`nvidia-smi`, exit code, re-run `--execute`); user feedback prompt; aggregated success rate per error class; failed cases retained as future eval inputs |
+| 4 | **Eval drift monitoring** — model/prompt upgrades silently shift the badge numbers | Eval in CI on every prompt change; per-model baselines; variance bars (N runs per case); score-regression > 0.3 gate that blocks merges |
+| 5 | **Cost / abuse controls** — `max_uses=5` is per-run, no per-user-per-day cap | Per-tenant rate limits at agent layer; daily/monthly spend ceilings + email alerts; per-feature telemetry (`web_search` vs synthesis vs MCP); graceful quota-exhausted path |
+| 6 | **Trust calibration ("I don't know")** — agent writes a confident `fix.sh` even when `web_search` returned nothing useful | `cannot diagnose` output path → `forum_draft.md` (escalation, not fabrication); per-step confidence scores; UI affordances for low-confidence recommendations |
+| 7 | **Observability / audit trail** — failed runs leave only output files, no trace of what the agent saw / decided | Per-run JSONL at `~/.sdk-advisor/runs/<run-id>.jsonl` (log hash, queries, URLs, model+prompt versions, cost, status); `sdk-advisor history` command |
 
 ---
 
-These aren't theoretical — each one is a problem I want to take on next. The list is long enough to fill a real ship cycle for a small team, and the e2e scenario is clear enough that the work is mostly execution from here. I want to be the one driving it.
+These aren't theoretical — each one is a problem I want to take on next. The list is long enough to fill a real ship cycle for a small team, and the e2e scenario is clear enough that the work is mostly execution from here. **I want to be the one driving it** — if you're hiring for work like this, reach me at [github.com/mingdongt](https://github.com/mingdongt).
 
 ---
 
@@ -435,86 +421,19 @@ None of these require rewriting the agent or the MCP servers. The architecture i
 3. **The "AI made me delete my system" event.** Generated `fix.sh` runs `sudo`. Even with the review gate, eventually someone executes something they shouldn't have. Reducing the risk surface (sandboxing, risk classification, telemetry on destructive patterns) is the work that never feels done.
 4. **Adoption inertia.** Embedded developers are unusually skeptical of AI features that mediate tools they rely on. Adoption likely looks like a slow start followed by a tipping point, rather than steady growth.
 
-### Where I'd invest engineering next
-
-If I had a small team and three quarters:
-
-- **Q1** — close the gaps in [What's still missing](#whats-still-missing). PII scrubber, citation persistence, and audit log are existential before shipping anywhere outside an internal dogfood.
-- **Q2** — integrate into SDK Manager's renderer behind a flag. Internal dogfood with NVIDIA's own DevRel and developer-marketing teams to surface real usage patterns; refine prompts against their feedback.
-- **Q3** — open beta to the Jetson community. Wire success metrics (forum-thread volume, first-install success rate, fix-script execution rate, eval drift) into a dashboard. Iterate on which scenarios deserve their own focused subprompts (e.g. flash recovery is so distinct from apt failures that they probably want different prompt branches).
-
 The technical work is the smaller half. The harder half is convincing SDK Manager's existing users to trust an AI in their install path — that's the owner's real job, not the engineer's.
 
 ---
+
 ## Troubleshoot evolution
 
-`--troubleshoot` is the deepest verb in this demo — the only one a static wizard cannot replicate. The current implementation occupies one point in a 3-axis design space; each axis has concrete next steps that don't require architecture changes.
-
-```
-Input axis    : passive  ──────── semi-active ──────── active
-                (current)         (auto on              (daemon
-                                   --execute fail)       monitor)
-
-Output axis   : generate ──── execute ──── escalate ──── verify
-                (current)     fix.sh        forum post    post-fix
-                              with confirm  when stuck    health check
-
-Trust axis    : full review ──── per-action confirm ──── --yolo
-                (current)        (granular)              (full auto)
-```
-
-v2.0.0-c sits at `(passive, generate, full-review)`. The trade-off is deliberate: maximum safety, minimum surprise.
-
-The `--full --mock-install` orchestrator (commit 8be775c) demonstrates how an end-to-end chain across these axes would compose — configure → install → troubleshoot → fix → retry, with canned subprocess stand-ins for the still-future Execute and Verify cells. The orchestration layer itself is built; only the bits behind the MOCKED tags are not.
-
-### Input axis — how the agent engages
-
-| Mode | Status | Trigger | Cost |
-|---|---|---|---|
-| **Passive** | ✓ shipped | `python main.py --troubleshoot <log>` | — |
-| **Semi-active** | ✓ partial | `--execute` exits non-zero → offer troubleshoot on latest export log | wired in `src/execution.py` |
-| **Daemon** | future | `watchdog` over `~/.nvsdkm-logs/<session>/`; notify when a session ends with "Install aborted" | ~3 hrs |
-| **Multimodal** | future | Paste a screenshot of the failing SDK Manager GUI; Claude vision reads the dialog | ~1 day |
-
-### Output axis — how far the agent goes
-
-| Mode | Status | What it does | Cost |
-|---|---|---|---|
-| **Generate** | ✓ shipped | Writes `fix.sh` + `diagnosis.md` to `output/`; user runs the script themselves | — |
-| **Execute** | orchestration shipped, real path future | The chain that would invoke Execute ships as `--full` (currently with `--mock-install` stand-in). Real path needs per-command risk gating: low-risk lines auto-run, sudo / destructive lines require explicit confirm | ~3 hrs once a Jetson is on hand |
-| **Escalate** | future | When `web_search` returns nothing usable, drafts a NVIDIA-forum-format post with PII-scrubbed log excerpts, prefilled hardware + version fields, and a "what I've tried" hypothesis. Saves to `output/forum_draft.md` or opens the forum's new-topic URL with query params pre-populated | ~2 hrs |
-| **Verify** | orchestration shipped, real check future | `--full` reserves a verify phase but currently mocks success. Real check would run `nvidia-smi`, `apt list nvidia-jetpack`, lsmod sanity — confirms the system is actually healthy, not just that installer exit was 0 | ~1 hr |
-
-### Trust axis — how much control the user keeps
-
-| Mode | Status | Description |
-|---|---|---|
-| **Full review** | ✓ shipped | User reads `fix.sh`, runs `bash fix.sh` themselves |
-| **Per-action confirm** | future | Agent runs each command, pauses after any sudo / destructive line for explicit Y |
-| **YOLO** | not planned | Auto-run everything. Deliberately avoided — the risk surface of LLM-generated `sudo` commands is too high without a feedback loop telling us when fixes silently broke something |
-
-### Why this shape
-
-Three principles drove the current anchor point:
-
-1. **Safety > polish.** Every move along the trust axis trades user agency for convenience. For a tool that generates `sudo` commands, that's the wrong trade-off without observability the demo doesn't have.
-2. **Honest failure beats confident hallucination.** At the right end of the output axis, *escalate* (drafting a forum post) is more useful than producing a low-confidence `fix.sh`. "Cannot diagnose" is a legitimate output, not a degraded one. The forum-post mode makes the agent valuable even when it doesn't know — by transferring the question to humans who do, with a properly-formatted starting point.
-3. **Composable extensions, not rewrites.** Every cell in these tables is reachable from the current architecture without restructuring. The agent doesn't need to know which mode it's running in; `src/troubleshoot.py` is the only file that changes for any of these extensions.
-
-The most under-served quadrant today is **(passive, escalate, full-review)** — when the agent can't fix the issue but *could* still hand the user a high-quality forum post. That's what I want to build next.
+The current `--troubleshoot` sits at one point of a 3-axis design space (passive / generate / full-review). The most under-served quadrant — `(passive, escalate, full-review)`, where the agent drafts a high-quality forum post when it can't fix the issue — is what I want to build next. Full design space, status per cell, and cost estimates in [`docs/troubleshoot-evolution.md`](docs/troubleshoot-evolution.md).
 
 ---
 
 ## If you're working on something similar
 
-This repo is the starting line, not the finish. The e2e scenario — discover → configure → install → troubleshoot — has a lot of room left in it, and the gap between what's here and what a real SDK Manager AI feature would need is mostly execution work. I'd like to lead that work, and I'd like to do it with people who care about the same problems.
-
-A few things I'd want to compare notes on right now:
-
-- **MCP tool granularity** — 13 deterministic + 2 RAG tools felt about right for this problem, but I don't have a principled rule for when to merge tools vs split them. My current intuition: split when the LLM gets the wrong combination of args. If you've worked out a better heuristic, I'd like to hear it.
-- **Self-grading bias in LLM-as-judge eval** — the 4.65 → 2.98 gap I hit isn't unique to me. If you've found a clean way to detect this before shipping a number (other than "rewrite all your cases from external sources"), please tell me.
-- **Surface-level log parsing vs internal schema** — I deliberately kept `parse_install_log` dumb (zip + filename regex + tail). For external projects looking at opaque artifacts, this seems like the right tradeoff. Inside the producer team, the calculation flips. I'd love to compare notes with anyone who's worked both sides.
-- **The "I don't know" output path** — I think the more interesting agent behavior is the one that drafts a `forum_draft.md` instead of `fix.sh` when confidence is low. Haven't built it yet — it's at the top of the queue.
+A few open questions I'd want to compare notes on: **self-grading bias** in LLM-as-judge eval (the 4.65 → 2.98 gap that drove the [forum-grounded rewrite](#self-grading-bias-finding-and-the-surprising-recovery)); the **"I don't know" output path** (drafting `forum_draft.md` instead of `fix.sh` when confidence is low — top of the queue, not yet built); and **MCP tool granularity** heuristics (when to split vs merge).
 
 Contact: open an issue, start a discussion, or reach me at [github.com/mingdongt](https://github.com/mingdongt).
 

@@ -183,34 +183,17 @@ These are surface-level differences in how the two models walk the agent graph. 
 
 ### Log handling: surface-level by design
 
-The log-reading layer is **deliberately surface-level**: open the `.zip`, regex-parse the filename, take the last ~200 lines, hand it all to the agent. That's it. No stage classification, no error vocabulary, no internal-structure assumptions.
+The log-reading layer **deliberately stays surface-level**: open the `.zip`, regex-parse the filename, take the last ~200 lines, hand it all to the agent. No stage classification, no error vocabulary, no internal-structure assumptions.
 
-This is intentional, not lazy. This is an external project looking at the **finished artifact** of SDK Manager — an opaque `.zip` whose internal layout, log file naming conventions, error code semantics, and severity grading are NVIDIA-internal implementation details. Any pre-classification written without access to those internals would be guesswork. I tried it once (a curated `log_patterns.yaml` of ~20 regexes); too many patterns were hallucinated against training data instead of grounded in real logs. The refactor that removed it is in commit `6765bed`.
+This is intentional, not lazy. From outside SDK Manager, an opaque export `.zip`'s internal layout, log file naming, error code semantics, and severity grading are NVIDIA-internal details — any pre-classification without access to those would be guesswork. I tried it once (`data/log_patterns.yaml`, ~20 regexes); patterns hallucinated against training data instead of grounding in real logs. Removed in commit `6765bed`.
 
-What I verify works (against five real exports — see "Test corpus" below):
+What the parser actually does (validated against the 5 real exports in [`data/sample_logs/`](data/sample_logs/)):
 
-- `.zip` archive format and the two real filename patterns: long (`SDKM_logs_JetPack_<ver>_<host>_for_Jetson_<board>_<date>_<time>.zip`) and short (`SDKM_logs_<date>_<time>.zip`)
-- Filename → target / JetPack / host OS / timestamp extraction (deterministic regex)
-- Concat all `.log` / `.txt` files inside the archive; take the last 200 lines
+- Both filename forms: long (`SDKM_logs_JetPack_<ver>_<host>_for_Jetson_<board>_<date>_<time>.zip`) and short (`SDKM_logs_<date>_<time>.zip`)
+- Filename → target / JetPack / host OS / timestamp via deterministic regex
+- Concat all `.log` / `.txt` files inside the archive; tail 200 lines
 
-What only the SDK Manager team can do reliably:
-
-- **Read the log-producer code.** Errors in SDK Manager come from specific code paths (Electron main / renderer / worker subprocess / PowerShell query scripts on Windows / bash scripts on Linux). Knowing which path emits which error string lets you build a real parser that classifies by code site, not by string match.
-- **Surface internal error codes.** Real exports contain `error code is: 2001`, `Task 0x0 failed (err: 0x1f1e050d)`, `command error code: 11` — all NVIDIA-internal numeric/hex codes. Their meanings live in the source.
-- **Use the internal directory layout.** Real archives have `sdkm-*.log` (session log) + `downloadLogs/sdkm_download-*.log` (download subsystem) + likely more subsystem-specific files. Knowing which file represents which subsystem lets you query the relevant one instead of concatenating everything.
-- **Schema-validate the log.** SDK Manager logs follow internal conventions (`HH:MM:SS.mmm - <severity>: <message>`, event-pattern `Event: <COMPONENT>@<TARGET> - status is: <status>`). With the producer source, you parse this as structured records instead of free text.
-
-From the outside, the surface-level layer keeps the agent honest: it never trusts a classification I made up, it just reads the actual log content. The MCP boundary localizes any eventual change to a single replaceable function (`parse_install_log`); the agent loop, troubleshoot orchestrator, prompt template, web_search integration, and output writer all stay unchanged.
-
-The parser was validated against the five real exports listed in [Tested against](#tested-against). Findings that drove parser changes during that validation pass:
-
-- **Real archive format is `.zip`**, not `.tar.gz` (commit `6765bed`)
-- **Two filename forms exist** — long-form with JetPack/host/target encoded, short-form with only timestamp (commit `97b6c61`)
-- **Bracketed board variant tags** like `[8GB_developer_kit_version]` appear in real filenames — regex extended to allow `[]` (commit pending)
-- **Internal layout has a `downloadLogs/` subdirectory** with subsystem-specific session logs; the parser reads concatenated content (agent figures out which subsystem from context)
-- **Real failure signatures** in the 200-line tail include `error: install process failure`, `error: cannot get component by id undefined`, `error: completeSetup failed`, plus telemetry validation errors (`Failed to validate GA4 event. Validation errors: ...`). Each is interpreted by the agent at runtime — the parser doesn't pre-classify.
-
-The first end-to-end troubleshoot run (on a Windows-host export generated by deliberately triggering a Jetson Thor setup failure) correctly identified the root cause as missing USBIPD on the Windows host and cited [docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html](https://docs.nvidia.com/sdk-manager/install-with-sdkm-jetson/index.html) via web_search — without any pre-classification layer. The agent reading the raw tail was sufficient.
+The MCP boundary localizes any future change to one function (`parse_install_log`). When NVIDIA internals are accessible, the parser swaps; the agent loop, orchestrator, prompt, web_search integration, and output writer stay unchanged. Per-commit validation findings, the four things only the SDK Manager team can do reliably, and the first end-to-end troubleshoot run (USBIPD on Windows, no pre-classification needed) are in [`docs/log-parser-validation.md`](docs/log-parser-validation.md).
 
 ---
 ## Architecture
@@ -489,14 +472,7 @@ Each phase header in the output is tagged REAL / MOCKED / SIMULATED so the audie
 
 #### Self-healing chain on failure
 
-When `--execute` exits non-zero, the agent automatically finds the most recent SDK Manager log and offers to enter `--troubleshoot` on it. Two sources are searched, in priority order:
-
-1. Exported tarballs (`sdkm-*log*.tar*`) in `~`, `~/Downloads`, or `cwd`
-2. Raw session `.log` files in `~/.nvsdkm-logs/` (Linux/Mac) or `~/AppData/Local/NVIDIA Corporation/SDK Manager/logs/` (Windows)
-
-The user does NOT need to run `--export-logs` manually. SDK Manager writes raw session logs during install; the parser reads them directly. `--export-logs` packaging is a sharing convenience, not a prerequisite. The most-recent file (by mtime) across both sources wins.
-
-`--troubleshoot` itself is read-only by default — it generates `fix.sh` and `diagnosis.md` but does NOT execute them. The user must review and run `bash fix.sh` themselves.
+When `--execute` exits non-zero, the agent auto-finds the most recent SDK Manager log (priority: exported tarballs `sdkm-*log*.tar*` in `~` / `~/Downloads` / `cwd` → raw session logs in `~/.nvsdkm-logs/` on Linux/Mac or `~/AppData/Local/NVIDIA Corporation/SDK Manager/logs/` on Windows) and offers `--troubleshoot` on it. No `--export-logs` step needed — the parser reads raw session logs directly. `--troubleshoot` is read-only: writes `fix.sh` + `diagnosis.md`, never executes them.
 
 ### Tests
 

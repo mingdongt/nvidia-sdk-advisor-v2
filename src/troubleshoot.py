@@ -16,6 +16,24 @@ guess (the NVIDIA-specific strings) or redundant (the agent could read
 the same content itself). The simpler architecture lets the agent
 identify failures from the actual log text, exactly what a human
 expert does when triaging a forum post.
+
+## Why this module does NOT use AgentShell
+
+troubleshoot's call shape is fundamentally different from the main
+agent loop covered by src/agent_shell.py:
+
+  - Single Anthropic call per session (not a multi-turn tool-use loop)
+  - Server-side web_search_20250305 tool (NO MCP)
+  - Entire context as one user message (no SYSTEM_PROMPT)
+  - Response blocks include server_tool_use + web_search_tool_result
+    types that AgentShell's MCP-oriented dispatch doesn't recognize
+
+Forcing troubleshoot into AgentShell would require adding spawn_mcp /
+extra_tools / system_prompt_override parameters plus a second
+block-handling code path — the abstraction would harm clarity, not
+improve it. Instead we SHARE the G9 infrastructure (TokenBudget,
+imported from agent_shell) and document the boundary explicitly.
+See docs/agent-design.md for the broader refactor design.
 """
 from __future__ import annotations
 
@@ -126,7 +144,7 @@ def _build_prompt(excerpt: dict) -> str:
     )
 
 
-def _synthesize_fix_sync(excerpt: dict) -> str:
+def _synthesize_fix_sync(excerpt: dict) -> tuple[str, dict]:
     """Synthesize fix via the configured ANTHROPIC_BACKEND.
 
     - 'sdk' (default): Anthropic Python SDK + server-side web_search tool
@@ -134,22 +152,42 @@ def _synthesize_fix_sync(excerpt: dict) -> str:
                        built-in WebSearch)
     - 'cli-no-tools':  claude CLI subprocess, no tools (baseline; agent
                        relies on training knowledge only)
-    """
-    prompt = _build_prompt(excerpt)
 
+    Returns (synthesized_markdown_text, usage_info_dict). usage_info has
+    keys: input_tokens / output_tokens / cache_read_tokens /
+    estimated_cost_usd / backend / web_search_fallback. For the CLI
+    backends, usage counts are 0 because the subscription path does not
+    expose them — backend='cli' / 'cli-no-tools' marks that case so
+    downstream telemetry can skip the row instead of recording a misleading
+    zero-cost call.
+    """
+    # G9 (capture per-API-call token usage) applied to the troubleshoot
+    # path too — see the "Why this module does NOT use AgentShell" docstring
+    # for why we share TokenBudget rather than route through the shell.
+    from src.agent_shell import TokenBudget
+    budget = TokenBudget()
+
+    prompt = _build_prompt(excerpt)
     backend = os.getenv("ANTHROPIC_BACKEND", "sdk").lower()
+    model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
     if backend in ("cli", "cli-no-tools"):
         from src.cli_backend import run_no_tools
-        return run_no_tools(prompt, timeout=180)
+        text = run_no_tools(prompt, timeout=180)
+        return text, {
+            "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
+            "estimated_cost_usd": 0.0, "backend": backend,
+            "web_search_fallback": False,
+        }
 
     # Default: SDK path with server-side web_search.
     client = anthropic.Anthropic()
-    model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     tools = [{
         "type": "web_search_20250305",
         "name": "web_search",
         "max_uses": 5,
     }]
+    web_search_fallback = False
     try:
         resp = client.messages.create(
             model=model, max_tokens=2000,
@@ -161,6 +199,7 @@ def _synthesize_fix_sync(excerpt: dict) -> str:
             f"[yellow]web_search unavailable ({type(e).__name__}); "
             f"falling back to training-knowledge-only synthesis[/yellow]"
         )
+        web_search_fallback = True
         resp = client.messages.create(
             model=model, max_tokens=2000,
             messages=[{
@@ -172,12 +211,25 @@ def _synthesize_fix_sync(excerpt: dict) -> str:
                 ),
             }],
         )
+
+    if resp.usage is not None:
+        budget.add_usage(resp.usage)
+
     # Stream-print the response blocks in their natural order (reasoning,
     # web_search calls, URLs, more reasoning, ...) so the demo viewer sees
     # the agent's troubleshoot work *as steps*, matching Phase 1's rhythm.
-    # Returns the FINAL text block — the structured Diagnosis/Fix/Why/Risks
-    # markdown — for the caller to render in a Panel + save to diagnosis.md.
-    return _stream_print_troubleshoot_response(resp)
+    # Returns the FULL concatenated synthesis (all text blocks joined) so
+    # the caller can save it verbatim to diagnosis.md + extract the bash
+    # block via _extract_fix_script.
+    text = _stream_print_troubleshoot_response(resp)
+    return text, {
+        "input_tokens": budget.used_input,
+        "output_tokens": budget.used_output,
+        "cache_read_tokens": budget.used_cache_read,
+        "estimated_cost_usd": budget.estimated_cost_usd(model),
+        "backend": backend,
+        "web_search_fallback": web_search_fallback,
+    }
 
 
 def _step_pause() -> None:
@@ -354,11 +406,11 @@ async def run_troubleshoot(
 
     # Step 2: agent reads the tail + searches web + synthesizes (one call).
     # _synthesize_fix_sync stream-prints reasoning + web_search activity in
-    # order (with per-step pauses), then returns just the final synthesized
-    # fix for the Panel below — so reviewers see the troubleshoot work step
-    # by step instead of one big dump.
+    # order (with per-step pauses), then returns the final synthesized
+    # fix + a usage dict so the caller can expose telemetry alongside the
+    # text result.
     console.print("\n[dim]→ synthesizing diagnosis + fix (streaming agent's reasoning + web_search):[/dim]\n")
-    synthesized = await asyncio.to_thread(_synthesize_fix_sync, excerpt)
+    synthesized, usage = await asyncio.to_thread(_synthesize_fix_sync, excerpt)
     console.print()
     try:
         console.print(Panel(synthesized, title="Diagnosis + fix", border_style="green"))
@@ -393,6 +445,7 @@ async def run_troubleshoot(
         "excerpt": excerpt,
         "fix_recommendation": synthesized,
         "outputs": outputs,
+        "usage": usage,  # G9: per-session token + cost telemetry
     }
 
 

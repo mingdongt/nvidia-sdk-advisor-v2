@@ -36,7 +36,7 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 
 ## What's in this repo
 
-**The thing itself** — [What it does](#what-it-does) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against) · [Evaluation](#evaluation)
+**The thing itself** — [What it does](#what-it-does) · [UX gain](#ux-gain) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against) · [Evaluation](#evaluation)
 
 **Why it looks like this** — [Design principles](#design-principles)
 
@@ -56,6 +56,26 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 | **Configure** | Silent prune of invalid combinations; no resource preflight; no cross-product reasoning | 13 deterministic tools — `list_releases`, `validate_combo`, `estimate_resources`, `check_constraints` — over NVIDIA's own CDN manifests |
 | **Install** | Wizard runs install; CLI takes flags. No conversational guided flow | Generates `.ini` matching NVIDIA's official template, optionally drives `NvSDKManager.exe --cli --response-file` as subprocess with streamed status + event classification |
 | **Troubleshoot** | "Export logs" → user reads → user searches forum. No diagnostic surface | `parse_install_log` opens the `.zip`, extracts filename metadata + log tail. The agent reads the raw tail itself and uses `web_search` (forums, askubuntu, stackoverflow) to find expert fixes → synthesizes `fix.sh` + `diagnosis.md`. No pre-classification layer |
+
+## UX gain
+
+Same task, manual workflow vs. agent-assisted (wall-clock estimates from common scenarios, not measured eval):
+
+| Phase | Manual today | This tool | Time | Decisions |
+|---|---|---|---|---|
+| **Configure** | Read board-ID docs, pick version, navigate GUI, manually check JP×SDK pairing, hope resources fit | One natural-language query → `.ini` + `sdkmanager` cmd | ~30 min → ~2 min (**~15×**) | 7 → 1 |
+| **Install** | GUI wizard or CLI flags | `python main.py --execute` drives the subprocess with streamed status | comparable | comparable |
+| **Troubleshoot** | Export Logs → unzip → read → Google → forum hunt → pick a fix → try | Auto-finds raw session log, `web_search`-synthesizes `fix.sh` + `diagnosis.md` | ~45 min → ~12 min (**~3.75×**) | 5 → 1 |
+
+The troubleshoot saving carries most of the value. Two architectural choices drive it:
+
+1. **No `--export-logs` step.** SDK Manager already writes raw session logs to `~/.nvsdkm-logs/` (Linux/Mac) or `~/AppData/Local/NVIDIA Corporation/SDK Manager/logs/` (Windows) during install. `--export-logs` just packages them into a tarball for sharing; for local analysis the raw logs are enough. See [`_find_latest_install_log`](src/execution.py#L70-L102).
+2. **Synthesize a fix, don't return links.** The agent reads the log tail, dispatches `web_search`, and produces an executable `fix.sh` plus a citation-bearing `diagnosis.md`. Five forum tabs is not a fix. Even at the current Fix-matches-reference score of 2.50/5 (see [Self-grading bias](#self-grading-bias)), "a plausible fix you can immediately try" beats "the correct forum link you'll spend 20 minutes reading".
+
+What this *doesn't* save:
+
+- **`sdkmanager`'s own install time** (~10 min flash). Steps removed are around it, not inside it.
+- **High-stakes review.** `--execute` still requires an explicit `yes`; sudo still prompts. Convenience ≠ automation. See [Execution mode safety](#execution-mode-safety).
 
 ## Design principles
 

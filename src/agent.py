@@ -1,19 +1,18 @@
 """SDK Advisor agent core — thin wrapper layer over AgentShell.
 
-Phase 2 migration: the actual agent loop now lives in src/agent_shell.py.
-This module remains as the public API surface:
+Post Phase 2b: the agent loop lives entirely in src/agent_shell.py. This
+module is now just two things:
 
-  - SYSTEM_PROMPT       : exported for cli_backend.run_with_tools and repl.py
-  - _build_tools        : still used by repl.py until its Phase 2b migration
-  - _call_with_retry    : ditto
-  - run_agent_single_turn: thin wrapper that constructs an AgentShell
+  - SYSTEM_PROMPT       : the versioned system prompt, exported because
+                          cli_backend.run_with_tools and other CLI paths
+                          need it as a literal string.
+  - run_agent_single_turn: thin async wrapper that constructs an AgentShell,
+                          runs one turn, returns the final assistant text.
+                          Preserved for backward compatibility with eval
+                          runners, tests, and orchestrator code.
 
-Backward compatibility:
-  - `run_agent_single_turn(user_input)` returns str (the final assistant text)
-  - ANTHROPIC_BACKEND env var dispatch (sdk / cli / cli-no-tools) unchanged
-
-New code that wants per-turn token usage / tool call traces should import
-AgentShell directly:
+New code that wants per-turn token usage, tool call traces, or finish
+reason should import AgentShell directly:
 
     async with AgentShell() as shell:
         result = await shell.turn(user_input)
@@ -25,45 +24,14 @@ from __future__ import annotations
 
 import asyncio
 import os
-import time
 from pathlib import Path
 from typing import Callable, Optional
-
-import anthropic
 
 # Versioned prompt assets live in prompts/<version>/ so the system prompt can
 # be git-diffed and revised without touching code. Bump the version directory
 # when introducing a non-backward-compatible prompt revision.
 _PROMPT_DIR = Path(__file__).parent / "prompts" / "1.0.0"
 SYSTEM_PROMPT = (_PROMPT_DIR / "system-prompt.md").read_text(encoding="utf-8")
-
-
-# ─── Transitional helpers ────────────────────────────────────────────────
-# _build_tools and _call_with_retry remain here ONLY because src/repl.py
-# still imports them. Phase 2b will migrate repl.py to AgentShell, at which
-# point these can be deleted (AgentShell has its own equivalents inline).
-# The MCP server-path constants and stdio imports that the old
-# run_agent_single_turn relied on now live in src/agent_shell.py.
-
-def _build_tools(mcp_tools) -> list:
-    return [
-        {"name": t.name, "description": t.description, "input_schema": t.inputSchema}
-        for t in mcp_tools
-    ]
-
-
-def _call_with_retry(client, model, tools, messages, max_attempts=4):
-    """Anthropic call with exponential backoff on rate limit."""
-    for attempt in range(max_attempts):
-        try:
-            return client.messages.create(
-                model=model, max_tokens=4096,
-                system=SYSTEM_PROMPT, tools=tools, messages=messages,
-            )
-        except anthropic.RateLimitError:
-            if attempt == max_attempts - 1:
-                raise
-            time.sleep(15 * (attempt + 1))
 
 
 async def run_agent_single_turn(

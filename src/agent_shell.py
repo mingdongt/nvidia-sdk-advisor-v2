@@ -292,6 +292,30 @@ class AgentShell:
 
     # ─── public API ────────────────────────────────────────────────────
 
+    @property
+    def knowledge_session(self) -> ClientSession:
+        """Direct access to the knowledge MCP session.
+
+        Use ONLY for one-off host-side tool calls outside the agent loop
+        (e.g. REPL's opening probe that needs to call detect_connected_hardware
+        before the first user turn). Inside the agent loop, the LLM dispatches
+        tools via shell.turn() — do not use this property there.
+        """
+        if self._k_session is None:
+            raise RuntimeError(
+                "Shell must be entered as async context manager before accessing knowledge_session"
+            )
+        return self._k_session
+
+    @property
+    def rag_session(self) -> ClientSession:
+        """Direct access to the RAG MCP session. See knowledge_session docstring."""
+        if self._r_session is None:
+            raise RuntimeError(
+                "Shell must be entered as async context manager before accessing rag_session"
+            )
+        return self._r_session
+
     async def turn(
         self,
         user_input: str,

@@ -4,7 +4,7 @@
 
 A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs, built on the same public data sources SDK Manager itself uses. Generates `.ini` response files SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
-[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 86 passing](https://img.shields.io/badge/tests-86%20passing-brightgreen)](#tests)
+[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 117 passing](https://img.shields.io/badge/tests-117%20passing-brightgreen)](#tests)
 
 ![End-to-end demo: configure → install → troubleshoot → fix → retry](docs/demo/full-mode.gif)
 
@@ -108,7 +108,7 @@ The [hero diagram](docs/demo/architecture.svg) above shows the 5 phases sharing 
                          │
                          ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│  AGENT LOOP  (src/agent.py)                                           │
+│  AGENT SHELL  (src/agent_shell.py — wrapped by src/agent.py)          │
 │                                                                       │
 │   SYSTEM_PROMPT  (routing contract)                                   │
 │        │                                                              │
@@ -534,7 +534,7 @@ When `--execute` exits non-zero, the agent auto-finds the most recent SDK Manage
 ### Tests
 
 ```powershell
-pytest                                   # all 86 unit tests
+pytest                                   # all 117 unit tests
 pytest tests/test_response_file.py -v    # response file format alignment with NVIDIA template
 pytest tests/test_log_parser.py -v       # filename regex + tail extraction (8 tests, no pre-classification)
 ```
@@ -547,7 +547,7 @@ nvidia-sdk-advisor/
 ├── src/                     # agent, MCP servers, parsers, REPL
 ├── ingest/                  # NVIDIA CDN / NGC / GitHub README ingestion
 ├── data/                    # manifests, corpus, fixtures, sample logs
-├── tests/                   # 86 unit tests + 3 eval suites + fixtures
+├── tests/                   # 117 unit tests + 3 eval suites + fixtures
 └── output/                  # generated .ini, .command, fix.sh, diagnosis.md
 ```
 

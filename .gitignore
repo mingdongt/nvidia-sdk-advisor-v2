@@ -21,3 +21,8 @@ data/chroma_db/
 
 # Superpowers brainstorming artifacts (visual companion mockups)
 .superpowers/
+
+# Eval engine per-run JSONL output (transient; rerun the runner to regenerate).
+# Case files (eval/cases/L*/*.jsonl) ARE committed — only outputs are ignored.
+eval/runs/*.jsonl
+!eval/runs/.gitkeep

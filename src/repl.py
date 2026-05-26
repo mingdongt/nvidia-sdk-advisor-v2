@@ -4,6 +4,8 @@ Multi-turn loop: user types NL input -> agent decides to ask, call tools,
 or present plan -> output streamed to terminal -> back to prompt.
 
 Phase 2b migration: the inner tool-use loop is delegated to AgentShell.
+Phase 2e cleanup: removed the host-side hardware probe (G4 fix) and
+the dead _STEP_LABELS entries for tools that no longer exist (G7 fix).
 This module is now strictly REPL UX (input prompting, trace rendering,
 file saving). Helpers in src/agent.py (SYSTEM_PROMPT, _build_tools,
 _call_with_retry) are no longer imported here.
@@ -11,7 +13,6 @@ _call_with_retry) are no longer imported here.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 import sys
@@ -28,11 +29,6 @@ console = Console()
 # User-facing labels for each MCP tool's live trace line. The live tool
 # names that ever get dispatched come from the MCP server-side tool list;
 # unknown names fall back to the bare tool name in _print_tool_step.
-#
-# search_forum_threads / search_docs are dead labels (the MCP wrappers
-# were removed in favor of the model's native web_search). They remain
-# here only to avoid changing the dict shape during the Phase 2b
-# migration; G7 (dead label cleanup) removes them in Phase 2e.
 _STEP_LABELS = {
     "list_products": "Listing products",
     "list_releases": "Listing releases",
@@ -47,8 +43,6 @@ _STEP_LABELS = {
     "generate_command": "Generating command",
     "lookup_container_reqs": "Looking up container requirements",
     "search_3p_sample_repos": "Searching sample repos",
-    "search_forum_threads": "Searching forum threads",  # dead, see comment above
-    "search_docs": "Searching NVIDIA docs",              # dead, see comment above
 }
 
 
@@ -100,34 +94,25 @@ def _save_outputs(final_text: str, label_hint: str) -> dict:
     return saved
 
 
-async def _opening_probe(shell: AgentShell) -> str:
-    """Auto-detect on startup; return an opening line to print to the user.
+def _opening_message() -> str:
+    """Return the static REPL welcome line.
 
-    Calls detect_connected_hardware directly on the knowledge MCP session.
-    The structured result is currently discarded after formatting — this is
-    the G4 (double probe) bug. Phase 2e will inject the result into
-    shell.messages as a synthetic tool_use/tool_result pair so the agent
-    doesn't re-call the tool on its first turn.
+    Phase 2e (G4 fix): previously this function ran a host-side
+    detect_connected_hardware call to personalize the opener ("Detected
+    Orin NX..."), then the agent would re-call the same tool on its first
+    turn — wasting one subprocess probe per session AND fighting G1's
+    sliding-window strategy (any synthetic state injected to suppress the
+    re-probe would get pruned anyway after max_user_turns).
+
+    Cleaner architecture: the agent does its own detection on the first
+    turn via SYSTEM_PROMPT's standing instruction. The opener becomes
+    generic. UX cost is small (less personalized first line) and the
+    probe still happens, just owned by the agent loop.
     """
-    result = await shell.knowledge_session.call_tool(
-        "detect_connected_hardware", arguments={}
+    return (
+        "Hi - what NVIDIA hardware are you working with? "
+        "I'll detect connected devices when we get started."
     )
-    data = json.loads(result.content[0].text)
-    if not data.get("available"):
-        return (
-            "Hi - what NVIDIA hardware are you working with? "
-            "I can also help if it's not connected yet."
-        )
-    devices = data.get("devices", [])
-    if len(devices) == 0:
-        return "No devices currently connected. What hardware are we planning for?"
-    if len(devices) == 1:
-        return (
-            f"Detected {devices[0]['name']} connected ({devices[0]['port']}). "
-            f"What do you want to do with it?"
-        )
-    names = ", ".join(d["name"] for d in devices)
-    return f"Detected {len(devices)} devices: {names}. Which one are we configuring?"
 
 
 async def run_repl() -> None:
@@ -142,8 +127,9 @@ async def run_repl() -> None:
         sys.exit(1)
 
     async with AgentShell(mode="repl") as shell:
-        opening = await _opening_probe(shell)
-        console.print(Panel(opening, title="NVIDIA SDK Advisor", border_style="green"))
+        console.print(Panel(
+            _opening_message(), title="NVIDIA SDK Advisor", border_style="green",
+        ))
 
         prompt_session = PromptSession()
         first_input_hint = "describe hardware + use case"
@@ -159,17 +145,7 @@ async def run_repl() -> None:
             if user_input.strip().lower() in ("exit", "quit"):
                 return
 
-            raw_user_input = user_input  # preserve for label generation
-
-            # G4 (double probe) preserved: the first turn embeds the opening
-            # text into the user message as natural language. The agent will
-            # re-call detect_connected_hardware unnecessarily because
-            # SYSTEM_PROMPT instructs it to. Phase 2e fixes this by injecting
-            # the host-side probe result as a synthetic tool_result into
-            # shell.messages BEFORE the first turn() — at which point the
-            # opening text no longer needs to be re-embedded.
             if not shell.messages:
-                user_input = f"{opening}\n\nUser response: {user_input}"
                 first_input_hint = "continue conversation"
 
             result = await shell.turn(
@@ -178,7 +154,7 @@ async def run_repl() -> None:
                 on_thinking=_print_thought,
             )
             console.print(result.text)
-            saved = _save_outputs(result.text, label_hint=raw_user_input[:40])
+            saved = _save_outputs(result.text, label_hint=user_input[:40])
             for kind, path in saved.items():
                 console.print(f"[green]+[/green] saved {kind}: {path}")
 

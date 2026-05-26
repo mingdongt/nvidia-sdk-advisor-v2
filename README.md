@@ -36,7 +36,7 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 
 ## What's in this repo
 
-**The thing itself** — [What it does](#what-it-does) · [UX gain](#ux-gain) · [Architecture](#architecture) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against) · [Evaluation](#evaluation)
+**The thing itself** — [What it does](#what-it-does) · [UX gain](#ux-gain) · [Architecture](#architecture) · [Agent shell design](#agent-shell-design) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against) · [Evaluation](#evaluation)
 
 **Why it looks like this** — [Design principles](#design-principles)
 
@@ -157,6 +157,46 @@ Five things this view shows that the hero diagram doesn't:
 3. **`web_search` and `NvSDKManager` stay outside MCP.** Anthropic's `web_search` is already a tool primitive; wrapping it would add nothing. `NvSDKManager.exe` is a subprocess target, not a tool source. Decision log at [Tier 3 — decision log](#tier-3--decision-log).
 4. **Three retrieval tiers, not one.** NGC catalog (exact, Tier 1), GitHub READMEs (semantic, Tier 2), forums + docs via `web_search` (live, Tier 3). Different cost/latency/accuracy profiles — see [RAG design](#rag-design).
 5. **Dependencies point downward only.** Swap the entry surface (REPL → Electron panel → `sdkmanager --advise` subcommand) without touching anything below it — the claim made concrete in [If this were to ship](#if-this-were-to-ship--how-i-think-about-it).
+
+## Agent shell design
+
+**One `AgentShell` · three caller modes · five primitives · 5 of 9 self-identified gaps closed in production.**
+
+The agent layer was originally three independent loops (`run_agent_single_turn`, `run_repl`, `run_troubleshoot`), each re-implementing MCP spawn, tool dispatch, message accumulation, and API retry. A self-critique document ([`docs/agent-design.md`](docs/agent-design.md) Ch 8) enumerated nine specific gaps in that arrangement — and writing the gaps in order revealed which ones were architecturally coupled. The list then drove a six-commit refactor (`80e3914` → `a7dedfd`) that introduced a unified shell and closed most of the list.
+
+```
+                      ┌────────────────────────────────────────────────┐
+                      │  AgentShell  (src/agent_shell.py)              │
+                      │                                                │
+                      │   AgentState      typed cross-phase state      │
+                      │   TokenBudget     200k input / 50k output cap  │
+                      │   MessageHistory  pluggable retention strategy │
+                      │   TurnResult      structured outcome           │
+                      │   AgentShell      owns MCP session lifetime    │
+                      └──────────────────────┬─────────────────────────┘
+                                             │
+      ┌──────────────────────────────────────┼──────────────────────────────┐
+      ▼                                      ▼                              ▼
+mode="single_turn"                    mode="repl"                  src/troubleshoot.py
+unbounded history                     sliding window               (NOT routed through
+(one turn per shell)                  max_user_turns=10            shell — single call,
+                                                                   server-side web_search,
+                                                                   no MCP, no SYSTEM_PROMPT;
+                                                                   shares TokenBudget only)
+```
+
+Three production fixes the shell ships by construction:
+
+| Gap | Before | After |
+|---|---|---|
+| **G1** REPL context bloat | turn 30 re-sends all 29 prior turns → 30× input tokens | sliding window prunes at turn boundaries; `tool_use` ↔ `tool_result` pairing preserved |
+| **G8** no token budget | only `MAX_TURNS=50`; a stuck tool loop burns $4–7 on Haiku, $30–45 on Opus | pre-flight `budget.raise_if_exhausted()` before each API call |
+| **G9** `response.usage` discarded | per-query cost invisible until the Anthropic invoice arrives | captured every turn into `TurnResult` + `shell.budget`; `estimated_cost_usd(model)` surfaces $/query |
+
+**The decision that wasn't to migrate.** `troubleshoot.py` is a single Anthropic call with server-side `web_search_20250305`, no MCP, no `SYSTEM_PROMPT`. Forcing it through `AgentShell` would have required `spawn_mcp` / `extra_tools` / `system_prompt_override` parameters plus a second block-handling code path — the abstraction would harm clarity. Instead it imports `TokenBudget` for symmetric cost tracking and documents the boundary in its own module docstring. **Knowing when *not* to abstract is the senior signal here.**
+
+→ **Design manual (deep dive):** [`docs/agent-design.md`](docs/agent-design.md)
+The booklet covers: why a single-agent + tool-use loop and not multi-agent / plan-execute · the state-management decision (messages list vs. typed state) · context-budget mechanics (turns, tokens, summarization) · the routing contract · Ch 8's nine-gap self-critique and the closure status of each — including the two that remain open by design.
 
 ## MCP design
 

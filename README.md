@@ -430,6 +430,29 @@ Two behavioral signals worth noting:
 
 2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; correctness doesn't depend on it, but it shows up in the trace.
 
+### Eval framework redesign
+
+The three tracks above are **scenario-split** (smoke vs. reasoning vs. troubleshoot), which means a score change can't be attributed to "the model is worse", "the prompt is broken", "tool dispatch order regressed", or "the agent capitulated to a malformed input" — all of those land in the same scoreboard cell. The same-family LLM judge (Haiku judging Haiku) and small sample sizes (smoke = 5 cases; Wilson 95% CI on 5/5 is ~50%–100%) compound this.
+
+The successor framework — `eval/` engine + [`docs/eval-design.md`](docs/eval-design.md) — keeps the existing cases as the L1/L2 starting point and splits the measurement along three independent dimensions:
+
+- **5 axes** (what to measure): A1 correctness · A2 compliance · A3 efficiency · A4 robustness · A5 capability (LLM judge, planned)
+- **3 layers** (case difficulty): L1 golden path / L2 hard cases / L3 adversarial (30 new negative cases — impossible combos, prompt injection, ambiguous, unsupported, nonsense, out-of-scope)
+- **N arms** (architectural comparison): `main` / `no-tools` / `opus` / `cli` / `<prev-commit>` — every JSONL `RunRecord` carries an `arm` field for slicing
+
+A1, A2, and A4 are **deterministic** (configparser for INI structure, shlex for command flags, trace inspection for tool dispatch order, fenced-block grep for unsafe-command detection). LLM judges are reserved for the one axis where the output is unstructured prose (A5). The legacy ratio was ~70% LLM judge; the new ratio is ~80% deterministic — same eval coverage with materially less judge bias and lower per-run cost.
+
+```bash
+# Run any case set on any arm, write JSONL to eval/runs/<timestamp>.jsonl
+python -m eval.engine.runner eval/cases/L1                           # default arm=main
+python -m eval.engine.runner eval/cases/L1 --arm no-tools             # ablation baseline
+python -m eval.engine.runner eval/cases/L3 --tag adversarial-baseline # safety sweep
+python -m eval.dashboard.summarize eval/runs/*.jsonl                  # cross-arm comparison
+```
+
+→ **Design manual (deep dive):** [`docs/eval-design.md`](docs/eval-design.md)
+The booklet covers: why the legacy 3-track design produced the self-grading bias documented above · the axes/layers/arms framework · the deterministic-where-possible scoring policy · JSONL as source of truth · five known gaps the framework hasn't closed yet (L2 authoring, A5 not built, no CI gate, no regression detection, no per-tool cost attribution).
+
 ## What's still missing
 
 This repo is the 20%. The other 80% — the part that would actually be hard to ship — I haven't built. These are the gaps I can name; some I have rough plans for, some I don't. If you're working on similar tooling and have figured any of these out, I'd genuinely like to hear how.
@@ -560,6 +583,7 @@ Full file-level tree (with one-line description per module) in [`docs/structure.
 - **Not a library to fork and extend.** Data files (manifest snapshots, NGC catalog, log fixtures, README corpus) are project-specific point-in-time captures, not a generalizable starter kit.
 - **Not a complete production-readiness sweep.** See [What's still missing](#whats-still-missing) for the explicit list of what's out, and why.
 - **Not a NeMo Agent Toolkit or LangGraph competitor.** Those are framework-level products; this is a single-domain agent that happens to use MCP.
+- **Not stateful across REPL sessions.** Closing the REPL clears the conversation; reopening starts from `messages = []`. Resume semantics (replay prior plan, pick up mid-troubleshoot) were considered and **intentionally deferred** — they'd require session storage, a resume command, and UX for picking which prior session to reload. For a single-domain CLI agent at portfolio scale the cost outweighs the benefit; for a production deployment, session persistence is coupled to the multi-user/auth story that doesn't exist yet either. Tracked as gap G6 in [`docs/agent-design.md`](docs/agent-design.md#ch-8-where-the-design-isnt-honest-yet).
 
 ## License & attribution
 

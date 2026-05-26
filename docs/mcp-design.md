@@ -472,7 +472,7 @@ Organized by Phase 0 → 6.
     │                              │ts  [K]   │
     │                              └──────────┘
     │
-    │       ┌─── Phase 4 (workload, exclusive) ──┐
+    │       ┌─── Phase 4 (workload, branching) ──┐
     │       │                                    │
     │   ┌───┴────┐   ┌─────────┐                 │
     │   │search_ │   │lookup_  │                 │
@@ -538,11 +538,11 @@ Two nodes in the DAG have abnormally high out-degree — call them "hubs":
 | Optional self-check | validate_against_official_sample | 1 |
 | Exception branch | parse_install_log | 1 |
 
-### Exclusive branches
+### Branching points
 
-Only two:
+Two branches, both lazy — agent picks at most one (Phase 4) or independently dispatches each (Phase 5):
 
-- **Phase 4**: `lookup_container_reqs` (exact) vs `search_3p_sample_repos` (semantic) — picked by user intent, never both.
+- **Phase 4**: `lookup_container_reqs` (exact) and `search_3p_sample_repos` (semantic) serve different user intents. Earlier revisions of this doc described the two as "exclusive — never both" but the SYSTEM_PROMPT actually says *"`search_3p_sample_repos` **FIRST** to find the matching NVIDIA sample"*, implying a sequential path: semantic search surfaces a repo, then container-reqs looks up that repo's exact requirements. Both calls in one session is a legitimate flow when the user describes a workload by name. Tracked as gap G5 in [`agent-design.md` Ch 8](./agent-design.md#ch-8-where-the-design-isnt-honest-yet); this revision closes it.
 - **Phase 5**: `.ini` and command **don't depend on each other** but aren't mutually exclusive either — dispatch as needed.
 
 ### Relation to README

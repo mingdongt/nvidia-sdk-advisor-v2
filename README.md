@@ -36,7 +36,7 @@ Plan: Jetson · JetPack 6.2.2 · JETSON_ORIN_NX_TARGETS · ubuntu22.04 · DeepSt
 
 ## What's in this repo
 
-**The thing itself** — [What it does](#what-it-does) · [UX gain](#ux-gain) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against) · [Evaluation](#evaluation)
+**The thing itself** — [What it does](#what-it-does) · [UX gain](#ux-gain) · [Architecture](#architecture) · [MCP design](#mcp-design) · [RAG design](#rag-design) · [Tested against](#tested-against) · [Evaluation](#evaluation)
 
 **Why it looks like this** — [Design principles](#design-principles)
 
@@ -87,6 +87,77 @@ Three judgments shaped what this repo includes and what it excludes.
 
 This is a design study with executable evidence, not a tool meant to be adopted as-is.
 
+## Architecture
+
+The [hero diagram](docs/demo/architecture.svg) above shows the 5 phases sharing one backend. This section shows the layer stack — top to bottom is the call path, top to bottom is also the swap boundary: every layer below the MCP line is replaceable without touching the agent loop above.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ENTRY SURFACES (replaceable)                                         │
+│                                                                       │
+│   main.py --execute      main.py --troubleshoot      main.py --full   │
+│   main.py --dry-run      main.py --eval <track>      REPL (default)   │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  ORCHESTRATOR  (src/orchestrator.py)                                  │
+│  5-phase chain: configure → install → troubleshoot → fix → retry      │
+│  Tags each phase REAL / MOCKED / SIMULATED in trace output            │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  AGENT LOOP  (src/agent.py)                                           │
+│                                                                       │
+│   SYSTEM_PROMPT  (routing contract)                                   │
+│        │                                                              │
+│        ▼                                                              │
+│   ┌──────────────────────────────────────────────────────────┐       │
+│   │  Backend switch (env: ANTHROPIC_BACKEND)                  │       │
+│   │  ├─ "sdk"          → Anthropic SDK + Haiku 4.5 (default)  │       │
+│   │  ├─ "cli"          → Claude CLI + Opus 4.7                │       │
+│   │  └─ "cli-no-tools" → Opus alone (ablation baseline)       │       │
+│   └──────────────────────────────────────────────────────────┘       │
+│        │                                                              │
+│        ▼  tool_use blocks                                             │
+│   session_map → dispatch to the correct MCP server                    │
+└────────────────────────┬─────────────────────────────────────────────┘
+                         │ ════════ MCP boundary (swap line) ════════════
+        ┌────────────────┼─────────────────────────────────┐
+        ▼                ▼                                 ▼
+┌────────────────┐ ┌────────────────┐   ┌─────────────────────────────┐
+│ MCP Server A   │ │ MCP Server B   │   │  External (not MCP)         │
+│ nvidia-        │ │ nvidia-corpus- │   │                             │
+│ knowledge      │ │ rag            │   │  • web_search (Anthropic    │
+│                │ │                │   │    server-side; only used   │
+│ 13 deterministic│ │ 2 semantic    │   │    in --troubleshoot)       │
+│ tools, ~1s     │ │ tools, ~5-10s  │   │  • NvSDKManager.exe         │
+│ cold start     │ │ cold start     │   │    (subprocess: --execute,  │
+│                │ │                │   │    --list-connected)        │
+└───────┬────────┘ └───────┬────────┘   └─────────────────────────────┘
+        │                  │
+        ▼                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  DATA LAYER  (data/)                                                  │
+│                                                                       │
+│   manifests/          NVIDIA CDN snapshots (point-in-time JSON)       │
+│   corpus/ngc/         NGC container catalog (jsonl, 20 entries)       │
+│   corpus/github/      GitHub README scrape (jsonl, 21 repos)          │
+│   chroma_db/          Vector index (built locally, ~30s)              │
+│   sample_logs/        5 redacted real SDK Manager log archives        │
+│   response_templates/ NVIDIA official .ini sample (source of truth)   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+Five things this view shows that the hero diagram doesn't:
+
+1. **The replace boundary is the MCP line.** Every tool below it is swappable; the agent loop above doesn't know which transport a tool happens to use today. See [MCP design](#mcp-design).
+2. **All three backends share one stack.** SDK / CLI / `cli-no-tools` (the baseline for [Tool-layer ablation](#tool-layer-ablation)) flip via env var, not branches. Same SYSTEM_PROMPT, same tools, same dispatch — only the model client differs.
+3. **`web_search` and `NvSDKManager` stay outside MCP.** Anthropic's `web_search` is already a tool primitive; wrapping it would add nothing. `NvSDKManager.exe` is a subprocess target, not a tool source. Decision log at [Tier 3 — decision log](#tier-3--decision-log).
+4. **Three retrieval tiers, not one.** NGC catalog (exact, Tier 1), GitHub READMEs (semantic, Tier 2), forums + docs via `web_search` (live, Tier 3). Different cost/latency/accuracy profiles — see [RAG design](#rag-design).
+5. **Dependencies point downward only.** Swap the entry surface (REPL → Electron panel → `sdkmanager --advise` subcommand) without touching anything below it — the claim made concrete in [If this were to ship](#if-this-were-to-ship--how-i-think-about-it).
+
 ## MCP design
 
 **Two servers · 15 tools · 5–7 tool calls per typical query · 10/10 spec compliance across smoke traces.**
@@ -112,7 +183,7 @@ The MCP boundary is this repo's single load-bearing architectural decision: ever
    P3  validate_combo · estimate_resources ·           (validate + budget,
        check_constraints                                conditional)
        │
-       │  ┌──── P4 crosses to Server B (二选一) ────────┐
+       │  ┌──── P4 crosses to Server B (either/or) ──────┐
        │  │                                              │
        │  │  [Server B · nvidia-corpus-rag ·             │
        │  │   2 semantic tools · ~5–10s cold start]      │
@@ -120,7 +191,7 @@ The MCP boundary is this repo's single load-bearing architectural decision: ever
        │  │   search_3p_sample_repos  (fuzzy)            │
        │  │   lookup_container_reqs   (exact)            │
        │  │                                              │
-       │  └─────── output 回填 Server A ─────────────────┘
+       │  └─────── output feeds back to Server A ────────┘
        ▼
    P5  generate_response_file → validate_against_* →   (output, last 3)
        generate_command

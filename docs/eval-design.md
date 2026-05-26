@@ -295,6 +295,70 @@ In the spirit of [`mcp-design.md` Ch 7](./mcp-design.md#ch-7-where-the-design-is
 
 ---
 
+## Ch 8. First production run — 2026-05-27
+
+This chapter doesn't document design — it documents what the framework caught the first time it ran end-to-end against L1 with two arms. Listed here so the design rationale in Ch 1–7 is anchored to a real artifact, not just intent. JSONLs committed under `eval/runs/2026-05-26T22-28-49_20260527-dual-arm.jsonl` (main) and `2026-05-26T22-31-29_20260527-dual-arm.jsonl` (no-tools).
+
+### Setup
+
+Same 5 L1 smoke cases run under two arms, one sample each. ~$0.12 total, ~6 minutes wall-clock.
+
+| Arm | Backend | Model | Tools |
+|---|---|---|---|
+| `main` | AgentShell + Anthropic SDK | Haiku 4.5 | MCP knowledge + MCP corpus-rag |
+| `no-tools` | Claude CLI subprocess | Opus 4.7 | none |
+
+### Aggregate scoreboard
+
+```
+arm        L1.smoke   A1     A2     tok_in     tok_out    total$
+---------- --------   ----   ----   --------   --------   --------
+main       5/5        1.00   0.94   91.1k      4.8k       $0.1152
+no-tools   5/5        0.80   0.56   n/a        n/a        n/a
+```
+
+(No-tools cost shows `n/a` only because the Claude CLI subprocess goes through the user's subscription, not the metered SDK path. A3 telemetry coverage limitation noted in Ch 4 / Appendix A2.)
+
+### What the framework caught that legacy eval would have missed
+
+**1. A2 compliance violations on the main arm — 2 of 5 cases.** The legacy `tests/run_smoke_eval.py` regex scorer would have given these cases the same `15/15` it always did, because the final `.ini` and command outputs are correct. The new A2 axis surfaces trace-level issues that A1 alone can't see:
+
+  - `L1-smoke-orin-nano-cuda-jp6` — agent **skipped `detect_connected_hardware` entirely**. Went straight to `lookup_target_id`. Violates SYSTEM_PROMPT routing step 1 (`detect_hardware_present` rule failed).
+  - `L1-smoke-orin-nx-latest-jp6` — agent called `detect_connected_hardware` AFTER `lookup_target_id`, not first. Violates the "must be first" clause (`detect_hardware_first` rule failed).
+
+Both cases produced correct outputs, but the routing contract is being violated on 40% of L1 smoke cases. **This is exactly the kind of silent drift that A1-only or regex-on-text eval cannot see** — and the most direct evidence that the axis split was worth doing.
+
+**2. No-tools hallucinations — concrete and named.** A1 dropped from 1.00 (main) to 0.80 (no-tools). The 0.20 gap is two specific failures:
+
+  - `L1-smoke-agx-orin-deepstream7` — A1 = 0.33. Opus alone wrote `--product JETSON_LINUX` (target_id encoded as product — a category confusion) and dropped the `--additional-sdk 'DeepStream 7.0'` flag entirely.
+  - `L1-smoke-jetson-nano-orig-yolo-jp4` — A1 = 0.67. Opus chose JetPack 6.1 for original Jetson Nano (4GB), which physically tops out at JetPack 4.6.4 — a real impossible-combo hallucination.
+
+These match the README §Tool-layer ablation finding pattern: deterministic tool-grounding closes specific hallucination classes the model alone cannot avoid. The new framework reproduces that finding as a routine cross-arm check rather than a one-off README study.
+
+### What the framework made visible by absence
+
+  - **A2 on no-tools is artificially 0.56**, not because the agent behaved badly but because there are no MCP tools to dispatch — every "must fire X" rule trivially fails. Useful per-arm floor, misleading for cross-arm comparison. A future revision could mark A2 as `n/a` for tool-less arms (similar to how A3 is `n/a` when telemetry isn't exposed).
+  - **A3 telemetry doesn't reach the no-tools arm.** Claude CLI subprocess doesn't surface `response.usage`, so input/output tokens are `None` and estimated cost is `n/a`. Cost-attributing the no-tools baseline would require either the Anthropic SDK path (different accounting) or instrumenting the CLI subprocess (out of scope today).
+  - **A5 (LLM-as-judge capability) is still unimplemented**, so free-text reasoning quality from L2 reasoning cases doesn't have a structure to score against. Ch 7.2 tracks this as the next-priority gap.
+
+### Cost & velocity
+
+Main arm cost $0.1152 total — $0.023 per case average — at ~30s wall-clock per case. Linear extrapolation:
+
+| Layer | Planned size | Cost/arm (Haiku) | Cost/arm (Opus) |
+|---|---|---|---|
+| L1 | 30-50 | $0.70 - $1.15 | $7 - $12 |
+| L2 | 100-200 | $2.30 - $4.60 | $25 - $50 |
+| L3 | 30-50 | $0.70 - $1.15 | $7 - $12 |
+
+A multi-arm full sweep (main + no-tools + opus + cli) on full L1 + L2 + L3 ≈ $35-75 per release-gate run on current case counts; closer to $100-150 after L2 reaches its 100-200 target. **Eval cost is itself an ops cost worth budgeting**, not a fixed-overhead assumption.
+
+### Chapter takeaway
+
+> The framework's value isn't in producing higher scores — the main arm scored the same `5/5` on A1 that the legacy smoke eval reported as `15/15`. The value is in **catching what the legacy eval couldn't see** (the two A2 violations above) and **enabling cross-arm deltas as routine checks** (main vs no-tools as a release-gate signal rather than a one-off study). Writing the design doc first surfaced the gaps; running it once surfaced two specific contract violations in production code that nobody had noticed. That alignment problem — measured behavior vs design intent — is what eval is for.
+
+---
+
 ## Appendix
 
 ### A1. Layer × Axis applicability matrix

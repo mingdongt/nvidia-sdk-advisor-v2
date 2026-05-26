@@ -1,8 +1,25 @@
-"""SDK Advisor agent core.
+"""SDK Advisor agent core — thin wrapper layer over AgentShell.
 
-Connects to the nvidia-knowledge MCP server via stdio, exposes its tools to
-Claude, runs a multi-turn tool-use loop. Higher-level conversational logic
-(decide when to ask the user) lives in src/repl.py.
+Phase 2 migration: the actual agent loop now lives in src/agent_shell.py.
+This module remains as the public API surface:
+
+  - SYSTEM_PROMPT       : exported for cli_backend.run_with_tools and repl.py
+  - _build_tools        : still used by repl.py until its Phase 2b migration
+  - _call_with_retry    : ditto
+  - run_agent_single_turn: thin wrapper that constructs an AgentShell
+
+Backward compatibility:
+  - `run_agent_single_turn(user_input)` returns str (the final assistant text)
+  - ANTHROPIC_BACKEND env var dispatch (sdk / cli / cli-no-tools) unchanged
+
+New code that wants per-turn token usage / tool call traces should import
+AgentShell directly:
+
+    async with AgentShell() as shell:
+        result = await shell.turn(user_input)
+        # result.text, result.tool_calls, result.input_tokens, ...
+
+See docs/agent-design.md for the refactor rationale.
 """
 from __future__ import annotations
 
@@ -13,11 +30,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import anthropic
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-_KNOWLEDGE_SERVER = Path(__file__).parent / "knowledge_server.py"
-_RAG_SERVER = Path(__file__).parent / "rag_server.py"
 
 # Versioned prompt assets live in prompts/<version>/ so the system prompt can
 # be git-diffed and revised without touching code. Bump the version directory
@@ -25,10 +37,13 @@ _RAG_SERVER = Path(__file__).parent / "rag_server.py"
 _PROMPT_DIR = Path(__file__).parent / "prompts" / "1.0.0"
 SYSTEM_PROMPT = (_PROMPT_DIR / "system-prompt.md").read_text(encoding="utf-8")
 
-# Cap the tool-use loop so a tool that keeps erroring can't make Claude loop
-# indefinitely. Successful runs typically use 6-12 turns; 50 is wide margin.
-MAX_TURNS = 50
 
+# ─── Transitional helpers ────────────────────────────────────────────────
+# _build_tools and _call_with_retry remain here ONLY because src/repl.py
+# still imports them. Phase 2b will migrate repl.py to AgentShell, at which
+# point these can be deleted (AgentShell has its own equivalents inline).
+# The MCP server-path constants and stdio imports that the old
+# run_agent_single_turn relied on now live in src/agent_shell.py.
 
 def _build_tools(mcp_tools) -> list:
     return [
@@ -58,9 +73,13 @@ async def run_agent_single_turn(
 ) -> str:
     """Single-prompt agent run. Backend dispatch via ANTHROPIC_BACKEND env var.
 
-    - 'sdk' (default): anthropic Python SDK, connects to both MCP servers (current path)
+    - 'sdk' (default): AgentShell (Phase 2 migration target). Connects to both MCP servers.
     - 'cli':           claude CLI subprocess with MCP servers attached
     - 'cli-no-tools':  claude CLI subprocess, NO tools (baseline for 3-way comparison)
+
+    Returns the final assistant text for backward compatibility. New callers
+    that want token usage / tool traces / finish_reason should import
+    AgentShell from src.agent_shell directly.
     """
     backend = os.getenv("ANTHROPIC_BACKEND", "sdk").lower()
     if backend == "cli":
@@ -70,67 +89,22 @@ async def run_agent_single_turn(
         from src import cli_backend
         return await asyncio.to_thread(cli_backend.run_no_tools, user_input)
 
-    # Default: anthropic SDK
-    import json
-    # MCP's stdio_client uses a small env whitelist (PATH/HOME/etc.) and drops
-    # everything else when StdioServerParameters.env is None. Forward FastMCP
-    # control vars explicitly so settings like FASTMCP_SHOW_SERVER_BANNER=false
-    # (used by the demo recording) reach the spawned server process.
-    _mcp_env = {k: v for k, v in os.environ.items() if k.startswith("FASTMCP_")} or None
-    k_params = StdioServerParameters(command="python", args=[str(_KNOWLEDGE_SERVER)], env=_mcp_env)
-    r_params = StdioServerParameters(command="python", args=[str(_RAG_SERVER)], env=_mcp_env)
-
-    async with stdio_client(k_params) as (kr, kw), stdio_client(r_params) as (rr, rw):
-        async with ClientSession(kr, kw) as k_session, ClientSession(rr, rw) as r_session:
-            await k_session.initialize()
-            await r_session.initialize()
-
-            k_tools = (await k_session.list_tools()).tools
-            r_tools = (await r_session.list_tools()).tools
-
-            # Tool dispatch table: tool_name -> session
-            session_map: dict[str, ClientSession] = {}
-            for t in k_tools:
-                session_map[t.name] = k_session
-            for t in r_tools:
-                session_map[t.name] = r_session
-
-            tools = _build_tools(list(k_tools) + list(r_tools))
-
-            client = anthropic.Anthropic()
-            model = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
-            messages = [{"role": "user", "content": user_input}]
-
-            import asyncio as _asyncio
-            for _ in range(MAX_TURNS):
-                response = await _asyncio.to_thread(_call_with_retry, client, model, tools, messages)
-                if response.stop_reason == "end_turn":
-                    return next((b.text for b in response.content if hasattr(b, "text")), "")
-                tool_results = []
-                # Process blocks in order so on_thinking and on_step fire
-                # interleaved exactly as the model produced them — gives the
-                # demo trace a natural "thinking → tool call → result" flow.
-                for block in response.content:
-                    if block.type == "text":
-                        if on_thinking and getattr(block, "text", None):
-                            on_thinking(block.text)
-                        continue
-                    if block.type != "tool_use":
-                        continue
-                    sess = session_map.get(block.name)
-                    if sess is None:
-                        result_text = json.dumps({"error": f"unknown tool: {block.name}"})
-                    else:
-                        result = await sess.call_tool(block.name, arguments=block.input)
-                        result_text = result.content[0].text if result.content else "{}"
-                    if on_step:
-                        on_step(block.name, block.input, result_text)
-                    tool_results.append({
-                        "type": "tool_result", "tool_use_id": block.id, "content": result_text,
-                    })
-                messages.append({"role": "assistant", "content": response.content})
-                messages.append({"role": "user", "content": tool_results})
-            raise RuntimeError(
-                f"agent exceeded MAX_TURNS={MAX_TURNS} without stop_reason='end_turn' "
-                f"— likely stuck in a tool error loop"
-            )
+    # Default: route through AgentShell. Single shell per call, MCP servers
+    # spawn on enter and close on exit (same as the pre-migration behavior).
+    #
+    # Two additional failure modes vs. the original implementation:
+    #   - BudgetExceededError raised mid-turn if cumulative input >200k or
+    #     output >50k tokens. Older code had no cost cap. NEW guard, not a
+    #     regression — it strictly tightens the failure contract.
+    #   - finish_reason == "max_turns" (50-turn ceiling). The original code
+    #     raised RuntimeError here; we re-raise below to preserve that
+    #     contract for callers that depend on the exception.
+    from src.agent_shell import AgentShell, MAX_TURNS
+    async with AgentShell(mode="single_turn") as shell:
+        result = await shell.turn(user_input, on_step=on_step, on_thinking=on_thinking)
+    if result.finish_reason == "max_turns":
+        raise RuntimeError(
+            f"agent exceeded MAX_TURNS={MAX_TURNS} without stop_reason='end_turn' "
+            f"— likely stuck in a tool error loop"
+        )
+    return result.text

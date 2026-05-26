@@ -511,6 +511,12 @@ class AgentShell:
                     turn_index=turn_index,
                 )
                 self.tool_call_history.append(trace)
+                # G3 partial fix: auto-populate shell.state from tool results
+                # for the two tools where the mapping is direct. Other state
+                # fields (product/version/additional_sdks) are derived by the
+                # agent across multiple tool calls and stay extracted by A1
+                # from final text.
+                self._update_state_from_tool_result(block.name, result_text)
                 if on_step:
                     on_step(block.name, dict(block.input or {}), result_text)
                 tool_results.append({
@@ -544,6 +550,56 @@ class AgentShell:
         )
 
     # ─── internals ─────────────────────────────────────────────────────
+
+    def _update_state_from_tool_result(self, tool_name: str, result_text: str) -> None:
+        """Auto-populate self.state fields from known tool results.
+
+        Currently handles two tools whose result shape directly maps to a
+        state field:
+
+          - detect_connected_hardware: sets state.hardware_detected=True
+            and state.detected_devices from result["devices"] (or
+            result["connected"] if the server uses the older key).
+          - lookup_target_id: sets state.target from result["target_id"]
+            (skipped if result carries an "error" key — unknown board).
+
+        Defensive by design — JSON parse failures, missing keys, or
+        unknown tool names all skip silently. The state stays at whatever
+        value it had before; never raises mid-turn.
+
+        Not handled (and deliberately left to A1's text-based extraction):
+          product / version / additional_sdks — the agent CHOOSES these
+          across multiple tool calls based on LLM reasoning; no single
+          tool result carries the final selection. The final command /
+          INI is the authoritative source, and A1 already parses it with
+          shlex + configparser.
+        """
+        try:
+            data = json.loads(result_text)
+        except (json.JSONDecodeError, ValueError):
+            return
+        if not isinstance(data, dict):
+            return
+
+        if tool_name == "detect_connected_hardware":
+            # Probe ran successfully regardless of whether devices were found.
+            self.state.hardware_detected = True
+            devices = data.get("devices") or data.get("connected") or []
+            if isinstance(devices, list):
+                # Normalize: some shapes have dict entries, others bare strings
+                self.state.detected_devices = [
+                    d if isinstance(d, dict) else {"name": str(d)}
+                    for d in devices
+                ]
+            return
+
+        if tool_name == "lookup_target_id":
+            if "error" in data:
+                return
+            target_id = data.get("target_id")
+            if target_id and isinstance(target_id, str):
+                self.state.target = target_id
+            return
 
     def _call_with_retry(self, messages: list[dict], max_attempts: int = 4):
         """Anthropic call with exponential backoff on rate limit.

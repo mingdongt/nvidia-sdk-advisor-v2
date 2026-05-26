@@ -400,6 +400,109 @@ def test_shell_turn_raises_if_not_entered():
         asyncio.run(shell.turn("hello"))
 
 
+# ─── state auto-populate (Phase 3 / G3 partial fix) ─────────────────────
+
+def test_shell_state_autopopulate_detect_hardware_with_devices():
+    """detect_connected_hardware result with devices → state updated."""
+    shell = AgentShell()
+    assert shell.state.hardware_detected is False
+    assert shell.state.detected_devices == []
+    shell._update_state_from_tool_result(
+        "detect_connected_hardware",
+        '{"available": true, "devices": [{"name": "Orin NX", "port": "2-1"}]}',
+    )
+    assert shell.state.hardware_detected is True
+    assert shell.state.detected_devices == [{"name": "Orin NX", "port": "2-1"}]
+
+
+def test_shell_state_autopopulate_detect_hardware_no_devices():
+    """Probe ran but nothing connected → hardware_detected=True, devices=[]."""
+    shell = AgentShell()
+    shell._update_state_from_tool_result(
+        "detect_connected_hardware",
+        '{"available": false}',
+    )
+    assert shell.state.hardware_detected is True
+    assert shell.state.detected_devices == []
+
+
+def test_shell_state_autopopulate_detect_hardware_old_connected_key():
+    """Server may use legacy 'connected' key — accept it."""
+    shell = AgentShell()
+    shell._update_state_from_tool_result(
+        "detect_connected_hardware",
+        '{"connected": ["JETSON_ORIN_NX_TARGETS", "JETSON_AGX_ORIN_TARGETS"]}',
+    )
+    assert shell.state.hardware_detected is True
+    # Bare strings normalized into dicts with `name` key
+    assert shell.state.detected_devices == [
+        {"name": "JETSON_ORIN_NX_TARGETS"}, {"name": "JETSON_AGX_ORIN_TARGETS"},
+    ]
+
+
+def test_shell_state_autopopulate_lookup_target_id():
+    """lookup_target_id success → state.target set."""
+    shell = AgentShell()
+    assert shell.state.target is None
+    shell._update_state_from_tool_result(
+        "lookup_target_id",
+        '{"target_id": "JETSON_ORIN_NX_TARGETS", "canonical_name": "Jetson Orin NX"}',
+    )
+    assert shell.state.target == "JETSON_ORIN_NX_TARGETS"
+
+
+def test_shell_state_autopopulate_lookup_target_id_error_skipped():
+    """lookup_target_id error result → state.target stays None (no mis-write)."""
+    shell = AgentShell()
+    shell._update_state_from_tool_result(
+        "lookup_target_id",
+        '{"error": "unknown board: Frobnicator XL"}',
+    )
+    assert shell.state.target is None
+
+
+def test_shell_state_autopopulate_unknown_tool_silently_skipped():
+    """A tool name we don't handle should not raise or mutate state."""
+    shell = AgentShell()
+    shell._update_state_from_tool_result(
+        "some_future_tool",
+        '{"unrelated_field": "x"}',
+    )
+    assert shell.state.target is None
+    assert shell.state.hardware_detected is False
+
+
+def test_shell_state_autopopulate_malformed_json_skipped():
+    """If the tool result isn't JSON, skip silently — never raises."""
+    shell = AgentShell()
+    shell._update_state_from_tool_result("lookup_target_id", "this is not JSON {{{")
+    assert shell.state.target is None
+
+
+def test_shell_state_autopopulate_non_dict_json_skipped():
+    """A JSON array result should not crash the dict-key lookup."""
+    shell = AgentShell()
+    shell._update_state_from_tool_result("lookup_target_id", '["a", "b"]')
+    assert shell.state.target is None
+
+
+def test_shell_state_autopopulate_preserves_prior_target_on_error():
+    """If state.target is already set and a later lookup returns error, keep it."""
+    shell = AgentShell()
+    shell._update_state_from_tool_result(
+        "lookup_target_id",
+        '{"target_id": "JETSON_ORIN_NX_TARGETS"}',
+    )
+    assert shell.state.target == "JETSON_ORIN_NX_TARGETS"
+    # Later: agent asks about an unknown board, result has error
+    shell._update_state_from_tool_result(
+        "lookup_target_id",
+        '{"error": "unknown board"}',
+    )
+    # Original target preserved
+    assert shell.state.target == "JETSON_ORIN_NX_TARGETS"
+
+
 # ─── Live integration test (gated) ──────────────────────────────────────
 
 @pytest.mark.skipif(

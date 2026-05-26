@@ -20,6 +20,7 @@ from src.agent_shell import (
     AgentShell,
     AgentState,
     BudgetExceededError,
+    MessageHistory,
     TokenBudget,
     ToolCallTrace,
     TurnResult,
@@ -223,6 +224,111 @@ def test_tool_call_trace_holds_fields():
     assert t.turn_index == 0
 
 
+# ─── MessageHistory ─────────────────────────────────────────────────────
+
+def _user_turn(text: str) -> dict:
+    return {"role": "user", "content": text}
+
+
+def _assistant_text(text: str) -> dict:
+    return {"role": "assistant", "content": [type("B", (), {"type": "text", "text": text})()]}
+
+
+def _assistant_tool_use(tool_id: str, name: str) -> dict:
+    block = type("B", (), {"type": "tool_use", "id": tool_id, "name": name, "input": {}})()
+    return {"role": "assistant", "content": [block]}
+
+
+def _user_tool_results(*tool_ids: str) -> dict:
+    return {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": tid, "content": "{}"} for tid in tool_ids
+    ]}
+
+
+def test_message_history_unbounded_never_prunes():
+    h = MessageHistory(strategy="unbounded")
+    for i in range(50):
+        h.append(_user_turn(f"q{i}"))
+    dropped = h.prune()
+    assert dropped == 0
+    assert len(h) == 50
+
+
+def test_message_history_sliding_under_cap_no_op():
+    h = MessageHistory(strategy="sliding", max_user_turns=5)
+    # 3 user turns + interleaved assistant/tool_result content
+    for i in range(3):
+        h.append(_user_turn(f"q{i}"))
+        h.append(_assistant_text(f"a{i}"))
+    assert h.prune() == 0
+    assert len(h) == 6
+
+
+def test_message_history_sliding_drops_oldest_user_turns():
+    h = MessageHistory(strategy="sliding", max_user_turns=2)
+    # 4 user-initiated turns
+    for i in range(4):
+        h.append(_user_turn(f"q{i}"))
+        h.append(_assistant_text(f"a{i}"))
+    # Should drop the first 2 user turns (and their assistant replies)
+    dropped = h.prune()
+    assert dropped == 4
+    assert len(h) == 4
+    assert h.messages[0]["role"] == "user"
+    assert h.messages[0]["content"] == "q2"  # the third user input now first
+
+
+def test_message_history_sliding_preserves_tool_use_pairs():
+    """Critical invariant: after pruning, every tool_use block must still
+    have its matching tool_result block in the next user message."""
+    h = MessageHistory(strategy="sliding", max_user_turns=1)
+    # Turn 1: user → assistant tool_use → user tool_result → assistant text
+    h.append(_user_turn("first"))
+    h.append(_assistant_tool_use("t1", "lookup_target_id"))
+    h.append(_user_tool_results("t1"))
+    h.append(_assistant_text("answer1"))
+    # Turn 2: user → assistant text
+    h.append(_user_turn("second"))
+    h.append(_assistant_text("answer2"))
+
+    dropped = h.prune()
+    assert dropped > 0
+    # The retained history should start at a user-turn boundary
+    assert h.messages[0]["role"] == "user"
+    assert isinstance(h.messages[0]["content"], str)
+    # All tool_use blocks in the retained range must have matching tool_result
+    tool_use_ids = {
+        b.id for m in h.messages
+        if m["role"] == "assistant"
+        for b in m["content"]
+        if hasattr(b, "type") and b.type == "tool_use"
+    }
+    tool_result_ids = {
+        b["tool_use_id"] for m in h.messages
+        if m["role"] == "user" and isinstance(m["content"], list)
+        for b in m["content"]
+        if b.get("type") == "tool_result"
+    }
+    assert tool_use_ids == tool_result_ids
+
+
+def test_message_history_bool_and_len():
+    """bool(history) and len(history) work for `if not shell.messages:` checks."""
+    h = MessageHistory()
+    assert not h
+    assert len(h) == 0
+    h.append(_user_turn("hi"))
+    assert h
+    assert len(h) == 1
+
+
+def test_message_history_unknown_strategy_raises():
+    h = MessageHistory(strategy="unbounded")
+    h.strategy = "bogus"  # bypass type check
+    with pytest.raises(ValueError, match="unknown.*strategy"):
+        h.prune()
+
+
 # ─── AgentShell construction (no MCP spawn) ─────────────────────────────
 
 def test_shell_construction_defaults():
@@ -230,12 +336,34 @@ def test_shell_construction_defaults():
     assert shell.mode == "single_turn"
     assert isinstance(shell.state, AgentState)
     assert isinstance(shell.budget, TokenBudget)
-    assert shell.messages == []
+    assert isinstance(shell.history, MessageHistory)
+    assert shell.messages == []  # backward-compat property alias
     assert shell.tool_call_history == []
     # MCP / client are None until __aenter__
     assert shell._client is None
     assert shell._k_session is None
     assert shell._tools is None
+
+
+def test_shell_single_turn_mode_picks_unbounded_strategy():
+    shell = AgentShell(mode="single_turn")
+    assert shell.history.strategy == "unbounded"
+
+
+def test_shell_repl_mode_picks_sliding_strategy():
+    """REPL is the production-killer case from G1; sliding window must
+    activate automatically when mode='repl' is selected."""
+    shell = AgentShell(mode="repl")
+    assert shell.history.strategy == "sliding"
+
+
+def test_shell_messages_property_aliases_history():
+    """External code uses shell.messages (e.g. `if not shell.messages:`);
+    internal code uses shell.history.append. They must point at the same list."""
+    shell = AgentShell()
+    shell.history.append({"role": "user", "content": "test"})
+    assert shell.messages == [{"role": "user", "content": "test"}]
+    assert shell.messages is shell.history.messages
 
 
 def test_shell_construction_with_explicit_state():

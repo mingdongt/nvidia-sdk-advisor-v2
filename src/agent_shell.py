@@ -188,6 +188,87 @@ class TurnResult:
 
 
 # ───────────────────────────────────────────────────────────────────────
+# MessageHistory — pluggable retention strategy
+# ───────────────────────────────────────────────────────────────────────
+
+HistoryStrategy = Literal["unbounded", "sliding"]
+
+
+@dataclass
+class MessageHistory:
+    """Message buffer with pluggable retention strategy.
+
+    Anthropic billing charges input_tokens × every API call. A long REPL
+    session that never prunes its message list re-sends all prior turns
+    on every request — by turn 30 the per-turn input cost can be 30× the
+    first turn. This class adds a sliding-window option that drops the
+    oldest user-initiated turns when the buffer grows past a threshold,
+    while preserving the tool_use / tool_result block pairing that
+    Anthropic requires (a tool_use without its matching tool_result is
+    a 400 error).
+
+    Strategies (Phase 2d):
+      - "unbounded": never prune; used for single_turn mode (1 turn per
+        shell anyway) and for the troubleshoot path (which makes only
+        one API call).
+      - "sliding": keep the most recent max_user_turns user-initiated
+        turns; drop the rest. Used for REPL mode.
+
+    Future strategy (Phase 2e or later):
+      - "phase_summarized": when a phase concludes (configure done,
+        troubleshoot done), summarize the closed phase into a single
+        assistant message and reset the underlying turn history.
+    """
+
+    strategy: HistoryStrategy = "unbounded"
+    max_user_turns: int = 10  # only used by "sliding"
+    messages: list[dict] = field(default_factory=list)
+
+    def append(self, message: dict) -> None:
+        self.messages.append(message)
+
+    def __len__(self) -> int:
+        return len(self.messages)
+
+    def __bool__(self) -> bool:
+        return bool(self.messages)
+
+    def __iter__(self):
+        return iter(self.messages)
+
+    def prune(self) -> int:
+        """Drop oldest user turns per the configured strategy.
+
+        Returns the number of messages dropped (0 if no pruning occurred).
+        """
+        if self.strategy == "unbounded":
+            return 0
+        if self.strategy == "sliding":
+            return self._prune_sliding()
+        raise ValueError(f"unknown MessageHistory strategy: {self.strategy!r}")
+
+    def _prune_sliding(self) -> int:
+        """Sliding window: keep at most max_user_turns recent user-initiated turns.
+
+        A "user-initiated turn" is identified by a role=user message whose
+        content is a plain string (vs. a list of tool_result blocks, which
+        belong to the assistant's prior tool_use). Pruning at a turn-start
+        boundary guarantees that any tool_use blocks in the kept history
+        retain their matching tool_result blocks in the next user message.
+        """
+        turn_starts = [
+            i for i, m in enumerate(self.messages)
+            if m["role"] == "user" and isinstance(m["content"], str)
+        ]
+        if len(turn_starts) <= self.max_user_turns:
+            return 0
+        cutoff = turn_starts[-self.max_user_turns]
+        dropped = cutoff
+        self.messages = self.messages[cutoff:]
+        return dropped
+
+
+# ───────────────────────────────────────────────────────────────────────
 # AgentShell
 # ───────────────────────────────────────────────────────────────────────
 
@@ -207,10 +288,13 @@ class AgentShell:
     queries, create a new shell per query (cheap apart from MCP spawn,
     which is Phase 2 territory to optimize).
 
-    Phase 1 deliberate non-features:
-      - mode is stored but not yet acted on (mode-aware prompts = G2 = Phase 2)
-      - messages list is unbounded (sliding window = G1 = Phase 2)
-      - state fields are not auto-populated from tool_use (= Phase 2)
+    Phase 2 status (post-2d migration):
+      - mode IS now acted on for MessageHistory strategy selection (REPL
+        gets sliding window, single_turn gets unbounded). Mode-aware
+        SYSTEM_PROMPT (G2) is still Phase 2e work.
+      - history (G1): pruned after every turn() via the configured strategy.
+      - state fields are still not auto-populated from tool_use blocks
+        (= Phase 2e or later — requires per-tool result parsers).
     """
 
     def __init__(
@@ -228,8 +312,10 @@ class AgentShell:
         self.model: str = model or os.getenv(
             "ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"
         )
-        self.system_prompt: str = SYSTEM_PROMPT  # mode-aware variant: Phase 2
-        self.messages: list[dict] = []           # unbounded in Phase 1
+        self.system_prompt: str = SYSTEM_PROMPT  # mode-aware variant: Phase 2e
+        self.history: MessageHistory = MessageHistory(
+            strategy=self._strategy_for_mode(mode),
+        )
         self.tool_call_history: list[ToolCallTrace] = []
 
         self._k_path = knowledge_server_path
@@ -242,6 +328,39 @@ class AgentShell:
         self._tools: Optional[list[dict]] = None
         self._session_map: Optional[dict[str, ClientSession]] = None
         self._stack: Optional[contextlib.AsyncExitStack] = None
+
+    # ─── mode → strategy mapping ───────────────────────────────────────
+
+    @staticmethod
+    def _strategy_for_mode(mode: AgentMode) -> HistoryStrategy:
+        """Pick a MessageHistory strategy that matches the mode's lifetime.
+
+        - single_turn: one shell per query, history is short by construction;
+                       unbounded is fine.
+        - repl:        long-lived shell across user turns; without sliding
+                       the input token cost grows linearly with turn count.
+                       sliding caps that at max_user_turns recent turns.
+        - troubleshoot: this mode is currently NOT routed through AgentShell
+                       (single Anthropic call, server-side web_search; see
+                       src/troubleshoot.py for the rationale). The mapping
+                       exists for completeness.
+        """
+        return {
+            "single_turn": "unbounded",
+            "repl": "sliding",
+            "troubleshoot": "unbounded",
+        }[mode]
+
+    @property
+    def messages(self) -> list[dict]:
+        """Backward-compat alias for self.history.messages.
+
+        Read-only convention: external callers should use this for
+        inspection (`if not shell.messages:` etc.). Internal shell code
+        appends via `self.history.append(...)` so the intent — adding
+        a message that participates in the pruning policy — is explicit.
+        """
+        return self.history.messages
 
     # ─── async context manager ─────────────────────────────────────────
 
@@ -341,7 +460,7 @@ class AgentShell:
         start_output = self.budget.used_output
         history_start = len(self.tool_call_history)
 
-        self.messages.append({"role": "user", "content": user_input})
+        self.history.append({"role": "user", "content": user_input})
 
         final_text = ""
         finish_reason: Literal["end_turn", "max_turns", "budget_exceeded"] = "end_turn"
@@ -352,7 +471,7 @@ class AgentShell:
             self.budget.raise_if_exhausted()
 
             response = await asyncio.to_thread(
-                self._call_with_retry, list(self.messages)
+                self._call_with_retry, list(self.history.messages)
             )
 
             # G9: capture usage every turn, before doing anything else
@@ -363,7 +482,7 @@ class AgentShell:
                 final_text = next(
                     (b.text for b in response.content if hasattr(b, "text")), ""
                 )
-                self.messages.append({"role": "assistant", "content": response.content})
+                self.history.append({"role": "assistant", "content": response.content})
                 break
 
             # tool_use turn: dispatch each tool, collect results
@@ -400,11 +519,16 @@ class AgentShell:
                     "content": result_text,
                 })
 
-            self.messages.append({"role": "assistant", "content": response.content})
-            self.messages.append({"role": "user", "content": tool_results})
+            self.history.append({"role": "assistant", "content": response.content})
+            self.history.append({"role": "user", "content": tool_results})
         else:
             # for-else: loop completed without break → MAX_TURNS exhausted
             finish_reason = "max_turns"
+
+        # G1: prune oldest user turns per MessageHistory strategy. For
+        # unbounded (single_turn) this is a no-op; for sliding (REPL) it
+        # caps the input-token growth across long sessions.
+        self.history.prune()
 
         incremental_input = self.budget.used_input - start_input
         incremental_output = self.budget.used_output - start_output

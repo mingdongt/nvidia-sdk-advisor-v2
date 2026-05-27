@@ -14,6 +14,7 @@ from eval.scorers.a1_correctness import (
 from eval.scorers.a2_compliance import score_compliance
 from eval.scorers.a3_efficiency import score_efficiency
 from eval.scorers.a4_robustness import score_robustness
+from eval.scorers.a5_capability import score_capability, _parse_judge_response
 
 
 # ─── shared fixtures ───────────────────────────────────────────────────
@@ -329,6 +330,148 @@ def test_a4_inline_sdkmanager_mention_does_not_count():
     text = "I can't help you bypass sdkmanager's validation rules. Could you clarify what you're trying to install?"
     result = score_robustness(text, _l3_case("L3-test"))
     assert result["score"] == 1.0
+
+
+# ─── A5: capability (LLM-as-judge, mocked) ─────────────────────────────
+
+class _FakeBlock:
+    def __init__(self, text: str):
+        self.text = text
+
+
+class _FakeResponse:
+    def __init__(self, text: str):
+        self.content = [_FakeBlock(text)]
+
+
+class _FakeAnthropicClient:
+    """Mock Anthropic client returning canned judge JSON responses."""
+
+    def __init__(self, responses: list[str]):
+        self._responses = list(responses)
+        self.messages = self
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        text = self._responses.pop(0) if self._responses else '{"factual": 0, "reasoning": 0, "constraints": 0, "ini_validity": 0}'
+        return _FakeResponse(text)
+
+
+def _l2_reasoning_case(case_id: str, expert_reply: str | None = "Use JetPack 6.1.") -> CaseSpec:
+    return CaseSpec(
+        case_id=case_id, layer="L2", track="reasoning",
+        input="Test input",
+        expected={"expert_reply": expert_reply} if expert_reply else {},
+    )
+
+
+def test_a5_parses_clean_json_judge_response():
+    parsed = _parse_judge_response(
+        '{"factual": 4, "reasoning": 3, "constraints": 5, "ini_validity": 4}'
+    )
+    assert parsed == {"factual": 4, "reasoning": 3, "constraints": 5, "ini_validity": 4}
+
+
+def test_a5_parses_json_wrapped_in_prose():
+    """Judge sometimes adds prose around the JSON; regex-grab the first object."""
+    parsed = _parse_judge_response(
+        "Here is the rating:\n\n"
+        '{"factual": 5, "reasoning": 4, "constraints": 5, "ini_validity": 3}\n\n'
+        "Done."
+    )
+    assert parsed == {"factual": 5, "reasoning": 4, "constraints": 5, "ini_validity": 3}
+
+
+def test_a5_returns_none_when_no_json():
+    assert _parse_judge_response("Just prose, no JSON anywhere.") is None
+
+
+def test_a5_skips_when_case_has_no_expert_reply():
+    case = _l2_reasoning_case("L2-test", expert_reply=None)
+    client = _FakeAnthropicClient([])
+    result = score_capability("agent output", case, client=client, samples=1)
+    assert result["score"] is None
+    assert result["axes"] is None
+    assert result["samples"] == []
+    assert "expert_reply" in (result["skipped_reason"] or "")
+    # No API calls made
+    assert client.calls == []
+
+
+def test_a5_computes_score_from_judge_response():
+    case = _l2_reasoning_case("L2-test")
+    # One sample with all 5s
+    client = _FakeAnthropicClient([
+        '{"factual": 5, "reasoning": 5, "constraints": 5, "ini_validity": 5}',
+    ])
+    result = score_capability("agent reply", case, client=client, samples=1)
+    assert result["score"] == 1.0  # 5+5+5+5 / 4 / 5 = 1.0
+    assert result["axes"] == {"factual": 5.0, "reasoning": 5.0, "constraints": 5.0, "ini_validity": 5.0}
+    assert result["samples_taken"] == 1
+
+
+def test_a5_takes_median_across_samples():
+    """3 samples [3,5,4] on each axis → per-axis median = 4 → score = 4/5 = 0.8."""
+    case = _l2_reasoning_case("L2-test")
+    client = _FakeAnthropicClient([
+        '{"factual": 3, "reasoning": 3, "constraints": 3, "ini_validity": 3}',
+        '{"factual": 5, "reasoning": 5, "constraints": 5, "ini_validity": 5}',
+        '{"factual": 4, "reasoning": 4, "constraints": 4, "ini_validity": 4}',
+    ])
+    result = score_capability("agent reply", case, client=client, samples=3)
+    assert result["axes"] == {"factual": 4.0, "reasoning": 4.0, "constraints": 4.0, "ini_validity": 4.0}
+    assert result["score"] == 0.8
+    assert len(result["samples"]) == 3
+
+
+def test_a5_malformed_judge_response_records_error():
+    """If the judge returns garbage, score is None (all-failed) and the
+    sample's _error key carries the failure reason — not silent zeros."""
+    case = _l2_reasoning_case("L2-test")
+    client = _FakeAnthropicClient(["garbage no json"])
+    result = score_capability("agent reply", case, client=client, samples=1)
+    # All-failed sentinel: score and axes become None so dashboards
+    # don't show a misleading 0.0
+    assert result["score"] is None
+    assert result["axes"] is None
+    # Sample carries _error string for debug
+    assert "_error" in result["samples"][0]
+    assert "unparseable" in result["samples"][0]["_error"]
+
+
+def test_a5_partial_failure_keeps_score():
+    """If 2 of 3 samples succeed and 1 fails, score is computed from
+    the successful samples (with the failed one contributing zeros to
+    the median). Score is NOT None — partial data is still data."""
+    case = _l2_reasoning_case("L2-test")
+    client = _FakeAnthropicClient([
+        '{"factual": 5, "reasoning": 5, "constraints": 5, "ini_validity": 5}',
+        "garbage",  # this sample fails
+        '{"factual": 5, "reasoning": 5, "constraints": 5, "ini_validity": 5}',
+    ])
+    result = score_capability("agent reply", case, client=client, samples=3)
+    # Score is computed (not None); failed sample contributed 0s, but
+    # 2 of 3 samples were 5s, so median per axis = 5
+    assert result["score"] == 1.0
+    # The failed sample is preserved with _error key
+    assert any("_error" in s for s in result["samples"])
+    assert sum(1 for s in result["samples"] if "_error" not in s) == 2
+
+
+def test_a5_uses_supplied_judge_model():
+    """The judge_model parameter must propagate to client.messages.create."""
+    case = _l2_reasoning_case("L2-test")
+    client = _FakeAnthropicClient([
+        '{"factual": 4, "reasoning": 4, "constraints": 4, "ini_validity": 4}',
+    ])
+    result = score_capability(
+        "agent reply", case, client=client, samples=1,
+        judge_model="claude-opus-4-7",
+    )
+    # Even though default is Sonnet, explicit override should work
+    assert result["judge_model"] == "claude-opus-4-7"
+    assert client.calls[0]["model"] == "claude-opus-4-7"
 
 
 def test_a3_propagates_none_when_telemetry_unavailable():

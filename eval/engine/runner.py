@@ -43,6 +43,9 @@ from eval.scorers.a1_correctness import score_correctness  # noqa: E402
 from eval.scorers.a2_compliance import score_compliance  # noqa: E402
 from eval.scorers.a3_efficiency import score_efficiency  # noqa: E402
 from eval.scorers.a4_robustness import score_robustness  # noqa: E402
+from eval.scorers.a5_capability import (  # noqa: E402
+    score_capability, DEFAULT_JUDGE_MODEL as A5_JUDGE_MODEL_DEFAULT,
+)
 
 
 def _git_sha() -> str | None:
@@ -127,6 +130,7 @@ async def run_case(
     run_id: str,
     model: str,
     git_sha: str | None,
+    a5_judge_model: str | None = None,
 ) -> RunRecord:
     started = datetime.now(timezone.utc)
     t0 = time.perf_counter()
@@ -182,11 +186,25 @@ async def run_case(
     )
     a4 = score_robustness(output_text, case) if case.layer == "L3" else None
 
+    # A5 LLM-as-judge: only for cases that carry an expert_reply (today
+    # that's the L2 reasoning track). Gated on a5_judge_model being
+    # passed in — None means caller didn't opt in, so skip without API
+    # spend. Default judge model is set at the CLI layer (DEFAULT_JUDGE_MODEL).
+    a5 = None
+    if a5_judge_model and (case.expected or {}).get("expert_reply"):
+        a5 = score_capability(
+            output_text=output_text,
+            case=case,
+            judge_model=a5_judge_model,
+        )
+
     scores: dict = {"a2_compliance": a2, "a3_efficiency": a3}
     if a1 is not None:
         scores["a1_correctness"] = a1
     if a4 is not None:
         scores["a4_robustness"] = a4
+    if a5 is not None:
+        scores["a5_capability"] = a5
 
     return RunRecord(
         run_id=run_id,
@@ -240,11 +258,14 @@ def _summarize(records: list[RunRecord]) -> None:
     print(f"Records: {n}  errors: {errors}")
     a1_avg = _avg("a1_correctness")
     a4_avg = _avg("a4_robustness")
+    a5_avg = _avg("a5_capability")
     if a1_avg > 0:
         print(f"A1 correctness avg:  {a1_avg:.2f}")
     print(f"A2 compliance avg:   {_avg('a2_compliance'):.2f}")
     if a4_avg > 0 or any(r.case_layer == "L3" for r in records):
         print(f"A4 robustness avg:   {a4_avg:.2f}")
+    if a5_avg > 0:
+        print(f"A5 capability avg:   {a5_avg:.2f}")
     print(f"A3 total cost (USD): ${total_cost:.4f}")
     if errors:
         print()
@@ -268,6 +289,12 @@ def main() -> None:
     p.add_argument("--out-dir", type=Path, default=Path("eval/runs"))
     p.add_argument("--dry-run", action="store_true",
                    help="Print plan without invoking the agent.")
+    p.add_argument("--enable-a5", action="store_true",
+                   help=f"Enable A5 LLM-as-judge scoring (default judge: "
+                        f"{A5_JUDGE_MODEL_DEFAULT}; ~3 judge calls per case). "
+                        "Costs real Anthropic tokens — Opus pricing ~$0.05/case.")
+    p.add_argument("--a5-judge-model", default=A5_JUDGE_MODEL_DEFAULT,
+                   help="Override A5 judge model (only used when --enable-a5).")
     args = p.parse_args()
 
     case_files = expand_case_paths(args.paths)
@@ -298,7 +325,10 @@ def main() -> None:
                 done += 1
                 print(f"[{done}/{total}] {case.case_id} (arm={args.arm}, sample={sample})...")
                 record = asyncio.run(
-                    run_case(case, args.arm, sample, run_id, model, git_sha)
+                    run_case(
+                        case, args.arm, sample, run_id, model, git_sha,
+                        a5_judge_model=args.a5_judge_model if args.enable_a5 else None,
+                    )
                 )
                 f.write(record.model_dump_json() + "\n")
                 f.flush()
@@ -310,12 +340,15 @@ def main() -> None:
                     a1 = record.scores.get("a1_correctness")
                     a2 = record.scores.get("a2_compliance")
                     a4 = record.scores.get("a4_robustness")
+                    a5 = record.scores.get("a5_capability")
                     if a1 is not None:
                         parts.append(f"a1 {a1['score']:.2f}")
                     if a2 is not None:
                         parts.append(f"a2 {a2['score']:.2f}")
                     if a4 is not None:
                         parts.append(f"a4 {a4['score']:.2f}")
+                    if a5 is not None and a5.get("score") is not None:
+                        parts.append(f"a5 {a5['score']:.2f}")
                     cost = (record.scores.get("a3_efficiency", {}) or {}).get("estimated_cost_usd")
                     if cost is not None:
                         parts.append(f"cost ${cost:.4f}")

@@ -162,7 +162,15 @@ Five things this view shows that the hero diagram doesn't:
 
 **One `AgentShell` · three caller modes · five primitives · token-budgeted by construction.**
 
-The agent layer is a single `AgentShell` (`src/agent_shell.py`) that owns the MCP session lifetime, the message history, the token budget, and the typed cross-turn state. Three callers route through it; `troubleshoot` deliberately stays outside.
+The agent layer is a single `AgentShell` (`src/agent_shell.py`) that owns:
+
+- **MCP session lifetime** — `async with AgentShell(...) as shell:` spawns the knowledge + RAG servers on enter, closes them on exit
+- **Message history** — pluggable retention strategy: sliding window for `repl` mode (`max_user_turns=10`), unbounded for `single_turn`
+- **Token budget** — 200k input / 50k output, enforced pre-flight before each `messages.create()`; raises `BudgetExceededError` rather than silently truncating
+- **Typed cross-turn state** — `AgentState` dataclass auto-populated from `detect_connected_hardware` and `lookup_target_id` tool results so downstream phases read structured fields rather than re-parsing prior outputs
+- **Structured turn results** — `TurnResult` carries final text + per-tool dispatch trace + token usage + finish reason, consumed by the eval engine for A2/A3 scoring
+
+Three callers route through it; `troubleshoot` deliberately stays outside.
 
 ```
                       ┌────────────────────────────────────────────────┐
@@ -429,28 +437,45 @@ Two behavioral signals worth noting:
 
 2. **Opus double-checks `lookup_target_id` (case 4)** — it dispatches the lookup tool a second time on the same input. Haiku doesn't. This isn't a smarter behavior, just a more conservative one; correctness doesn't depend on it, but it shows up in the trace.
 
-### Eval framework redesign
+### Eval framework
 
-The three tracks above are **scenario-split** (smoke vs. reasoning vs. troubleshoot), which means a score change can't be attributed to "the model is worse", "the prompt is broken", "tool dispatch order regressed", or "the agent capitulated to a malformed input" — all of those land in the same scoreboard cell. The same-family LLM judge (Haiku judging Haiku) and small sample sizes (smoke = 5 cases; Wilson 95% CI on 5/5 is ~50%–100%) compound this.
+**5 axes × 3 layers × N arms · ~80% deterministic scoring · JSONL append-only output.**
 
-The successor framework — `eval/` engine + [`docs/eval-design.md`](docs/eval-design.md) — keeps the existing cases as the L1/L2 starting point and splits the measurement along three independent dimensions:
+The `eval/` engine measures the agent along three independent dimensions, so any score change is attributable to which dimension it came from:
 
-- **5 axes** (what to measure): A1 correctness · A2 compliance · A3 efficiency · A4 robustness · A5 capability (LLM judge, planned)
-- **3 layers** (case difficulty): L1 golden path / L2 hard cases / L3 adversarial (30 new negative cases — impossible combos, prompt injection, ambiguous, unsupported, nonsense, out-of-scope)
-- **N arms** (architectural comparison): `main` / `no-tools` / `opus` / `cli` / `<prev-commit>` — every JSONL `RunRecord` carries an `arm` field for slicing
+- **5 axes** (what to measure):
+  - **A1 correctness** — INI schema parse + sdkmanager command flag parse + field match vs `case.expected` (deterministic)
+  - **A2 compliance** — tool dispatch order vs SYSTEM_PROMPT routing rules (deterministic, 8 rules)
+  - **A3 efficiency** — tokens, latency, tool count, estimated USD cost (reporting, no pass/fail)
+  - **A4 robustness** — agent must NOT emit a fenced `sdkmanager` block for L3 adversarial input (deterministic)
+  - **A5 capability** — LLM-as-judge on free-text reasoning quality (Sonnet/Opus-as-judge by default; falls back to Haiku-as-judge when cross-tier quota is unreachable)
 
-A1, A2, and A4 are **deterministic** (configparser for INI structure, shlex for command flags, trace inspection for tool dispatch order, fenced-block grep for unsafe-command detection). LLM judges are reserved for the one axis where the output is unstructured prose (A5). The legacy ratio was ~70% LLM judge; the new ratio is ~80% deterministic — same eval coverage with materially less judge bias and lower per-run cost.
+- **3 layers** (case difficulty):
+  - **L1 golden path** — must pass 100%; any fail blocks release
+  - **L2 hard cases** — capability eval, threshold ≥ 70% (target 100–200 cases; current 28 migrated from legacy reasoning + troubleshoot)
+  - **L3 adversarial** — 30 negative cases: impossible combos, prompt injection, ambiguous, unsupported hardware, nonsense, out-of-scope
+
+- **N arms** (architectural comparison): every JSONL `RunRecord` carries an `arm` field for slicing
+  - `main` — production config (Haiku + AgentShell + MCP)
+  - `no-tools` — Opus alone via Claude CLI (the README §Tool-layer ablation baseline, now routinely reproducible)
+  - `opus` / `cli` / `<prev-commit>` — model swaps, regression checks
+
+**Why deterministic dominates.** A1, A2, A4 are pure functions of agent output + tool trace; LLM judges are reserved for the one axis where output is unstructured prose (A5). Legacy ratio was ~70% LLM judge; the new engine runs ~80% deterministic — same eval coverage with materially less judge bias and lower per-run cost.
 
 ```bash
 # Run any case set on any arm, write JSONL to eval/runs/<timestamp>.jsonl
 python -m eval.engine.runner eval/cases/L1                           # default arm=main
 python -m eval.engine.runner eval/cases/L1 --arm no-tools             # ablation baseline
 python -m eval.engine.runner eval/cases/L3 --tag adversarial-baseline # safety sweep
+python -m eval.engine.runner eval/cases/L2/reasoning.jsonl --enable-a5 # LLM-judge axis
 python -m eval.dashboard.summarize eval/runs/*.jsonl                  # cross-arm comparison
+python -m eval.dashboard.regress baseline.jsonl candidate.jsonl       # release-gate check
 ```
 
+*Supersedes the 3-track scoreboard above — same case sets reorganized along axes / layers / arms so every score has clear attribution. The legacy reasoning score (3.56/5) is reproduced within ±0.05 by the new engine when configured with the same Haiku-as-judge — see [`docs/eval-design.md` Ch 8](docs/eval-design.md#ch-8-first-production-run--2026-05-27) for the side-by-side.*
+
 → **Design manual (deep dive):** [`docs/eval-design.md`](docs/eval-design.md)
-The booklet covers: why the legacy 3-track design produced the self-grading bias documented above · the axes/layers/arms framework · the deterministic-where-possible scoring policy · JSONL as source of truth · five known gaps the framework hasn't closed yet (L2 authoring, A5 not built, no CI gate, no regression detection, no per-tool cost attribution).
+The booklet covers: the axes/layers/arms framework · the deterministic-where-possible scoring policy · JSONL as source of truth · five known gaps still open (L2 authoring at scale, A5 cross-tier judge blocked on Tier 1 quota, no CI gate, no regression detection, no per-tool cost attribution).
 
 ## What's still missing
 

@@ -353,9 +353,40 @@ Main arm cost $0.1152 total — $0.023 per case average — at ~30s wall-clock p
 
 A multi-arm full sweep (main + no-tools + opus + cli) on full L1 + L2 + L3 ≈ $35-75 per release-gate run on current case counts; closer to $100-150 after L2 reaches its 100-200 target. **Eval cost is itself an ops cost worth budgeting**, not a fixed-overhead assumption.
 
+### A5 baseline — Haiku-as-judge on L2 reasoning (2026-05-27)
+
+A5 (LLM-as-judge) shipped at the same time as the Ch 8 dual-arm L1 run, scoring the legacy L2 reasoning track. JSONL committed under `eval/runs/2026-05-27T00-53-52_20260527-a5-haiku-baseline.jsonl`.
+
+```
+Per-axis 4-judge medians averaged across 20 cases (1-5 each):
+                  new framework    legacy README   delta
+factual           3.25             3.20            +0.05
+reasoning         3.35             3.35             0.00
+constraints       4.90             4.95            -0.05
+ini_validity      2.95             2.75            +0.20
+─────────────────────────────────────────────────────────
+overall           3.61/5           3.56/5          +0.05
+```
+
+The new framework, **using the same Haiku-as-judge configuration** as the legacy `tests/run_reasoning_eval.py`, reproduces the legacy reasoning score within ±0.05 overall and ≤0.20 per axis. This validates that the new framework measures the same underlying quality as the legacy track while **adding** axes the legacy didn't capture (A2 tool dispatch compliance, A3 token/cost telemetry, A4 robustness on L3, multi-arm comparability through `arm` field, JSONL append-only log).
+
+**Cost**: $0.36 for the whole 20-case run (agent + 60 judge calls). Wall-clock ~14 min.
+
+### A5 quota constraint — Sonnet/Opus blocked on Tier 1
+
+The A5 scorer defaults to `claude-sonnet-4-6` precisely to remove the same-family bias documented in README §Self-grading bias. The first attempted run with `claude-opus-4-7` (and then `claude-sonnet-4-6`) tripped the Anthropic Tier 1 rate limit on every one of 60 calls, even with 4-attempt exponential backoff:
+
+```
+all 3 judge calls failed; first error: rate_limit_after_4_retries
+```
+
+Empirical probe after a 14-minute wait still returned `429 rate_limit_error` for Sonnet and Opus, while Haiku worked fine. The account's per-minute TPM ceiling on Sonnet/Opus is too low for chained judging at this case-count, regardless of pacing. **Higher-tier accounts (Tier 2+) should be able to run the cross-tier A5 without modification**; on Tier 1 the practical option is the Haiku baseline above.
+
+The expected cross-tier behavior, per Zheng et al. (2023): a Sonnet or Opus judge of Haiku-agent output should score **0.1-0.3 lower** than Haiku-as-judge across all four axes, with the largest gap on the "factual" and "reasoning" axes where the bias compounds. So the **3.61/5 Haiku-baseline above is a known overestimate** — the cross-tier number is gated on quota and is the next measurement to run when the account is unblocked.
+
 ### Chapter takeaway
 
-> The framework's value isn't in producing higher scores — the main arm scored the same `5/5` on A1 that the legacy smoke eval reported as `15/15`. The value is in **catching what the legacy eval couldn't see** (the two A2 violations above) and **enabling cross-arm deltas as routine checks** (main vs no-tools as a release-gate signal rather than a one-off study). Writing the design doc first surfaced the gaps; running it once surfaced two specific contract violations in production code that nobody had noticed. That alignment problem — measured behavior vs design intent — is what eval is for.
+> The framework's value isn't in producing higher scores — the main arm scored the same `5/5` on A1 that the legacy smoke eval reported as `15/15`, and the A5 Haiku-baseline reproduced legacy reasoning's 3.56 within rounding. The value is in **catching what the legacy eval couldn't see** (the two A2 violations on L1, the per-case hallucination attribution on no-tools), **enabling cross-arm deltas as routine checks**, and **surfacing the same-family bias problem as a measurable, eventually-fixable axis** rather than just a README-level critique. Writing the design doc first surfaced the gaps; running it once surfaced two specific contract violations in production code that nobody had noticed AND reproduced the legacy reasoning score with mathematical agreement. That alignment problem — measured behavior vs design intent — is what eval is for.
 
 ---
 

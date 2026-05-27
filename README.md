@@ -4,7 +4,7 @@
 
 A conversational agent that helps developers **discover, configure, install, and troubleshoot** NVIDIA SDKs, built on the same public data sources SDK Manager itself uses. Generates `.ini` response files SDK Manager natively consumes, and optionally drives `NvSDKManager.exe` to completion via subprocess.
 
-[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 117 passing](https://img.shields.io/badge/tests-117%20passing-brightgreen)](#tests)
+[![Smoke eval: 15/15](https://img.shields.io/badge/smoke%20eval-15%2F15-brightgreen)](#evaluation) [![Reasoning: 3.56/5 — target met](https://img.shields.io/badge/reasoning-3.56%2F5%20target%20met-brightgreen)](#evaluation) [![Troubleshoot: 3.66/5 — target met](https://img.shields.io/badge/troubleshoot-3.66%2F5%20target%20met-brightgreen)](#evaluation) [![Unit tests: 167 passing](https://img.shields.io/badge/tests-167%20passing-brightgreen)](#tests)
 
 ![End-to-end demo: configure → install → troubleshoot → fix → retry](docs/demo/full-mode.gif)
 

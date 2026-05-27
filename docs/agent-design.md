@@ -34,21 +34,21 @@
 
 Honestly listing unsolved problems is a sign of design maturity. [mcp-design.md Ch 7](./mcp-design.md#ch-7-where-the-design-isnt-honest-yet) lists four MCP-layer dishonesties. This chapter lists **nine** agent-shell dishonesties, in three tiers: architectural (G1-G3), implementation (G4-G5, G8), and hygiene (G6-G7, G9).
 
-Each gap follows a fixed template: **Symptom · Impact · Production fix · Status**. Originally every gap was framed as "Why not fixed in demo phase" — the act of enumerating them then drove a Phase 1 / Phase 2 refactor that closed most of the list. See git log for `refactor(agent):` and `feat(agent_shell):` commits between `80e3914` and `8997f93`.
+Each gap follows a fixed template: **Symptom · Impact · Production fix · Status**. Originally every gap was framed as "Why not fixed in demo phase" — the act of enumerating them then drove a Phase 1 / Phase 2 refactor that closed most of the list. See git log for `refactor(agent):` and `feat(agent_shell):` commits between `67a4fe9` and `af8b98b`.
 
 ### Status snapshot (2026-05-26, post Phase 2e)
 
 | Gap | Status | Commit(s) |
 |---|---|---|
-| G1 — REPL context bloat | **Fixed** (sliding-window MessageHistory for repl mode) | `0c1b68f` |
-| G2 — One prompt, three lifecycles | **Neutralized** as a side effect of G4 fix | `8997f93` |
-| G3 — Multi-phase orchestration state | **Partial** — typed AgentState exists, not auto-populated | `80e3914` |
-| G4 — REPL opening probe duplicates | **Fixed** (host-side probe removed) | `8997f93` |
+| G1 — REPL context bloat | **Fixed** (sliding-window MessageHistory for repl mode) | `dc4ca6b` |
+| G2 — One prompt, three lifecycles | **Neutralized** as a side effect of G4 fix | `af8b98b` |
+| G3 — Multi-phase orchestration state | **Partial** — typed AgentState exists, not auto-populated | `67a4fe9` |
+| G4 — REPL opening probe duplicates | **Fixed** (host-side probe removed) | `af8b98b` |
 | G5 — Phase 4 doc/prompt disagree | Open (documentation drift) | — |
 | G6 — No cross-session persistence | Open (intentional design choice; needs README disclosure) | — |
-| G7 — Dead tool labels | **Fixed** | `8997f93` |
-| G8 — MAX_TURNS no token budget | **Fixed** (TokenBudget with raise_if_exhausted) | `80e3914` |
-| G9 — `response.usage` discarded | **Fixed** in both code paths (shell + troubleshoot) | `80e3914`, `189f589` |
+| G7 — Dead tool labels | **Fixed** | `af8b98b` |
+| G8 — MAX_TURNS no token budget | **Fixed** (TokenBudget with raise_if_exhausted) | `67a4fe9` |
+| G9 — `response.usage` discarded | **Fixed** in both code paths (shell + troubleshoot) | `67a4fe9`, `779584d` |
 
 5 of 9 closed, 1 partial, 1 neutralized, 2 remain open (one by design).
 
@@ -66,7 +66,7 @@ Each gap follows a fixed template: **Symptom · Impact · Production fix · Stat
 
 (b) When a phase concludes (configure done, troubleshoot done), summarize the closed phase into a single assistant message — *"Configured Jetson Orin NX with JetPack 6.2.2 + DeepStream 7.0; INI saved to output/foo.ini"* — and replace the underlying turn history. Tier (b) requires phase-boundary signaling from the orchestrator and is the bigger architectural change.
 
-**Fix shipped (commit `0c1b68f`).** A `MessageHistory` class was added to `src/agent_shell.py` with a pluggable retention strategy. `AgentShell._strategy_for_mode()` picks `"sliding"` for `mode="repl"` (default `max_user_turns=10`) and `"unbounded"` for `mode="single_turn"`. `shell.history.prune()` runs after every `turn()` and drops oldest user turns at turn-start boundaries — guaranteeing the tool_use / tool_result block pairing Anthropic requires. The 30-turn-cost-30× scenario is closed in production. Tests `test_message_history_sliding_*` cover both the basic drop behavior and the pairing invariant.
+**Fix shipped (commit `dc4ca6b`).** A `MessageHistory` class was added to `src/agent_shell.py` with a pluggable retention strategy. `AgentShell._strategy_for_mode()` picks `"sliding"` for `mode="repl"` (default `max_user_turns=10`) and `"unbounded"` for `mode="single_turn"`. `shell.history.prune()` runs after every `turn()` and drops oldest user turns at turn-start boundaries — guaranteeing the tool_use / tool_result block pairing Anthropic requires. The 30-turn-cost-30× scenario is closed in production. Tests `test_message_history_sliding_*` cover both the basic drop behavior and the pairing invariant.
 
 ---
 
@@ -93,7 +93,7 @@ The clause **"if not already done in this conversation"** is meaningless in sing
 
 (b) Unify the three entry points behind a single `AgentShell` class with explicit `mode` flag injected as message preamble. Path (b) is the right long-term choice but invasive — every call site changes.
 
-**Status (post commit `8997f93`).** The clause was meaningless in single_turn mode only because the host-side probe in REPL pre-populated the hardware state via a path the agent didn't see (G4). With G4 fixed by removing that host-side probe, both single_turn and repl modes now have aligned semantics: `messages` always starts empty, the agent fires `detect_connected_hardware` on its own first turn, and "if not already done in this conversation" is accurate in both contexts. The underlying abstraction leak (one prompt, three lifecycles) technically remains, but the observable symptom is gone — and mode-aware prompts now feel like premature optimization rather than necessary engineering.
+**Status (post commit `af8b98b`).** The clause was meaningless in single_turn mode only because the host-side probe in REPL pre-populated the hardware state via a path the agent didn't see (G4). With G4 fixed by removing that host-side probe, both single_turn and repl modes now have aligned semantics: `messages` always starts empty, the agent fires `detect_connected_hardware` on its own first turn, and "if not already done in this conversation" is accurate in both contexts. The underlying abstraction leak (one prompt, three lifecycles) technically remains, but the observable symptom is gone — and mode-aware prompts now feel like premature optimization rather than necessary engineering.
 
 ---
 
@@ -139,7 +139,7 @@ class AgentState:
 
 Each phase reads from and writes to this object. **The state IS the contract between phases.** Today the messages list pretends to be that contract but cannot survive the phase boundary because `run_agent_single_turn` is stateless and `run_troubleshoot` is a separate agent loop with its own context.
 
-**Partial fix shipped (commit `80e3914`).** The `AgentState` dataclass exists — 10 fields covering configure outputs (`product` / `version` / `target` / `target_os` / `additional_sdks`), one-shot probe results (`hardware_detected` / `detected_devices`), and install/troubleshoot phase outputs (`last_ini_path` / `last_install_log` / `last_install_exit_code` / `attempt_number`). `AgentShell` exposes it as `shell.state`. **NOT yet auto-populated** from `tool_use` blocks — that requires per-tool result parsers (e.g. when `lookup_target_id` returns `{"target_id": "..."}`, the shell should write that into `state.target`). And the orchestrator does not yet pass a shared shell across phases — the `--full` mode `_MOCK_TARGET_BOARD` constants remain. Completion is Phase 3+ work, gated on real-hardware `--full` mode existing as a consumer.
+**Partial fix shipped (commit `67a4fe9`).** The `AgentState` dataclass exists — 10 fields covering configure outputs (`product` / `version` / `target` / `target_os` / `additional_sdks`), one-shot probe results (`hardware_detected` / `detected_devices`), and install/troubleshoot phase outputs (`last_ini_path` / `last_install_log` / `last_install_exit_code` / `attempt_number`). `AgentShell` exposes it as `shell.state`. **NOT yet auto-populated** from `tool_use` blocks — that requires per-tool result parsers (e.g. when `lookup_target_id` returns `{"target_id": "..."}`, the shell should write that into `state.target`). And the orchestrator does not yet pass a shared shell across phases — the `--full` mode `_MOCK_TARGET_BOARD` constants remain. Completion is Phase 3+ work, gated on real-hardware `--full` mode existing as a consumer.
 
 ---
 
@@ -159,7 +159,7 @@ Each phase reads from and writes to this object. **The state IS the contract bet
 
 (a) is the better fix — keep the UX, kill the duplication. Roughly 20 LOC.
 
-**Fix shipped (commit `8997f93`).** Path (b) chosen, not (a). After Phase 2d landed sliding-window pruning for REPL history, the synthetic-injection approach (a) lost its appeal — any pre-injected `tool_use` / `tool_result` pair would get pruned within ~10 user turns anyway, at which point the agent would re-probe. Removing the host-side probe entirely is the architecturally consistent choice. UX cost: the opening line is generic ("Hi — what NVIDIA hardware are you working with?") rather than personalized ("Detected Orin NX..."). One subprocess probe saved per session; the agent does its own detection on the first user turn via SYSTEM_PROMPT's standing instruction.
+**Fix shipped (commit `af8b98b`).** Path (b) chosen, not (a). After Phase 2d landed sliding-window pruning for REPL history, the synthetic-injection approach (a) lost its appeal — any pre-injected `tool_use` / `tool_result` pair would get pruned within ~10 user turns anyway, at which point the agent would re-probe. Removing the host-side probe entirely is the architecturally consistent choice. UX cost: the opening line is generic ("Hi — what NVIDIA hardware are you working with?") rather than personalized ("Detected Orin NX..."). One subprocess probe saved per session; the agent does its own detection on the first user turn via SYSTEM_PROMPT's standing instruction.
 
 ---
 
@@ -197,7 +197,7 @@ if total_input_tokens > MAX_INPUT_TOKENS:  # e.g. 200_000
 
 Combined with `MAX_TURNS`, this gives belt-and-suspenders: turn cap catches infinite loops, token cap catches expensive loops. Roughly 5 LOC.
 
-**Fix shipped (commit `80e3914`).** `TokenBudget` (default 200k input / 50k output) lives in `src/agent_shell.py`. Each iteration of `shell.turn()`'s for-loop calls `budget.raise_if_exhausted()` BEFORE the next `messages.create()`, raising `BudgetExceededError` (carrying `kind` / `used` / `cap`) without further API spend. The same `TokenBudget` is reused in `troubleshoot.py` for symmetric cost tracking on that path. Combined with `MAX_TURNS = 50`, both axes of failure are now bounded: a stuck loop fails fast on turns, an expensive loop fails fast on tokens.
+**Fix shipped (commit `67a4fe9`).** `TokenBudget` (default 200k input / 50k output) lives in `src/agent_shell.py`. Each iteration of `shell.turn()`'s for-loop calls `budget.raise_if_exhausted()` BEFORE the next `messages.create()`, raising `BudgetExceededError` (carrying `kind` / `used` / `cap`) without further API spend. The same `TokenBudget` is reused in `troubleshoot.py` for symmetric cost tracking on that path. Combined with `MAX_TURNS = 50`, both axes of failure are now bounded: a stuck loop fails fast on turns, an expensive loop fails fast on tokens.
 
 ---
 
@@ -239,7 +239,7 @@ The labels remain even though the tools they label can never fire.
 
 **Production fix.** Delete the two entries. One-line cleanup.
 
-**Fix shipped (commit `8997f93`).** Deleted. `_STEP_LABELS` now has 13 entries (down from 15). The "30 seconds of work" claim turned out accurate — both labels removed in a single edit alongside the G4 fix in the same commit.
+**Fix shipped (commit `af8b98b`).** Deleted. `_STEP_LABELS` now has 13 entries (down from 15). The "30 seconds of work" claim turned out accurate — both labels removed in a single edit alongside the G4 fix in the same commit.
 
 ---
 
@@ -265,7 +265,7 @@ total_output_tokens += response.usage.output_tokens
 
 Combined with **G8** (token budget cap) and the eval framework's JSONL emission, this becomes the foundation for the entire telemetry layer. **One small addition unlocks the whole `docs/eval-design.md` story.**
 
-**Fix shipped (commits `80e3914`, `189f589`).** In `AgentShell`, `response.usage` is captured every turn via `budget.add_usage()` and exposed two ways: per-turn() incremental via `TurnResult.input_tokens` / `output_tokens`, and lifetime cumulative via `shell.budget.used_input` / `used_output` / `used_cache_read`. In `src/troubleshoot.py` (which deliberately does NOT route through AgentShell — see its docstring), the same `TokenBudget` is imported and reused; `_synthesize_fix_sync` now returns `(text, usage_dict)`, and `run_troubleshoot` surfaces the dict as a new `"usage"` key in its returned result. Both fix paths share infrastructure with zero duplication. The "asymmetric ROI" claim held — closing G9 unblocked the per-tool dispatch attribution work that the eval engine will rely on (`eval/engine/runner.py`).
+**Fix shipped (commits `67a4fe9`, `779584d`).** In `AgentShell`, `response.usage` is captured every turn via `budget.add_usage()` and exposed two ways: per-turn() incremental via `TurnResult.input_tokens` / `output_tokens`, and lifetime cumulative via `shell.budget.used_input` / `used_output` / `used_cache_read`. In `src/troubleshoot.py` (which deliberately does NOT route through AgentShell — see its docstring), the same `TokenBudget` is imported and reused; `_synthesize_fix_sync` now returns `(text, usage_dict)`, and `run_troubleshoot` surfaces the dict as a new `"usage"` key in its returned result. Both fix paths share infrastructure with zero duplication. The "asymmetric ROI" claim held — closing G9 unblocked the per-tool dispatch attribution work that the eval engine will rely on (`eval/engine/runner.py`).
 
 ---
 

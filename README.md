@@ -108,7 +108,7 @@ The [hero diagram](docs/demo/architecture.svg) above shows the 5 phases sharing 
                          │
                          ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│  AGENT SHELL  (src/agent_shell.py — wrapped by src/agent.py)          │
+│  AGENT SHELL  (src/agent_shell.py)                                    │
 │                                                                       │
 │   SYSTEM_PROMPT  (routing contract)                                   │
 │        │                                                              │
@@ -160,9 +160,9 @@ Five things this view shows that the hero diagram doesn't:
 
 ## Agent shell design
 
-**One `AgentShell` · three caller modes · five primitives · 5 of 9 self-identified gaps closed in production.**
+**One `AgentShell` · three caller modes · five primitives · token-budgeted by construction.**
 
-The agent layer was originally three independent loops (`run_agent_single_turn`, `run_repl`, `run_troubleshoot`), each re-implementing MCP spawn, tool dispatch, message accumulation, and API retry. A self-critique document ([`docs/agent-design.md`](docs/agent-design.md) Ch 8) enumerated nine specific gaps in that arrangement — and writing the gaps in order revealed which ones were architecturally coupled. The list then drove a six-commit refactor (`80e3914` → `a7dedfd`) that introduced a unified shell and closed most of the list.
+The agent layer is a single `AgentShell` (`src/agent_shell.py`) that owns the MCP session lifetime, the message history, the token budget, and the typed cross-turn state. Three callers route through it; `troubleshoot` deliberately stays outside.
 
 ```
                       ┌────────────────────────────────────────────────┐
@@ -178,25 +178,24 @@ The agent layer was originally three independent loops (`run_agent_single_turn`,
       ┌──────────────────────────────────────┼──────────────────────────────┐
       ▼                                      ▼                              ▼
 mode="single_turn"                    mode="repl"                  src/troubleshoot.py
-unbounded history                     sliding window               (NOT routed through
-(one turn per shell)                  max_user_turns=10            shell — single call,
-                                                                   server-side web_search,
+unbounded history                     sliding window               (single Anthropic call,
+(one turn per shell)                  max_user_turns=10            server-side web_search,
                                                                    no MCP, no SYSTEM_PROMPT;
                                                                    shares TokenBudget only)
 ```
 
-Three production fixes the shell ships by construction:
+Three properties the shell guarantees by construction:
 
-| Gap | Before | After |
-|---|---|---|
-| **G1** REPL context bloat | turn 30 re-sends all 29 prior turns → 30× input tokens | sliding window prunes at turn boundaries; `tool_use` ↔ `tool_result` pairing preserved |
-| **G8** no token budget | only `MAX_TURNS=50`; a stuck tool loop burns $4–7 on Haiku, $30–45 on Opus | pre-flight `budget.raise_if_exhausted()` before each API call |
-| **G9** `response.usage` discarded | per-query cost invisible until the Anthropic invoice arrives | captured every turn into `TurnResult` + `shell.budget`; `estimated_cost_usd(model)` surfaces $/query |
+| Property | Mechanism |
+|---|---|
+| **Bounded REPL cost** | `MessageHistory("sliding")` prunes oldest user turns at boundaries; `tool_use` ↔ `tool_result` pairing preserved |
+| **Bounded run cost** | `TokenBudget(200k input / 50k output)` raises `BudgetExceededError` pre-flight before the next API call |
+| **Per-query observability** | every `response.usage` captured into `TurnResult` + `shell.budget`; `estimated_cost_usd(model)` surfaces $/query |
 
-**The decision that wasn't to migrate.** `troubleshoot.py` is a single Anthropic call with server-side `web_search_20250305`, no MCP, no `SYSTEM_PROMPT`. Forcing it through `AgentShell` would have required `spawn_mcp` / `extra_tools` / `system_prompt_override` parameters plus a second block-handling code path — the abstraction would harm clarity. Instead it imports `TokenBudget` for symmetric cost tracking and documents the boundary in its own module docstring. **Knowing when *not* to abstract is the senior signal here.**
+**The decision not to migrate.** `troubleshoot.py` is a single Anthropic call with server-side `web_search_20250305`, no MCP, no `SYSTEM_PROMPT`. Forcing it through `AgentShell` would require `spawn_mcp` / `extra_tools` / `system_prompt_override` parameters plus a second block-handling code path — the abstraction would harm clarity. It imports `TokenBudget` for symmetric cost tracking and documents the boundary in its own module docstring. **Knowing when *not* to abstract is the senior signal here.**
 
 → **Design manual (deep dive):** [`docs/agent-design.md`](docs/agent-design.md)
-The booklet covers: why a single-agent + tool-use loop and not multi-agent / plan-execute · the state-management decision (messages list vs. typed state) · context-budget mechanics (turns, tokens, summarization) · the routing contract · Ch 8's nine-gap self-critique and the closure status of each — including the two that remain open by design.
+The booklet covers: why a single-agent + tool-use loop and not multi-agent / plan-execute · the state-management decision (messages list vs. typed state) · context-budget mechanics (turns, tokens, summarization) · the routing contract · the gap inventory and the items still open by design.
 
 ## MCP design
 

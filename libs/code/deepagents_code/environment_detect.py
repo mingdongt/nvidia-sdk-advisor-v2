@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 
@@ -175,3 +176,131 @@ def detect_host_os() -> HostOSInfo:
     if system == "Windows":
         return _detect_host_os_windows()
     return _detect_host_os_linux()
+
+
+# --- target device detection ----------------------------------------------
+
+
+@dataclass
+class TargetDevice:
+    """A single detected NVIDIA USB device."""
+
+    vid_pid: str  # "0955:7523"
+    mode: str  # recovery | normal | storage | debug | unknown
+    board: str
+    bus_port: str | None = None
+
+
+@dataclass
+class TargetDeviceInfo:
+    """Result of a target-device scan (empty list => none detected)."""
+
+    devices: list[TargetDevice] = field(default_factory=list)
+    scan_method: str = "unavailable"  # lsusb | get-pnpdevice | unavailable
+    note: str | None = None
+
+
+# NVIDIA Tegra recovery VID. Board map is a VERIFIED curated subset; the full
+# catalog lives in SDK Manager's hwdata/families/*/devices/*.json (not bundled).
+_NVIDIA_VID = "0955"
+_DOCA_VID = "22dc"
+_BOARD_MAP = {
+    "0955:7523": "Jetson Orin Nano / Orin NX (devkit, recovery)",
+    "0955:7019": "Jetson AGX Xavier (recovery)",
+    "0955:7020": "Jetson (normal boot mode)",
+    "0955:7035": "Jetson (USB mass-storage mode)",
+    "0955:7100": "Jetson (USB mass-storage mode)",
+    "0955:7045": "Jetson (debug / UART port)",
+}
+_NORMAL_PIDS = {"0955:7020"}
+_STORAGE_PIDS = {"0955:7035", "0955:7100"}
+_DEBUG_PIDS = {"0955:7045"}
+
+_LSUSB_LINE = re.compile(
+    r"Bus\s+(\d+)\s+Device\s+(\d+):\s+ID\s+([0-9a-fA-F]{4}):([0-9a-fA-F]{4})"
+)
+
+
+def _classify(vid_pid: str) -> str:
+    if vid_pid in _DEBUG_PIDS:
+        return "debug"
+    if vid_pid in _STORAGE_PIDS:
+        return "storage"
+    if vid_pid in _NORMAL_PIDS:
+        return "normal"
+    if vid_pid.startswith(_NVIDIA_VID + ":"):
+        return "recovery"
+    return "unknown"
+
+
+def _resolve_board(vid_pid: str) -> str:
+    if vid_pid in _BOARD_MAP:
+        return _BOARD_MAP[vid_pid]
+    if vid_pid.startswith(_DOCA_VID + ":"):
+        return f"NVIDIA networking/DOCA device (unknown model {vid_pid})"
+    return f"NVIDIA Tegra device (unknown model {vid_pid})"
+
+
+def _detect_target_device_linux() -> TargetDeviceInfo:
+    out = _run(["lsusb"])
+    if out is None:
+        return TargetDeviceInfo(scan_method="unavailable", note="lsusb not found")
+    devices: list[TargetDevice] = []
+    for line in out.splitlines():
+        m = _LSUSB_LINE.search(line)
+        if not m:
+            continue
+        bus, _dev, vid, pid = m.groups()
+        vid, pid = vid.lower(), pid.lower()
+        if vid not in {_NVIDIA_VID, _DOCA_VID}:
+            continue
+        vid_pid = f"{vid}:{pid}"
+        devices.append(
+            TargetDevice(
+                vid_pid=vid_pid,
+                mode=_classify(vid_pid),
+                board=_resolve_board(vid_pid),
+                bus_port=f"bus {bus}",
+            )
+        )
+    return TargetDeviceInfo(devices=devices, scan_method="lsusb")
+
+
+def _detect_target_device_windows() -> TargetDeviceInfo:
+    if shutil.which("powershell") is None:
+        return TargetDeviceInfo(scan_method="unavailable", note="powershell not found")
+    # NOTE: this filter covers only the Jetson recovery VID (0955); the DOCA VID
+    # (22dc) is not matched here. Add a second Where-Object clause if DOCA device
+    # detection on Windows is needed.
+    out = _run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "Get-PnpDevice -PresentOnly | "
+            "Where-Object { $_.InstanceId -match 'VID_0955' } | "
+            "Select-Object -ExpandProperty InstanceId",
+        ]
+    )
+    devices: list[TargetDevice] = []
+    for line in (out or "").splitlines():
+        m = re.search(r"VID_([0-9A-Fa-f]{4})&PID_([0-9A-Fa-f]{4})", line)
+        if not m:
+            continue
+        vid_pid = f"{m.group(1).lower()}:{m.group(2).lower()}"
+        devices.append(
+            TargetDevice(
+                vid_pid=vid_pid, mode=_classify(vid_pid), board=_resolve_board(vid_pid)
+            )
+        )
+    return TargetDeviceInfo(devices=devices, scan_method="get-pnpdevice")
+
+
+def detect_target_device() -> TargetDeviceInfo:
+    """Scan for connected NVIDIA target devices (Jetson recovery, DOCA/DPU).
+
+    Pure-read USB-bus scan; never raises. Empty ``devices`` => none detected.
+    """
+    if platform.system() == "Windows":
+        return _detect_target_device_windows()
+    return _detect_target_device_linux()

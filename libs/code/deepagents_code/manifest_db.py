@@ -66,22 +66,26 @@ CREATE TABLE IF NOT EXISTS component (
     use_cases    TEXT
 );
 CREATE TABLE IF NOT EXISTS component_platform (
-    comp_uid    TEXT,
-    os          TEXT,
-    arch        TEXT,
-    install_mb  REAL,
-    download_b  INTEGER
+    comp_uid         TEXT,
+    os               TEXT,
+    arch             TEXT,
+    install_mb       REAL,
+    download_b       INTEGER,
+    board_series     TEXT,
+    excluded_devices TEXT
 );
 CREATE TABLE IF NOT EXISTS dependency (comp_uid TEXT, depends_on_comp_id TEXT);
 CREATE TABLE IF NOT EXISTS component_file (
-    comp_uid      TEXT,
-    os            TEXT,
-    arch          TEXT,
-    url           TEXT,
-    file_name     TEXT,
-    size          INTEGER,
-    checksum      TEXT,
-    checksum_type TEXT
+    comp_uid         TEXT,
+    os               TEXT,
+    arch             TEXT,
+    url              TEXT,
+    file_name        TEXT,
+    size             INTEGER,
+    checksum         TEXT,
+    checksum_type    TEXT,
+    board_series     TEXT,
+    excluded_devices TEXT
 );
 CREATE TABLE IF NOT EXISTS license (license_id TEXT PRIMARY KEY, name TEXT);
 CREATE INDEX IF NOT EXISTS ix_comp_release   ON component(release_id);
@@ -122,11 +126,17 @@ def _as_list(value: object) -> list[Any]:
 
 def _platform_rows(
     comp: dict[str, Any],
-) -> Iterator[tuple[str, str, float, int, list[dict[str, Any]]]]:
-    """Yield ``(os, arch, install_mb, download_bytes, files)`` per OS x arch.
+) -> Iterator[tuple[str, str, float, int, list[dict[str, Any]], str, str]]:
+    """Yield ``(os, arch, install_mb, download_bytes, files, series, excluded)``.
 
     Each ``platforms[]`` entry can list several operating systems and architectures;
     the cross product is expanded so callers can filter by an exact ``(os, arch)`` pair.
+    A component often ships a *different* payload per board on the same ``(os, arch)``
+    (a board-specific entry plus a catch-all), so the entry's
+    ``supportedHardware.seriesIds`` / ``excludedDeviceIds`` are carried through as
+    comma-joined strings (empty ``series`` means the entry applies to any board) — the
+    read helpers use them to pick the one entry that installs on a given board instead
+    of summing every variant.
     """
     for plat in _as_list(comp.get("platforms")):
         oses = _as_list(plat.get("operatingSystems")) or [""]
@@ -134,9 +144,20 @@ def _platform_rows(
         install_mb = float(plat.get("installSizeMB") or 0)
         files = _as_list(plat.get("downloadFiles"))
         download_b = sum(int(f.get("size") or 0) for f in files)
+        hardware = plat.get("supportedHardware") or {}
+        series = ",".join(_as_list(hardware.get("seriesIds")))
+        excluded = ",".join(_as_list(hardware.get("excludedDeviceIds")))
         for os_name in oses:
             for arch in arches:
-                yield str(os_name), str(arch), install_mb, download_b, files
+                yield (
+                    str(os_name),
+                    str(arch),
+                    install_mb,
+                    download_b,
+                    files,
+                    series,
+                    excluded,
+                )
 
 
 def _component_ids_of_group(group: dict[str, Any]) -> list[str]:
@@ -241,21 +262,36 @@ def _ingest_sdkml3(
                         license_ids[0] if license_ids else None,
                     ),
                 )
-                for os_name, arch, install_mb, download_b, files in _platform_rows(
-                    comp
-                ):
+                for (
+                    os_name,
+                    arch,
+                    install_mb,
+                    download_b,
+                    files,
+                    series,
+                    excluded,
+                ) in _platform_rows(comp):
                     con.execute(
                         "INSERT INTO component_platform"
-                        "(comp_uid, os, arch, install_mb, download_b)"
-                        " VALUES (?,?,?,?,?)",
-                        (comp_uid, os_name, arch, install_mb, download_b),
+                        "(comp_uid, os, arch, install_mb, download_b,"
+                        " board_series, excluded_devices)"
+                        " VALUES (?,?,?,?,?,?,?)",
+                        (
+                            comp_uid,
+                            os_name,
+                            arch,
+                            install_mb,
+                            download_b,
+                            series,
+                            excluded,
+                        ),
                     )
                     for f in files:
                         con.execute(
                             "INSERT INTO component_file"
                             "(comp_uid, os, arch, url, file_name, size,"
-                            " checksum, checksum_type)"
-                            " VALUES (?,?,?,?,?,?,?,?)",
+                            " checksum, checksum_type, board_series, excluded_devices)"
+                            " VALUES (?,?,?,?,?,?,?,?,?,?)",
                             (
                                 comp_uid,
                                 os_name,
@@ -265,6 +301,8 @@ def _ingest_sdkml3(
                                 int(f.get("size") or 0),
                                 f.get("checksum"),
                                 f.get("checksumType"),
+                                series,
+                                excluded,
                             ),
                         )
                 for dep in _as_list(comp.get("dependencies")):
@@ -381,6 +419,43 @@ def _rows(
     return [dict(r) for r in con.execute(sql, tuple(params)).fetchall()]
 
 
+def _board_score(row: dict[str, Any], board: str | None) -> int:
+    """Rank how well one platform/file row fits ``board`` (higher = better match).
+
+    A component frequently ships several rows for the same ``(os, arch)`` — one per
+    board (a board-specific entry plus a catch-all). For a given board only one is
+    actually installed, so callers keep the single highest-scoring row instead of
+    summing them all.
+
+    Returns:
+        ``2`` for a board-specific match, ``1`` for a catch-all that applies to any
+        board, ``0`` for a board-specific entry when no board was given, and ``-1``
+        when the row does not apply to ``board`` at all.
+    """
+    series = {s for s in (row.get("board_series") or "").split(",") if s}
+    excluded = {s for s in (row.get("excluded_devices") or "").split(",") if s}
+    if board and board in excluded:
+        return -1  # explicitly excluded from this board
+    if board and series:
+        return 2 if board in series else -1  # board-specific entry
+    if not series:
+        return 1  # catch-all: applies to any board
+    return 0  # board-specific entry but no board given -> least preferred
+
+
+def _pick_board_row(
+    rows: list[dict[str, Any]], board: str | None, size_key: str = "install_mb"
+) -> dict[str, Any]:
+    """Return the single row from ``rows`` that installs on ``board``.
+
+    ``rows`` are the candidate platform/file rows for one ``(comp_uid, os, arch)``.
+    The best board match wins; ties break toward the larger ``size_key`` so an
+    unknown board still yields a deterministic, non-duplicated choice.
+    """
+    applicable = [r for r in rows if _board_score(r, board) >= 0] or rows
+    return max(applicable, key=lambda r: (_board_score(r, board), r.get(size_key) or 0))
+
+
 def find_releases(
     con: sqlite3.Connection,
     product: str | None = None,
@@ -454,8 +529,14 @@ def footprint(
     host_os: str,
     arch: str,
     comp_ids: list[str] | None = None,
+    board: str | None = None,
 ) -> dict[str, Any]:
     """Sum install/download size for a release on a given ``(host_os, arch)``.
+
+    A component can list several platform rows for one ``(os, arch)`` — one per board
+    — of which exactly one is installed. Each component therefore contributes only its
+    ``board``-appropriate row (see ``_pick_board_row``); summing every row would
+    over-report the footprint.
 
     Returns:
         ``{"components", "install_mb", "download_b"}`` totals (zeros if nothing
@@ -468,15 +549,29 @@ def footprint(
         extra = f" AND c.comp_id IN ({placeholders})"
         params.extend(comp_ids)
     # S608: ``extra`` is a placeholder list built internally; values use ``?``.
-    row = con.execute(
-        "SELECT COUNT(DISTINCT c.comp_uid) AS components,"  # noqa: S608
-        " ROUND(SUM(cp.install_mb), 1) AS install_mb,"
-        " SUM(cp.download_b) AS download_b"
+    rows = _rows(
+        con,
+        "SELECT c.comp_uid AS comp_uid, cp.install_mb AS install_mb,"  # noqa: S608
+        " cp.download_b AS download_b, cp.board_series AS board_series,"
+        " cp.excluded_devices AS excluded_devices"
         " FROM component c JOIN component_platform cp ON cp.comp_uid = c.comp_uid"
         f" WHERE c.release_id = ? AND cp.os = ? AND cp.arch = ?{extra}",
-        tuple(params),
-    ).fetchone()
-    return dict(row) if row else {"components": 0, "install_mb": 0, "download_b": 0}
+        params,
+    )
+    by_comp: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_comp.setdefault(row["comp_uid"], []).append(row)
+    install_mb = 0.0
+    download_b = 0
+    for candidates in by_comp.values():
+        chosen = _pick_board_row(candidates, board)
+        install_mb += chosen["install_mb"] or 0
+        download_b += chosen["download_b"] or 0
+    return {
+        "components": len(by_comp),
+        "install_mb": round(install_mb, 1),
+        "download_b": download_b,
+    }
 
 
 def component_detail(
@@ -485,6 +580,7 @@ def component_detail(
     comp: str,
     host_os: str | None = None,
     arch: str | None = None,
+    board: str | None = None,
 ) -> dict[str, Any] | None:
     """Return one component's full record by ``comp_id`` or (case-insensitive) name."""
     row = con.execute(
@@ -505,12 +601,24 @@ def component_detail(
         plat_where += " AND arch = ?"
         plat_params.append(arch)
     # S608: ``plat_where`` is built from controlled predicates; values use ``?``.
-    out["platforms"] = _rows(
+    plat_rows = _rows(
         con,
-        "SELECT os, arch, install_mb, download_b"  # noqa: S608
+        "SELECT os, arch, install_mb, download_b, board_series, excluded_devices"  # noqa: S608
         f" FROM component_platform WHERE {plat_where}",
         plat_params,
     )
+    # Collapse the per-board variants of each (os, arch) to the one that installs
+    # on ``board`` so a single platform never shows two conflicting sizes.
+    by_os_arch: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for plat in plat_rows:
+        by_os_arch.setdefault((plat["os"], plat["arch"]), []).append(plat)
+    out["platforms"] = [
+        {
+            k: _pick_board_row(variants, board)[k]
+            for k in ("os", "arch", "install_mb", "download_b")
+        }
+        for variants in by_os_arch.values()
+    ]
     out["depends_on"] = [
         r["depends_on_comp_id"]
         for r in _rows(
@@ -586,23 +694,51 @@ def build_plan_rows(
     host_os: str,
     arch: str,
     comp_ids: list[str],
+    board: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return the execution payload (download files) for an install selection."""
+    """Return the execution payload (download files) for an install selection.
+
+    A component may publish a different file per board on the same ``(os, arch)``; only
+    the ``board``-appropriate platform entry is actually downloaded, so the others are
+    dropped rather than listed alongside it.
+    """
     if not comp_ids:
         return []
     placeholders = ",".join("?" for _ in comp_ids)
     params = [release_id, *comp_ids, host_os, arch]
     # S608: ``placeholders`` is a ``?``-list built internally; values use ``?``.
-    return _rows(
+    rows = _rows(
         con,
-        "SELECT c.comp_id, c.name, f.file_name, f.url, f.size,"  # noqa: S608
-        " f.checksum, f.checksum_type"
+        "SELECT c.comp_uid, c.comp_id, c.name, f.file_name, f.url, f.size,"  # noqa: S608
+        " f.checksum, f.checksum_type, f.board_series, f.excluded_devices"
         " FROM component c JOIN component_file f ON f.comp_uid = c.comp_uid"
         f" WHERE c.release_id = ? AND c.comp_id IN ({placeholders})"
         " AND f.os = ? AND f.arch = ?"
         " ORDER BY c.comp_id",
         params,
     )
+    by_comp: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_comp.setdefault(row["comp_uid"], []).append(row)
+    fields = (
+        "comp_id",
+        "name",
+        "file_name",
+        "url",
+        "size",
+        "checksum",
+        "checksum_type",
+    )
+    out: list[dict[str, Any]] = []
+    for candidates in by_comp.values():
+        winner = _pick_board_row(candidates, board, size_key="size")
+        signature = (winner["board_series"], winner["excluded_devices"])
+        out.extend(
+            {field: row[field] for field in fields}
+            for row in candidates
+            if (row["board_series"], row["excluded_devices"]) == signature
+        )
+    return out
 
 
 def _main() -> None:

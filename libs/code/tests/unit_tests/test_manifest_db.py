@@ -173,3 +173,116 @@ def test_build_plan_rows_returns_files(db: sqlite3.Connection) -> None:
             "checksum_type": "md5",
         }
     ]
+
+
+def _board_split_sdkml3() -> dict[str, Any]:
+    """An sdkml3 whose one component ships a different payload per board.
+
+    On the same (os, arch) the driver has two ``platforms[]`` entries:
+    a board-specific one (BOARD_A only, 100 MB / a.deb) and a catch-all one
+    (any other board, 150 MB / b.deb). SDK Manager installs exactly one of
+    them for a given board — never the sum.
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "architectures": ["x86_64"],
+                "hostOperatingSystemsSupportFor": {"targetGroups": ["ubuntu22.04"]},
+                "supportedHardware": {
+                    "seriesIds": ["BOARD_A_TARGETS", "BOARD_B_TARGETS"]
+                },
+            }
+        },
+        "sections": [{"id": "S1", "title": "Drivers", "groups": ["G_DRV"]}],
+        "groups": [
+            {
+                "id": "G_DRV",
+                "name": "Drivers",
+                "installedOn": "target",
+                "versions": [{"version": "1", "components": [{"id": "C_DRV"}]}],
+            }
+        ],
+        "components": {
+            "C_DRV": {
+                "id": "C_DRV",
+                "name": "L4T Drivers",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 100.0,
+                        "supportedHardware": {"seriesIds": ["BOARD_A_TARGETS"]},
+                        "downloadFiles": [
+                            {"url": "http://x/a.deb", "fileName": "a.deb", "size": 10}
+                        ],
+                    },
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 150.0,
+                        "downloadFiles": [
+                            {"url": "http://x/b.deb", "fileName": "b.deb", "size": 20}
+                        ],
+                    },
+                ],
+            }
+        },
+    }
+
+
+@pytest.fixture
+def board_db(tmp_path: Path) -> sqlite3.Connection:
+    """Build a manifest.db from the board-split fixture and yield a connection."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_board.json").write_text(
+        json.dumps(_board_split_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    yield con
+    con.close()
+
+
+def test_footprint_picks_one_entry_per_board(board_db: sqlite3.Connection) -> None:
+    """Footprint selects the board-appropriate payload, never the sum of both."""
+    on_a = manifest_db.footprint(
+        board_db, "Jetson:6.0", "ubuntu22.04", "x86_64", board="BOARD_A_TARGETS"
+    )
+    # BOARD_A matches the board-specific entry (100 MB / 10 B), not 100+150.
+    assert on_a["components"] == 1
+    assert on_a["install_mb"] == 100.0
+    assert on_a["download_b"] == 10
+
+    on_b = manifest_db.footprint(
+        board_db, "Jetson:6.0", "ubuntu22.04", "x86_64", board="BOARD_B_TARGETS"
+    )
+    # BOARD_B is not in the specific entry's series -> only the catch-all applies.
+    assert on_b["install_mb"] == 150.0
+    assert on_b["download_b"] == 20
+
+
+def test_footprint_no_board_does_not_double_count(
+    board_db: sqlite3.Connection,
+) -> None:
+    """Without a board, footprint still picks one entry rather than summing both."""
+    fp = manifest_db.footprint(board_db, "Jetson:6.0", "ubuntu22.04", "x86_64")
+    assert fp["components"] == 1
+    assert fp["install_mb"] == 150.0  # catch-all preferred when board is unknown
+
+
+def test_build_plan_rows_picks_board_payload(board_db: sqlite3.Connection) -> None:
+    """build_plan lists only the selected board's file, not every variant."""
+    rows = manifest_db.build_plan_rows(
+        board_db,
+        "Jetson:6.0",
+        "ubuntu22.04",
+        "x86_64",
+        ["C_DRV"],
+        board="BOARD_A_TARGETS",
+    )
+    assert [r["file_name"] for r in rows] == ["a.deb"]

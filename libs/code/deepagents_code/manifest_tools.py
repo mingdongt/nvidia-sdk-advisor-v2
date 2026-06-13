@@ -157,12 +157,13 @@ def footprint(
     host_os: str,
     arch: str,
     comp_ids: list[str] | None = None,
+    board: str | None = None,
 ) -> dict[str, Any]:
     """Compute total install and download size for a release on a specific host.
 
-    Size varies by host OS and architecture (e.g. a Windows host pulls WSL
-    components), so pass the user's detected host_os and arch. Sizes are summed from
-    the manifest — report them as-is, do not estimate.
+    Size varies by host OS, architecture and target board (a component can ship a
+    different payload per board), so pass the user's detected host_os, arch and board.
+    Sizes come from the manifest — report them as-is, do not estimate.
 
     Args:
         release_id: Release identifier, e.g. "Jetson:6.2.2".
@@ -170,6 +171,8 @@ def footprint(
         arch: Host CPU architecture, e.g. "x86_64".
         comp_ids: Optional subset of component ids to size (omit to size the full
             release).
+        board: Detected target board series, e.g. "JETSON_ORIN_NANO_TARGETS". Pass it
+            so per-board components are sized for the user's board, not double-counted.
 
     Returns:
         Dict with {components, install_mb, download_b}, or {"error": ...}.
@@ -180,7 +183,7 @@ def footprint(
     try:
         from deepagents_code import manifest_db
 
-        return manifest_db.footprint(con, release_id, host_os, arch, comp_ids)
+        return manifest_db.footprint(con, release_id, host_os, arch, comp_ids, board)
     except Exception as exc:
         logger.exception("footprint failed")
         return {"error": f"footprint failed: {exc}"}
@@ -235,6 +238,7 @@ def component_detail(
     component: str,
     host_os: str | None = None,
     arch: str | None = None,
+    board: str | None = None,
 ) -> dict[str, Any]:
     """Get one component's full record: id, version, size, install side, deps.
 
@@ -245,6 +249,8 @@ def component_detail(
         host_os: Optional host OS to pick the matching platform's size, e.g.
             "ubuntu22.04".
         arch: Optional host architecture, e.g. "x86_64".
+        board: Optional target board series (e.g. "JETSON_ORIN_NANO_TARGETS") to pick
+            the platform size for the user's board when a component is board-specific.
 
     Returns:
         Dict with the component fields (name, version, section, group_name,
@@ -257,7 +263,9 @@ def component_detail(
     try:
         from deepagents_code import manifest_db
 
-        detail = manifest_db.component_detail(con, release_id, component, host_os, arch)
+        detail = manifest_db.component_detail(
+            con, release_id, component, host_os, arch, board
+        )
         if detail is None:
             return {"error": f"component '{component}' not found in {release_id}"}
     except Exception as exc:
@@ -299,12 +307,14 @@ def build_plan(
     host_os: str,
     arch: str,
     comp_ids: list[str],
+    board: str | None = None,
 ) -> dict[str, Any]:
     """Assemble a grounded install plan (components + download files + size).
 
     Read-only: this only describes what an install would download/do; it does not
     install, download or flash anything (that stays behind the human-approved shell).
-    Pass the user's detected host_os and arch so the plan matches their machine.
+    Pass the user's detected host_os, arch and board so the plan matches their machine
+    and target (per-board components resolve to the one payload they actually install).
 
     Args:
         release_id: Release identifier, e.g. "Jetson:6.2.2".
@@ -312,6 +322,7 @@ def build_plan(
         arch: Host architecture, e.g. "x86_64".
         comp_ids: Component ids to include (run resolve_deps first to add
             dependencies).
+        board: Detected target board series, e.g. "JETSON_ORIN_NANO_TARGETS".
 
     Returns:
         Dict with {release_id, host_os, arch, footprint, files: [{comp_id, name,
@@ -328,10 +339,10 @@ def build_plan(
             "host_os": host_os,
             "arch": arch,
             "footprint": manifest_db.footprint(
-                con, release_id, host_os, arch, comp_ids
+                con, release_id, host_os, arch, comp_ids, board
             ),
             "files": manifest_db.build_plan_rows(
-                con, release_id, host_os, arch, comp_ids
+                con, release_id, host_os, arch, comp_ids, board
             ),
         }
     except Exception as exc:

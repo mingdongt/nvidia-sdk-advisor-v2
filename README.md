@@ -46,6 +46,8 @@ Typical flow: `find_releases` → `search_components` → `component_detail` / `
 
 `search_components` uses semantic search when an embedding backend is configured, and falls back to substring matching so it **always works offline**. Components are tagged with use cases (e.g. `edge-ai`, `cuda-programming`, `deep-learning-inference`) to map fuzzy intent to real components.
 
+The design philosophy behind these tools — why they're kept small, read-only, and orthogonal, and when a high-frequency path earns a composite "recipe" tool — is written up in [**Tool design**](docs/tool-design.md).
+
 ### What's bundled
 
 The shipped `manifest.db` is built from these SDK Manager manifests (see [libs/code/deepagents_code/data/sdkm/manifests/](libs/code/deepagents_code/data/sdkm/manifests/)):

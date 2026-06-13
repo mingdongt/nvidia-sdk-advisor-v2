@@ -1,0 +1,875 @@
+{
+ "tags": [
+  {
+   "name": "Balena Etcher",
+   "group": "Create Installation USB from ISO Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "BlueField OS Image (Ubuntu Server)",
+   "group": "BlueField OS",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "CUDA Cross Compile",
+   "group": "CUDA",
+   "category": "capability",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA Cross Compile (SBSA) ",
+   "group": "CUDA",
+   "category": "capability",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA Cross Compile Package on Host",
+   "group": "CUDA",
+   "category": "capability",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA Runtime",
+   "group": "CUDA Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA Toolkit ",
+   "group": "CUDA",
+   "category": "capability",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "deep-learning-training",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA Toolkit ",
+   "group": "CUDA Toolkit",
+   "category": "capability",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "deep-learning-training",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA Toolkit Runtime ",
+   "group": "CUDA Toolkit Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA Toolkit for L4T",
+   "group": "CUDA",
+   "category": "capability",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CUDA on Host",
+   "group": "CUDA",
+   "category": "capability",
+   "use_cases": [
+    "gpu-computing",
+    "cuda-programming",
+    "deep-learning-inference",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "Create installation USB from ISO Image",
+   "group": "Create Installation USB from ISO Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "CuDNN ",
+   "group": "CUDA-X AI",
+   "category": "capability",
+   "use_cases": [
+    "deep-learning-inference",
+    "deep-learning-training",
+    "image-classification",
+    "object-detection",
+    "semantic-segmentation",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "CuDNN Runtime",
+   "group": "CUDA X-AI Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "deep-learning-inference",
+    "image-classification",
+    "object-detection",
+    "semantic-segmentation",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "CuDNN Runtime ",
+   "group": "CUDA X-AI Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "deep-learning-inference",
+    "image-classification",
+    "object-detection",
+    "semantic-segmentation",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "CuDNN on Target",
+   "group": "CUDA-X AI",
+   "category": "capability",
+   "use_cases": [
+    "deep-learning-inference",
+    "deep-learning-training",
+    "image-classification",
+    "object-detection",
+    "semantic-segmentation",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "CuPVA Runtime",
+   "group": "Computer Vision Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "CuPVA Runtime ",
+   "group": "Computer Vision Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "DLA Compiler",
+   "group": "Additional Setups",
+   "category": "capability",
+   "use_cases": [
+    "deep-learning-inference",
+    "object-detection",
+    "image-classification",
+    "edge-ai"
+   ]
+  },
+  {
+   "name": "DOCA Libraries for Rivermax",
+   "group": "DOCA Libraries for Rivermax",
+   "category": "capability",
+   "use_cases": [
+    "networking-offload",
+    "dpu-acceleration",
+    "multimedia-processing",
+    "video-analytics"
+   ]
+  },
+  {
+   "name": "DOCA SDK Libraries and Drivers",
+   "group": "DOCA Software Package",
+   "category": "capability",
+   "use_cases": [
+    "networking-offload",
+    "dpu-acceleration",
+    "storage-acceleration",
+    "cybersecurity"
+   ]
+  },
+  {
+   "name": "DOCA Tools for BlueField Target",
+   "group": "DOCA Software Package",
+   "category": "capability",
+   "use_cases": [
+    "networking-offload",
+    "dpu-acceleration",
+    "cybersecurity",
+    "storage-acceleration"
+   ]
+  },
+  {
+   "name": "DOCA Tools for Host x86",
+   "group": "DOCA Software Package",
+   "category": "capability",
+   "use_cases": [
+    "networking-offload",
+    "dpu-acceleration",
+    "cybersecurity",
+    "storage-acceleration"
+   ]
+  },
+  {
+   "name": "DateTime Setup",
+   "group": "Additional Setups",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "DateTime Target Setup",
+   "group": "Additional Setups",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "DateTime Target Setup ",
+   "group": "Additional Setups",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Docker Environment Setup",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Docker Environment Setup",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Docker Service",
+   "group": "Development Container on Host",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Drivers for Jetson",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Drivers for Jetson",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Drivers for Jetson ",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Drivers for Jetson ",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "File System and OS",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "File System and OS",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "File System and OS ",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "File System and OS ",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Firmware Tools (MFT)",
+   "group": "Firmware and Flashing Tools",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Flash BlueField OS",
+   "group": "BlueField OS",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Flash Jetson Linux",
+   "group": "Flash Jetson Linux",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Flash Jetson Linux",
+   "group": "Flash Jetson Linux",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Flash Jetson Linux ",
+   "group": "Flash Jetson Linux",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Flash Jetson Linux from ISO Image",
+   "group": "Flash Jetson Linux from ISO Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Gstreamer",
+   "group": "Additional Setups",
+   "category": "capability",
+   "use_cases": [
+    "multimedia-processing",
+    "video-encode-decode",
+    "camera-pipeline",
+    "video-analytics"
+   ]
+  },
+  {
+   "name": "Gstreamer ",
+   "group": "Additional Setups",
+   "category": "capability",
+   "use_cases": [
+    "multimedia-processing",
+    "video-encode-decode",
+    "camera-pipeline",
+    "video-analytics"
+   ]
+  },
+  {
+   "name": "ISO Image",
+   "group": "Create Installation USB from ISO Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Install Environment Setup on Host",
+   "group": "DOCA Software Package",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Install Environment Setup on Host for Target Image",
+   "group": "Firmware and Flashing Tools",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Jetson Camera SIPL",
+   "group": "Additional Setups",
+   "category": "capability",
+   "use_cases": [
+    "camera-pipeline",
+    "multi-camera",
+    "image-processing",
+    "autonomous-machines",
+    "sensor-fusion"
+   ]
+  },
+  {
+   "name": "Jetson Docker Image",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Jetson Docker Image",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Jetson Platform Services",
+   "group": "Jetson Platform Services",
+   "category": "capability",
+   "use_cases": [
+    "video-analytics",
+    "object-detection",
+    "multi-camera",
+    "edge-ai",
+    "generative-ai"
+   ]
+  },
+  {
+   "name": "Jetson Platform Services - Coming Soon",
+   "group": "Jetson Platform Services - Coming Soon",
+   "category": "capability",
+   "use_cases": [
+    "video-analytics",
+    "object-detection",
+    "multi-camera",
+    "edge-ai",
+    "generative-ai"
+   ]
+  },
+  {
+   "name": "Jetson System Upgrade",
+   "group": "Jetson System Upgrade",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Multimedia API",
+   "group": "Multimedia",
+   "category": "capability",
+   "use_cases": [
+    "video-encode-decode",
+    "multimedia-processing",
+    "camera-pipeline",
+    "video-analytics"
+   ]
+  },
+  {
+   "name": "Multimedia API ",
+   "group": "Multimedia",
+   "category": "capability",
+   "use_cases": [
+    "video-encode-decode",
+    "multimedia-processing",
+    "camera-pipeline",
+    "video-analytics"
+   ]
+  },
+  {
+   "name": "NVIDIA Container Runtime with Docker integration ",
+   "group": "NVIDIA Container Runtime",
+   "category": "capability",
+   "use_cases": [
+    "containerized-deployment",
+    "edge-ai",
+    "deep-learning-inference",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "NVIDIA Container Runtime with Docker integration (Beta)",
+   "group": "NVIDIA Container Runtime",
+   "category": "capability",
+   "use_cases": [
+    "containerized-deployment",
+    "edge-ai",
+    "deep-learning-inference",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "Nsight DL Designer",
+   "group": "Developer Tools",
+   "category": "capability",
+   "use_cases": [
+    "deep-learning-inference",
+    "performance-profiling",
+    "deep-learning-training"
+   ]
+  },
+  {
+   "name": "Nsight Graphics",
+   "group": "Developer Tools",
+   "category": "capability",
+   "use_cases": [
+    "performance-profiling",
+    "debugging",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "Nsight Systems",
+   "group": "Developer Tools",
+   "category": "capability",
+   "use_cases": [
+    "performance-profiling",
+    "debugging",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "Nsight Systems ",
+   "group": "Developer Tools",
+   "category": "capability",
+   "use_cases": [
+    "performance-profiling",
+    "debugging",
+    "gpu-computing"
+   ]
+  },
+  {
+   "name": "NvSci",
+   "group": "NvSci",
+   "category": "capability",
+   "use_cases": [
+    "camera-pipeline",
+    "sensor-fusion",
+    "multimedia-processing",
+    "computer-vision"
+   ]
+  },
+  {
+   "name": "NvSci ",
+   "group": "NvSci",
+   "category": "capability",
+   "use_cases": [
+    "camera-pipeline",
+    "sensor-fusion",
+    "multimedia-processing",
+    "computer-vision"
+   ]
+  },
+  {
+   "name": "OpenCV",
+   "group": "Computer Vision",
+   "category": "capability",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "object-detection",
+    "image-classification"
+   ]
+  },
+  {
+   "name": "OpenCV ",
+   "group": "Computer Vision",
+   "category": "capability",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "object-detection",
+    "image-classification"
+   ]
+  },
+  {
+   "name": "OpenCV Runtime",
+   "group": "Computer Vision Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "object-detection",
+    "image-classification"
+   ]
+  },
+  {
+   "name": "OpenCV Runtime ",
+   "group": "Computer Vision Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "object-detection",
+    "image-classification"
+   ]
+  },
+  {
+   "name": "PuTTY",
+   "group": "Flash Jetson Linux from ISO Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "RSHIM",
+   "group": "Firmware and Flashing Tools",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Set Link Type",
+   "group": "Burn Target Firmware",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Setup Jetson Device",
+   "group": "Flash Jetson Linux from ISO Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Target Firmware Upgrade",
+   "group": "Burn Target Firmware",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "TensorRT ",
+   "group": "CUDA-X AI",
+   "category": "capability",
+   "use_cases": [
+    "deep-learning-inference",
+    "object-detection",
+    "image-classification",
+    "semantic-segmentation",
+    "llm-inference"
+   ]
+  },
+  {
+   "name": "TensorRT Runtime",
+   "group": "CUDA X-AI Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "deep-learning-inference",
+    "object-detection",
+    "image-classification",
+    "semantic-segmentation",
+    "llm-inference"
+   ]
+  },
+  {
+   "name": "TensorRT Runtime ",
+   "group": "CUDA X-AI Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "deep-learning-inference",
+    "object-detection",
+    "image-classification",
+    "semantic-segmentation",
+    "llm-inference"
+   ]
+  },
+  {
+   "name": "TensorRT on Target",
+   "group": "CUDA-X AI",
+   "category": "capability",
+   "use_cases": [
+    "deep-learning-inference",
+    "object-detection",
+    "image-classification",
+    "semantic-segmentation",
+    "llm-inference"
+   ]
+  },
+  {
+   "name": "Ubuntu ARM BlueField OS Container Image",
+   "group": "Development Container on Host",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Ubuntu ARM BlueField OS Container Image",
+   "group": "Development Container on Target",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "VPI ",
+   "group": "Computer Vision",
+   "category": "capability",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion"
+   ]
+  },
+  {
+   "name": "Ubuntu ARM BlueField OS Container Image",
+   "group": "Development Container on Host",
+   "category": "capability",
+   "use_cases": [
+    "containerized-deployment",
+    "dpu-acceleration",
+    "networking-offload"
+   ]
+  },
+  {
+   "name": "Ubuntu ARM BlueField OS Container Image",
+   "group": "Development Container on Target",
+   "category": "capability",
+   "use_cases": [
+    "containerized-deployment",
+    "dpu-acceleration",
+    "networking-offload"
+   ]
+  },
+  {
+   "name": "VPI ",
+   "group": "Computer Vision",
+   "category": "capability",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion",
+    "robotics"
+   ]
+  },
+  {
+   "name": "VPI Runtime",
+   "group": "Computer Vision Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion",
+    "robotics"
+   ]
+  },
+  {
+   "name": "VPI Runtime ",
+   "group": "Computer Vision Runtime",
+   "category": "runtime",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion",
+    "robotics"
+   ]
+  },
+  {
+   "name": "VPI on Host",
+   "group": "Computer Vision",
+   "category": "capability",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion",
+    "robotics"
+   ]
+  },
+  {
+   "name": "VPI on Target",
+   "group": "Computer Vision",
+   "category": "capability",
+   "use_cases": [
+    "computer-vision",
+    "image-processing",
+    "camera-pipeline",
+    "sensor-fusion",
+    "robotics"
+   ]
+  },
+  {
+   "name": "WSL Flash Post Setup",
+   "group": "Flash Jetson Linux",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "WSL Flash Pre Setup",
+   "group": "Flash Jetson Linux",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "WSL Kernel Image",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "WSL Kernel Image",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "WSL Setup Preparation",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "WSL Setup Preparation",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "WSL Ubuntu Instance",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "WSL Ubuntu Instance",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Windows ADB",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Windows ADB",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Windows USBIPD",
+   "group": "Jetson Linux Image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "Windows USBIPD",
+   "group": "Jetson Linux image",
+   "category": "infra",
+   "use_cases": []
+  },
+  {
+   "name": "XTERM",
+   "group": "Flash Jetson Linux from ISO Image",
+   "category": "infra",
+   "use_cases": []
+  }
+ ]
+}

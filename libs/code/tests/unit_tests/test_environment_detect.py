@@ -159,3 +159,44 @@ def test_target_device_windows_no_device() -> None:
 
     assert info.scan_method == "get-pnpdevice"
     assert info.devices == []
+
+
+def test_summary_and_prompt_block_no_device() -> None:
+    ed.reset_environment_cache()
+    host = ed.HostOSInfo(
+        host_os_string="ubuntu22.04",
+        pretty_name="Ubuntu 22.04.4 LTS",
+        arch="x86_64",
+        is_wsl=False,
+        cpu_count=16,
+        total_ram_gb=32.0,
+    )
+    dev = ed.TargetDeviceInfo(devices=[], scan_method="lsusb")
+    with (
+        patch.object(ed, "detect_host_os", return_value=host),
+        patch.object(ed, "detect_target_device", return_value=dev),
+    ):
+        summary = ed.get_environment_summary()
+        block = ed.render_prompt_block()
+
+    assert "ubuntu22.04" in summary
+    assert "x86_64" in summary
+    assert "none detected" in summary.lower()
+    assert block.startswith("<environment_detection>")
+    assert "ubuntu22.04" in block
+    assert block.rstrip().endswith("</environment_detection>")
+
+
+def test_summary_is_memoized() -> None:
+    ed.reset_environment_cache()
+    with (
+        patch.object(ed, "detect_host_os", return_value=ed.HostOSInfo()) as host_mock,
+        patch.object(
+            ed, "detect_target_device", return_value=ed.TargetDeviceInfo()
+        ) as dev_mock,
+    ):
+        ed.get_environment_summary()
+        ed.get_environment_summary()
+
+    host_mock.assert_called_once()
+    dev_mock.assert_called_once()

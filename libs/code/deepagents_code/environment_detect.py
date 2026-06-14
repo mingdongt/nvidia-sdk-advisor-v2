@@ -304,3 +304,71 @@ def detect_target_device() -> TargetDeviceInfo:
     if platform.system() == "Windows":
         return _detect_target_device_windows()
     return _detect_target_device_linux()
+
+
+# --- rendering + memoized startup snapshot ---------------------------------
+
+_cache: dict[str, str] = {}
+
+
+def reset_environment_cache() -> None:
+    """Clear the memoized startup snapshot (used by tests and on refresh)."""
+    _cache.clear()
+
+
+def _host_line(host: HostOSInfo) -> str:
+    name = host.pretty_name or host.host_os_string or "unknown OS"
+    # Include host_os_string as a compact tag when it adds information
+    if host.host_os_string and host.host_os_string not in name:
+        name = f"{name} [{host.host_os_string}]"
+    bits = [f"Host: {name}"]
+    if host.arch:
+        bits.append(f"({host.arch})")
+    extra = []
+    if host.is_wsl:
+        extra.append("WSL2=yes")
+    if host.is_docker:
+        extra.append("Docker=yes")
+    if host.is_vm:
+        extra.append("VM=yes")
+    if host.cpu_count:
+        extra.append(f"{host.cpu_count} cores")
+    if host.total_ram_gb:
+        extra.append(f"{host.total_ram_gb:g} GB RAM")
+    line = " ".join(bits)
+    if extra:
+        line += ". " + ", ".join(extra) + "."
+    return line
+
+
+def _device_line(info: TargetDeviceInfo) -> str:
+    if info.scan_method == "unavailable":
+        return f"NVIDIA target device: scan unavailable ({info.note})."
+    recovery = [d for d in info.devices if d.mode == "recovery"]
+    if recovery:
+        d = recovery[0]
+        return (
+            f"NVIDIA target device: {d.board} [{d.vid_pid}] in recovery mode"
+            f"{(' on ' + d.bus_port) if d.bus_port else ''}."
+        )
+    if info.devices:
+        d = info.devices[0]
+        return f"NVIDIA target device: {d.board} [{d.vid_pid}] ({d.mode} mode)."
+    return "NVIDIA target device: none detected in USB recovery mode."
+
+
+def get_environment_summary() -> str:
+    """One-line-per-fact host + device summary (memoized for the session)."""
+    if "summary" not in _cache:
+        host = detect_host_os()
+        dev = detect_target_device()
+        _cache["summary"] = _host_line(host) + "\n" + _device_line(dev)
+    return _cache["summary"]
+
+
+def render_prompt_block() -> str:
+    """The ``<environment_detection>`` block appended to the system prompt."""
+    if "block" not in _cache:
+        body = get_environment_summary()
+        _cache["block"] = f"<environment_detection>\n{body}\n</environment_detection>"
+    return _cache["block"]

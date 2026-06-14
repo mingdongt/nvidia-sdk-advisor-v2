@@ -200,3 +200,30 @@ def test_summary_is_memoized() -> None:
 
     host_mock.assert_called_once()
     dev_mock.assert_called_once()
+
+
+def test_tool_detect_host_os_returns_dict() -> None:
+    from deepagents_code.tools import detect_host_os as tool_detect_host_os
+
+    with patch.object(
+        ed, "detect_host_os", return_value=ed.HostOSInfo(host_os_string="ubuntu22.04")
+    ):
+        result = tool_detect_host_os()
+
+    assert isinstance(result, dict)
+    assert result["host_os_string"] == "ubuntu22.04"
+
+
+def test_tool_detect_target_device_returns_dict() -> None:
+    from deepagents_code.tools import detect_target_device as tool_detect_target_device
+
+    sample = ed.TargetDeviceInfo(
+        devices=[ed.TargetDevice(vid_pid="0955:7523", mode="recovery", board="Orin Nano")],
+        scan_method="lsusb",
+    )
+    with patch.object(ed, "detect_target_device", return_value=sample):
+        result = tool_detect_target_device()
+
+    assert isinstance(result, dict)
+    assert result["scan_method"] == "lsusb"
+    assert result["devices"][0]["vid_pid"] == "0955:7523"

@@ -90,9 +90,14 @@ def _build_tools(
         RuntimeError: If MCP tool loading fails.
     """
     from deepagents_code.config import settings
-    from deepagents_code.tools import fetch_url, web_search
+    from deepagents_code.tools import (
+        detect_host_os,
+        detect_target_device,
+        fetch_url,
+        web_search,
+    )
 
-    tools: list[Any] = [fetch_url]
+    tools: list[Any] = [fetch_url, detect_host_os, detect_target_device]
     if settings.has_tavily:
         tools.append(web_search)
     if getattr(settings, "has_manifest_db", False):

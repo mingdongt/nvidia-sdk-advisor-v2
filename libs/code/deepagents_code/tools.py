@@ -342,6 +342,43 @@ def fetch_url(url: str, timeout: int = 30) -> dict[str, Any]:
     }
 
 
+def detect_host_os() -> dict[str, Any]:
+    """Detect the host machine's operating system, architecture and runtime.
+
+    Read-only probe (no sudo, no writes). Use this to ground any answer about the
+    user's environment — e.g. which JetPack/SDK is compatible with their host OS.
+
+    Returns:
+        Dictionary with: os_id, os_version, host_os_string (e.g. "ubuntu22.04"),
+        pretty_name, kernel, arch ("x86_64"/"aarch64"/"x86_64-wsl"), is_wsl,
+        is_docker, is_vm, cpu_count, total_ram_gb.
+    """
+    from dataclasses import asdict
+
+    from deepagents_code import environment_detect
+
+    return asdict(environment_detect.detect_host_os())
+
+
+def detect_target_device() -> dict[str, Any]:
+    """Scan for a connected NVIDIA target device (Jetson recovery / DOCA DPU).
+
+    Read-only USB-bus scan (no sudo, no device writes). Call this when the user
+    plugs in or reboots a board, to confirm it is in recovery mode and which board
+    it is before any flash/install advice.
+
+    Returns:
+        Dictionary with: scan_method ("lsusb"/"get-pnpdevice"/"unavailable"),
+        note, and devices (list of {vid_pid, mode, board, bus_port}). An empty
+        devices list means no NVIDIA device was detected.
+    """
+    from dataclasses import asdict
+
+    from deepagents_code import environment_detect
+
+    return asdict(environment_detect.detect_target_device())
+
+
 def _fetch_with_redirects(url: str, *, timeout: int) -> Any:  # noqa: ANN401  # requests.Response, but kept dynamic to avoid eager import
     """Fetch `url`, re-validating each redirect hop against the SSRF guard.
 

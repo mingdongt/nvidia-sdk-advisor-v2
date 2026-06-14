@@ -14,6 +14,22 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    NotRequired,
+    cast,
+)
+
+from langchain.agents.middleware.types import (
+    AgentMiddleware,
+    AgentState,
+    ModelRequest,
+    ModelResponse,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 _PROBE_TIMEOUT = 5  # seconds, per subprocess probe
 
@@ -372,3 +388,76 @@ def render_prompt_block() -> str:
         body = get_environment_summary()
         _cache["block"] = f"<environment_detection>\n{body}\n</environment_detection>"
     return _cache["block"]
+
+
+# ---------------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------------
+
+
+class EnvironmentDetectionState(AgentState):
+    """State carrying the rendered environment-detection block."""
+
+    environment_detection: NotRequired[str]
+
+
+class EnvironmentDetectionMiddleware(AgentMiddleware):
+    """Detect host OS + target device once at session start and append the
+    ``<environment_detection>`` block to the system prompt on every model call.
+
+    Detection runs in the agent process; for remote/sandbox backends it reflects
+    the agent host, not the sandbox.
+    """
+
+    state_schema = EnvironmentDetectionState
+
+    def before_agent(  # type: ignore[override]
+        self,
+        state: EnvironmentDetectionState,
+        runtime: Any,  # noqa: ARG002  # required by interface, unused
+    ) -> dict[str, Any] | None:
+        """Run detection once and store the block in state."""
+        if state.get("environment_detection"):
+            return None
+        try:
+            block = render_prompt_block()
+        except Exception:  # noqa: BLE001  # detection must never break startup
+            return None
+        if not block:
+            return None
+        return {"environment_detection": block}
+
+    async def abefore_agent(  # type: ignore[override]
+        self,
+        state: EnvironmentDetectionState,
+        runtime: Any,  # noqa: ARG002  # required by interface, unused
+    ) -> dict[str, Any] | None:
+        """Async twin of before_agent (detection is sync/in-process)."""
+        return self.before_agent(state, runtime)
+
+    def _get_modified_request(self, request: ModelRequest) -> ModelRequest | None:
+        """Append the env block to the system prompt if present."""
+        state = cast("EnvironmentDetectionState", request.state)
+        block = state.get("environment_detection", "")
+        if not block:
+            return None
+        system_prompt = request.system_prompt or ""
+        return request.override(system_prompt=system_prompt + "\n\n" + block)
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Append the environment block to the system prompt."""
+        modified = self._get_modified_request(request)
+        return handler(modified or request)
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        """Append the environment block to the system prompt (async path)."""
+        modified = self._get_modified_request(request)
+        return await handler(modified or request)

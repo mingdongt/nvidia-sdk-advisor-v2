@@ -227,3 +227,70 @@ def test_tool_detect_target_device_returns_dict() -> None:
     assert isinstance(result, dict)
     assert result["scan_method"] == "lsusb"
     assert result["devices"][0]["vid_pid"] == "0955:7523"
+
+
+def test_middleware_before_agent_stores_block() -> None:
+    ed.reset_environment_cache()
+    from unittest.mock import Mock
+
+    from deepagents_code.environment_detect import EnvironmentDetectionMiddleware
+
+    mw = EnvironmentDetectionMiddleware()
+    with (
+        patch.object(ed, "detect_host_os", return_value=ed.HostOSInfo(host_os_string="ubuntu22.04")),
+        patch.object(ed, "detect_target_device", return_value=ed.TargetDeviceInfo(scan_method="lsusb")),
+    ):
+        result = mw.before_agent({"messages": []}, Mock())
+
+    assert result is not None
+    assert "environment_detection" in result
+    assert "ubuntu22.04" in result["environment_detection"]
+
+
+def test_middleware_wrap_model_call_appends_to_prompt() -> None:
+    from deepagents_code.environment_detect import EnvironmentDetectionMiddleware
+
+    mw = EnvironmentDetectionMiddleware()
+
+    captured: dict[str, str] = {}
+
+    class _Req:
+        system_prompt = "BASE PROMPT"
+        state = {"environment_detection": "<environment_detection>\nHost: x\n</environment_detection>"}
+
+        def override(self, *, system_prompt: str):
+            captured["prompt"] = system_prompt
+            return self
+
+    def handler(req):
+        return "ok"
+
+    out = mw.wrap_model_call(_Req(), handler)
+
+    assert out == "ok"
+    assert captured["prompt"].startswith("BASE PROMPT")
+    assert "<environment_detection>" in captured["prompt"]
+
+
+async def test_middleware_awrap_model_call_appends_to_prompt() -> None:
+    from deepagents_code.environment_detect import EnvironmentDetectionMiddleware
+
+    mw = EnvironmentDetectionMiddleware()
+    captured: dict[str, str] = {}
+
+    class _Req:
+        system_prompt = "BASE PROMPT"
+        state = {"environment_detection": "<environment_detection>\nHost: x\n</environment_detection>"}
+
+        def override(self, *, system_prompt: str):
+            captured["prompt"] = system_prompt
+            return self
+
+    async def handler(req):
+        return "ok"
+
+    out = await mw.awrap_model_call(_Req(), handler)
+
+    assert out == "ok"
+    assert captured["prompt"].startswith("BASE PROMPT")
+    assert "<environment_detection>" in captured["prompt"]

@@ -1398,6 +1398,11 @@ def create_cli_agent(
             LocalContextMiddleware(backend=backend, mcp_server_info=mcp_server_info)
         )
 
+    # Environment detection (host OS + NVIDIA target device) -> system prompt.
+    from deepagents_code.environment_detect import EnvironmentDetectionMiddleware
+
+    agent_middleware.append(EnvironmentDetectionMiddleware())
+
     # Add shell allow-list middleware when interrupt_shell_only is active.
     shell_middleware_added = False
     if restrictive_shell_allow_list is not None:

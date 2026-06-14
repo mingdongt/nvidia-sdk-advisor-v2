@@ -61,9 +61,13 @@ class TestServerGraph:
             ),
         )
 
+        detect_host_os_tool = object()
+        detect_target_device_tool = object()
         tools_module = _module_with_attrs(
             "deepagents_code.tools",
             fetch_url=fetch_tool,
+            detect_host_os=detect_host_os_tool,
+            detect_target_device=detect_target_device_tool,
             web_search=object(),
         )
 
@@ -123,7 +127,7 @@ class TestServerGraph:
         create_cli_agent.assert_called_once_with(
             model=model_obj,
             assistant_id="agent",
-            tools=[fetch_tool, mcp_tool],
+            tools=[fetch_tool, detect_host_os_tool, detect_target_device_tool, mcp_tool],
             sandbox=None,
             sandbox_type=None,
             system_prompt=None,

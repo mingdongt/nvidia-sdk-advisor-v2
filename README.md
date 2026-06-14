@@ -2,6 +2,10 @@
 
 **A terminal agent that helps you install, configure, and troubleshoot NVIDIA SDKs — grounded in real SDK Manager manifests, so it never makes up a version, size, or compatibility claim.**
 
+<p align="center">
+  <img src="images/sdk-copilot-banner.png" alt="NVIDIA SDK Copilot terminal banner — on startup it detects the host OS and any connected NVIDIA target device (e.g. 'Host: Ubuntu 22.04 (x86_64), WSL2=yes' and 'NVIDIA target device: ...')" width="720"/>
+</p>
+
 > [!WARNING]
 > **Demo / prototype.** This is an experimental proof-of-concept, not a production tool and **not affiliated with or endorsed by NVIDIA**. Treat its install plans as a starting point, and always confirm privileged actions yourself.
 
@@ -118,6 +122,10 @@ NVIDIA SDK Copilot is the [Deep Agents Code](libs/code/README.md) harness with t
 - **Manifest tools** — [`manifest_tools.py`](libs/code/deepagents_code/manifest_tools.py) exposes the seven read-only tools over [`manifest_db.py`](libs/code/deepagents_code/manifest_db.py) (SQLite) and [`manifest_vector.py`](libs/code/deepagents_code/manifest_vector.py) (semantic search). They auto-register whenever a `manifest.db` is present.
 
 Everything else — the TUI, conversation resume, sub-agents, web search, sandboxes, persistent memory, skills, headless mode, and human-in-the-loop approvals — comes from the underlying harness.
+
+## Roadmap
+
+- [ ] **`plan_install` composite tool** — collapse the high-frequency, mechanical tail `resolve_deps → footprint → build_plan` into a single call, so the model wires those hops in code instead of threading `comp_ids` between three tool calls. The atomic seven stay for the long tail. Rationale and the "high-frequency × mechanical" criteria are in [Tool design](docs/tool-design.md#when-to-add-a-composite-tool).
 
 ## Built on Deep Agents
 

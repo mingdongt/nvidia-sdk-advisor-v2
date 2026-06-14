@@ -294,3 +294,19 @@ async def test_middleware_awrap_model_call_appends_to_prompt() -> None:
     assert out == "ok"
     assert captured["prompt"].startswith("BASE PROMPT")
     assert "<environment_detection>" in captured["prompt"]
+
+
+def test_banner_set_environment_stores_summary() -> None:
+    from deepagents_code.widgets.welcome import WelcomeBanner
+
+    banner = WelcomeBanner.__new__(WelcomeBanner)  # bypass Textual __init__
+    banner._environment_summary = None
+    captured: dict[str, object] = {}
+    banner.update = lambda content: captured.setdefault("updated", content)  # type: ignore[method-assign]
+    banner._build_banner = lambda *a, **k: "REBUILT"  # type: ignore[method-assign]
+    banner._project_url = None
+
+    WelcomeBanner.set_environment(banner, "Host: ubuntu22.04 (x86_64)")
+
+    assert banner._environment_summary == "Host: ubuntu22.04 (x86_64)"
+    assert captured["updated"] == "REBUILT"

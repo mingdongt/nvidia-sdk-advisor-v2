@@ -175,6 +175,7 @@ class WelcomeBanner(Static):
         )
         self._project_url: str | None = None
         self._tip: str | None = None if self._hide_splash_tips else _pick_tip()
+        self._environment_summary: str | None = None
 
         super().__init__(self._build_banner(), **kwargs)
 
@@ -297,6 +298,11 @@ class WelcomeBanner(Static):
         self._mcp_unauthenticated = mcp_unauthenticated
         self._mcp_errored = mcp_errored
         self._mcp_awaiting_reconnect = mcp_awaiting_reconnect
+        self.update(self._build_banner(self._project_url))
+
+    def set_environment(self, summary: str) -> None:
+        """Show the detected host OS / NVIDIA device summary in the banner."""
+        self._environment_summary = summary
         self.update(self._build_banner(self._project_url))
 
     def set_connecting(self) -> None:
@@ -471,6 +477,9 @@ class WelcomeBanner(Static):
                     (awaiting_text, "dim"),
                 ]
             )
+
+        if self._environment_summary:
+            parts.append(("\n" + self._environment_summary, "dim"))
 
         show_connecting = self._connecting and not self._defer_connecting_display
         if show_connecting:

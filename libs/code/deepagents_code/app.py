@@ -2121,6 +2121,13 @@ class DeepAgentsApp(App):
             group="startup-import-prewarm",
         )
 
+        # Detect host OS + NVIDIA target device off-thread, then update the banner.
+        self.run_worker(
+            self._update_environment_banner(),
+            exclusive=False,
+            group="env-detection",
+        )
+
         # Start branch resolution immediately — the thread launches now
         # (during on_mount) so by the time the first frame finishes painting
         # the filesystem probe is already done. _post_paint_init fires the
@@ -9238,6 +9245,22 @@ class DeepAgentsApp(App):
         self._pending_mcp_reconnect = self._pending_mcp_login_reconnect or bool(
             self._pending_mcp_disable_reconnect_servers
         )
+
+    async def _update_environment_banner(self) -> None:
+        """Run env detection in a thread and write the summary into the banner."""
+        from deepagents_code.environment_detect import get_environment_summary
+
+        try:
+            summary = await asyncio.to_thread(get_environment_summary)
+        except Exception:  # noqa: BLE001  # detection must never crash the UI
+            return
+        if not summary:
+            return
+        try:
+            banner = self.query_one("#welcome-banner", WelcomeBanner)
+        except NoMatches:
+            return
+        banner.set_environment(summary)
 
     def _refresh_welcome_banner_mcp_counts(self) -> None:
         """Push current MCP counts into the welcome banner when it is mounted."""

@@ -121,6 +121,7 @@ def list_components(
     release_id: str,
     installed_on: str | None = None,
     section: str | None = None,
+    board: str | None = None,
 ) -> dict[str, Any]:
     """List the components a given release installs (what you actually get).
 
@@ -129,6 +130,8 @@ def list_components(
         installed_on: Filter by install side: "host" (your machine) or "target"
             (the device).
         section: Filter by UI section title, e.g. "Jetson SDK Components".
+        board: Detected target board series, e.g. "JETSON_ORIN_NANO_TARGETS". Pass it
+            to hide components that ship no payload for the user's board.
 
     Returns:
         Dict with "components": list of {comp_id, name, version, section, group_name,
@@ -142,7 +145,7 @@ def list_components(
 
         return {
             "components": manifest_db.list_components(
-                con, release_id, installed_on, section
+                con, release_id, installed_on, section, board
             )
         }
     except Exception as exc:
@@ -195,6 +198,7 @@ def search_components(
     query: str,
     product: str | None = None,
     installed_on: str | None = None,
+    board: str | None = None,
 ) -> dict[str, Any]:
     """Find components by intent/topic, e.g. "object detection" or "containers".
 
@@ -207,6 +211,7 @@ def search_components(
         query: Natural-language need or topic, e.g. "deep learning inference".
         product: Optional product filter, e.g. "Jetson".
         installed_on: Optional "host" or "target" filter.
+        board: Optional target board series; drops components with no payload for it.
 
     Returns:
         Dict with "matches": list of {comp_uid, release_id, comp_id, name, group_name,
@@ -219,11 +224,13 @@ def search_components(
         try:
             from deepagents_code import manifest_vector
 
-            matches = manifest_vector.search(con, query, product, installed_on)
+            matches = manifest_vector.search(con, query, product, installed_on, board)
         except Exception:  # noqa: BLE001 - no vector backend -> substring fallback
             from deepagents_code import manifest_db
 
-            matches = manifest_db.search_substring(con, query, product, installed_on)
+            matches = manifest_db.search_substring(
+                con, query, product, installed_on, board
+            )
     except Exception as exc:
         logger.exception("search_components failed")
         return {"error": f"search_components failed: {exc}"}
@@ -254,8 +261,8 @@ def component_detail(
 
     Returns:
         Dict with the component fields (name, version, section, group_name,
-        installed_on, description, license_id, platforms, depends_on), or
-        {"error": ...} if not found.
+        installed_on, description, license_id, platforms, depends_on [required
+        dependencies only], optional_depends_on), or {"error": ...} if not found.
     """
     con = _open()
     if isinstance(con, dict):
@@ -277,12 +284,19 @@ def component_detail(
         con.close()
 
 
-def resolve_deps(release_id: str, comp_ids: list[str]) -> dict[str, Any]:
+def resolve_deps(
+    release_id: str, comp_ids: list[str], include_optional: bool = False
+) -> dict[str, Any]:
     """Expand a component selection to its full dependency closure within a release.
+
+    Only required dependencies are followed by default — SDK Manager does not
+    install optional dependencies for a default selection, so including them would
+    over-report the install set and any size/plan computed from it.
 
     Args:
         release_id: Release identifier, e.g. "Jetson:6.2.2".
         comp_ids: Component ids the user wants to install.
+        include_optional: Also pull optional dependencies (off by default).
 
     Returns:
         Dict with "required": the sorted set of component ids needed (selection +
@@ -294,7 +308,11 @@ def resolve_deps(release_id: str, comp_ids: list[str]) -> dict[str, Any]:
     try:
         from deepagents_code import manifest_db
 
-        return {"required": manifest_db.resolve_deps(con, release_id, comp_ids)}
+        return {
+            "required": manifest_db.resolve_deps(
+                con, release_id, comp_ids, include_optional
+            )
+        }
     except Exception as exc:
         logger.exception("resolve_deps failed")
         return {"error": f"resolve_deps failed: {exc}"}

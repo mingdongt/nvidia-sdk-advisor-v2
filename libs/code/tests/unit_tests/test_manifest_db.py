@@ -175,6 +175,519 @@ def test_build_plan_rows_returns_files(db: sqlite3.Connection) -> None:
     ]
 
 
+def _doca_like(edition: str, comp_id: str, revision: int = 0) -> dict[str, Any]:
+    """A minimal DOCA 1.5.1 manifest with a given edition + one component.
+
+    Two of these with different editions collide on ``product:version`` under the
+    old keying scheme; the fix must keep them as two distinct releases.
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "DOCA",
+                "releaseVersion": "1.5.1",
+                "releaseEdition": edition,
+                "releaseRevision": revision,
+                "showInMainList": True,
+                "architectures": ["x86_64"],
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+            }
+        },
+        "sections": [{"id": "S1", "title": "DOCA", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "DOCA SDK",
+                "installedOn": "host",
+                "versions": [{"version": "1", "components": [{"id": comp_id}]}],
+            }
+        ],
+        "components": {
+            comp_id: {
+                "id": comp_id,
+                "name": comp_id,
+                "version": "1.5.1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 10.0,
+                        "downloadFiles": [],
+                    }
+                ],
+            }
+        },
+    }
+
+
+def test_release_edition_disambiguates_collision(tmp_path: Path) -> None:
+    """Two manifests sharing product:version but differing in edition stay distinct."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_doca_base.json").write_text(
+        json.dumps(_doca_like("", "C_BASE")), encoding="utf-8"
+    )
+    (src / "sdkml3_doca_md.json").write_text(
+        json.dumps(_doca_like("MD", "C_MD")), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        releases = sorted(r["release_id"] for r in manifest_db.find_releases(con))
+        assert releases == ["DOCA:1.5.1", "DOCA:1.5.1:MD"]
+        editions = dict(
+            con.execute("SELECT release_id, edition FROM release").fetchall()
+        )
+        assert editions["DOCA:1.5.1"] == ""
+        assert editions["DOCA:1.5.1:MD"] == "MD"
+        # Each edition keeps only its own component (no first-write-wins union).
+        base = manifest_db.list_components(con, "DOCA:1.5.1")
+        md = manifest_db.list_components(con, "DOCA:1.5.1:MD")
+        assert [c["comp_id"] for c in base] == ["C_BASE"]
+        assert [c["comp_id"] for c in md] == ["C_MD"]
+    finally:
+        con.close()
+
+
+def test_duplicate_release_key_raises(tmp_path: Path) -> None:
+    """A genuine duplicate release key (same product:version:edition) fails build."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_a.json").write_text(
+        json.dumps(_doca_like("", "C_A")), encoding="utf-8"
+    )
+    (src / "sdkml3_b.json").write_text(
+        json.dumps(_doca_like("", "C_B")), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="duplicate release"):
+        manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+
+
+def test_find_releases_exposes_edition_revision(tmp_path: Path) -> None:
+    """find_releases surfaces edition/revision so callers needn't parse release_id."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_base.json").write_text(
+        json.dumps(_doca_like("", "C_BASE", revision=0)), encoding="utf-8"
+    )
+    (src / "sdkml3_md.json").write_text(
+        json.dumps(_doca_like("MD", "C_MD", revision=2)), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        by_id = {r["release_id"]: r for r in manifest_db.find_releases(con)}
+        assert by_id["DOCA:1.5.1"]["edition"] == ""
+        assert by_id["DOCA:1.5.1"]["revision"] == 0
+        assert by_id["DOCA:1.5.1:MD"]["edition"] == "MD"
+        assert by_id["DOCA:1.5.1:MD"]["revision"] == 2
+    finally:
+        con.close()
+
+
+def _inverted_tiebreak_sdkml3() -> dict[str, Any]:
+    """One component, two catch-all entries whose install/file size order disagree.
+
+    entry0 installs 200 MB but its file is 10 B; entry1 installs 100 MB but its file
+    is 20 B. footprint (ranks by install_mb) and build_plan (ranks by file size) must
+    still pick the SAME platform entry, or a plan's files won't match its footprint.
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+            }
+        },
+        "sections": [{"id": "S1", "title": "Drivers", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "Drivers",
+                "installedOn": "target",
+                "versions": [{"version": "1", "components": [{"id": "C_DRV"}]}],
+            }
+        ],
+        "components": {
+            "C_DRV": {
+                "id": "C_DRV",
+                "name": "Driver",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 200.0,
+                        "downloadFiles": [
+                            {"url": "http://x/a.deb", "fileName": "a.deb", "size": 10}
+                        ],
+                    },
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 100.0,
+                        "downloadFiles": [
+                            {"url": "http://x/b.deb", "fileName": "b.deb", "size": 20}
+                        ],
+                    },
+                ],
+            }
+        },
+    }
+
+
+def test_footprint_and_build_plan_agree_on_tiebreak(tmp_path: Path) -> None:
+    """Footprint and build_plan resolve a size tie to the same platform entry."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_inv.json").write_text(
+        json.dumps(_inverted_tiebreak_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        fp = manifest_db.footprint(con, "Jetson:6.0", "ubuntu22.04", "x86_64")
+        plan = manifest_db.build_plan_rows(
+            con, "Jetson:6.0", "ubuntu22.04", "x86_64", ["C_DRV"]
+        )
+        # Tie-break on the later platform entry (plat_idx) so both agree on entry1.
+        assert fp["install_mb"] == 100.0
+        assert [r["file_name"] for r in plan] == ["b.deb"]
+    finally:
+        con.close()
+
+
+def _sectionless_sdkml3() -> dict[str, Any]:
+    """A manifest with NO ``sections`` (like the CUDA Toolkit / DOCA-on-BlueField).
+
+    ``groups`` is the flattened ``[group_id, group_obj, ...]`` shape real manifests
+    use. The component walk must still reach the group's components instead of
+    dropping the whole product.
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "CUDA",
+                "releaseVersion": "12.1",
+                "showInMainList": True,
+                "architectures": ["x86_64"],
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+            }
+        },
+        "groups": [
+            "NV_CUDA_TARGET_GROUP",
+            {
+                "id": "NV_CUDA_TARGET_GROUP",
+                "name": "CUDA",
+                "groupType": "target",
+                "installedOn": "target",
+                "description": "CUDA Toolkit.",
+                "versions": [
+                    {
+                        "version": "12.1",
+                        "components": [{"id": "C_CUDA"}, {"id": "C_NPP"}],
+                    }
+                ],
+            },
+        ],
+        "components": {
+            "C_CUDA": {
+                "id": "C_CUDA",
+                "name": "CUDA Toolkit",
+                "version": "12.1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 2000.0,
+                        "downloadFiles": [],
+                    }
+                ],
+            },
+            "C_NPP": {"id": "C_NPP", "name": "NPP", "version": "12.1", "platforms": []},
+        },
+    }
+
+
+def test_sectionless_manifest_ingests_components(tmp_path: Path) -> None:
+    """A manifest without ``sections`` still has its group's components ingested."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_cuda.json").write_text(
+        json.dumps(_sectionless_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        comps = sorted(
+            c["comp_id"] for c in manifest_db.list_components(con, "CUDA:12.1")
+        )
+        assert comps == ["C_CUDA", "C_NPP"]
+        # installed_on/group provenance still flows from the group.
+        assert manifest_db.list_components(con, "CUDA:12.1", installed_on="target")
+    finally:
+        con.close()
+
+
+def test_zero_component_release_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A release that ingests 0 components is surfaced as a warning, not silence."""
+    src = tmp_path / "src"
+    src.mkdir()
+    empty = {
+        "information": {
+            "release": {
+                "productCategory": "SDK Manager",
+                "releaseVersion": "2.4.0",
+                "showInMainList": True,
+            }
+        },
+        "groups": [],
+        "components": {},
+    }
+    (src / "sdkml3_empty.json").write_text(json.dumps(empty), encoding="utf-8")
+    with caplog.at_level("WARNING"):
+        manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    assert any(
+        "0 component" in rec.message and "SDK Manager:2.4.0" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_host_os_uses_host_groups_not_targets(tmp_path: Path) -> None:
+    """release_host_os comes from hostGroups; target-only OSes (windows) aren't hosts.
+
+    JetPack lists windows under targetGroups but only Ubuntu under hostGroups; a
+    Windows machine cannot host the install, so find_releases(host_os='windows11')
+    must not return the release.
+    """
+    doc = {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.2",
+                "showInMainList": True,
+                "architectures": ["x86_64"],
+                "hostOperatingSystemsSupportFor": {
+                    "hostGroups": ["ubuntu22.04"],
+                    "targetGroups": ["ubuntu22.04", "windows11"],
+                },
+            }
+        },
+        "sections": [{"id": "S1", "title": "X", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "G",
+                "installedOn": "host",
+                "versions": [{"version": "1", "components": [{"id": "C"}]}],
+            }
+        ],
+        "components": {"C": {"id": "C", "name": "C", "version": "1", "platforms": []}},
+    }
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_jp.json").write_text(json.dumps(doc), encoding="utf-8")
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        hosts = sorted(r[0] for r in con.execute("SELECT host_os FROM release_host_os"))
+        assert hosts == ["ubuntu22.04"]
+        assert manifest_db.find_releases(con, host_os="windows11") == []
+        assert manifest_db.find_releases(con, host_os="ubuntu22.04") != []
+    finally:
+        con.close()
+
+
+def test_host_os_falls_back_to_targets_when_no_host_groups(tmp_path: Path) -> None:
+    """When a manifest has no hostGroups (CUDA Toolkit), targetGroups are used."""
+    doc = {
+        "information": {
+            "release": {
+                "productCategory": "CUDA",
+                "releaseVersion": "12.1",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"targetGroups": ["ubuntu22.04"]},
+            }
+        },
+        "sections": [{"id": "S1", "title": "X", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "G",
+                "installedOn": "host",
+                "versions": [{"version": "1", "components": [{"id": "C"}]}],
+            }
+        ],
+        "components": {"C": {"id": "C", "name": "C", "version": "1", "platforms": []}},
+    }
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_cuda.json").write_text(json.dumps(doc), encoding="utf-8")
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        assert manifest_db.find_releases(con, host_os="ubuntu22.04") != []
+    finally:
+        con.close()
+
+
+def _dep_typed_sdkml3() -> dict[str, Any]:
+    """A manifest whose component has one required and one optional dependency."""
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+            }
+        },
+        "sections": [{"id": "S1", "title": "X", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "G",
+                "installedOn": "host",
+                "versions": [
+                    {
+                        "version": "1",
+                        "components": [
+                            {"id": "C_APP"},
+                            {"id": "C_LIB"},
+                            {"id": "C_EXTRA"},
+                        ],
+                    }
+                ],
+            }
+        ],
+        "components": {
+            "C_APP": {
+                "id": "C_APP",
+                "name": "App",
+                "version": "1",
+                "dependencies": [
+                    {"type": "required", "id": "C_LIB"},
+                    {"type": "optional", "id": "C_EXTRA"},
+                ],
+                "platforms": [],
+            },
+            "C_LIB": {"id": "C_LIB", "name": "Lib", "version": "1", "platforms": []},
+            "C_EXTRA": {
+                "id": "C_EXTRA",
+                "name": "Extra",
+                "version": "1",
+                "platforms": [],
+            },
+        },
+    }
+
+
+@pytest.fixture
+def dep_db(tmp_path: Path) -> sqlite3.Connection:
+    """Build a manifest.db from the typed-dependency fixture."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_dep.json").write_text(
+        json.dumps(_dep_typed_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    yield con
+    con.close()
+
+
+def test_resolve_deps_excludes_optional_by_default(dep_db: sqlite3.Connection) -> None:
+    """resolve_deps follows only required edges unless optional is requested."""
+    assert manifest_db.resolve_deps(dep_db, "Jetson:6.0", ["C_APP"]) == [
+        "C_APP",
+        "C_LIB",
+    ]
+    assert manifest_db.resolve_deps(
+        dep_db, "Jetson:6.0", ["C_APP"], include_optional=True
+    ) == ["C_APP", "C_EXTRA", "C_LIB"]
+
+
+def test_component_detail_separates_optional_deps(dep_db: sqlite3.Connection) -> None:
+    """component_detail reports required and optional dependencies separately."""
+    d = manifest_db.component_detail(dep_db, "Jetson:6.0", "C_APP")
+    assert d is not None
+    assert d["depends_on"] == ["C_LIB"]
+    assert d["optional_depends_on"] == ["C_EXTRA"]
+
+
+def _group_dep_sdkml3() -> dict[str, Any]:
+    """A component whose dependency targets a GROUP id, not a component id.
+
+    SDK Manager lets a component depend on a whole group; the closure must expand
+    that to the group's member components, never emit the group id itself (which
+    matches no component row) nor drop the members.
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+            }
+        },
+        "sections": [{"id": "S1", "title": "X", "groups": ["G_MAIN", "G_EXTRA"]}],
+        "groups": [
+            {
+                "id": "G_MAIN",
+                "name": "Main",
+                "installedOn": "target",
+                "versions": [{"version": "1", "components": [{"id": "C_APP"}]}],
+            },
+            {
+                "id": "G_EXTRA",
+                "name": "Extra Setup",
+                "installedOn": "target",
+                "versions": [
+                    {"version": "1", "components": [{"id": "C_M1"}, {"id": "C_M2"}]}
+                ],
+            },
+        ],
+        "components": {
+            "C_APP": {
+                "id": "C_APP",
+                "name": "App",
+                "version": "1",
+                "dependencies": [{"type": "required", "id": "G_EXTRA"}],
+                "platforms": [],
+            },
+            "C_M1": {"id": "C_M1", "name": "M1", "version": "1", "platforms": []},
+            "C_M2": {"id": "C_M2", "name": "M2", "version": "1", "platforms": []},
+        },
+    }
+
+
+def test_resolve_deps_expands_group_dependency(tmp_path: Path) -> None:
+    """A dependency on a group id resolves to the group's member components."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_gd.json").write_text(
+        json.dumps(_group_dep_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        closure = manifest_db.resolve_deps(con, "Jetson:6.0", ["C_APP"])
+        assert closure == ["C_APP", "C_M1", "C_M2"]
+        # The group id itself must never appear as a (bogus) required component.
+        assert "G_EXTRA" not in closure
+        # component_detail surfaces the expanded members, not the group id.
+        detail = manifest_db.component_detail(con, "Jetson:6.0", "C_APP")
+        assert detail is not None
+        assert sorted(detail["depends_on"]) == ["C_M1", "C_M2"]
+    finally:
+        con.close()
+
+
 def _board_split_sdkml3() -> dict[str, Any]:
     """An sdkml3 whose one component ships a different payload per board.
 
@@ -234,6 +747,174 @@ def _board_split_sdkml3() -> dict[str, Any]:
     }
 
 
+def _double_catchall_sdkml3() -> dict[str, Any]:
+    """A component with TWO catch-all platform entries on the same (os, arch).
+
+    Both entries apply to any board (no supportedHardware), e.g. two revisions of
+    the same payload. SDK Manager installs exactly one; build_plan must not list
+    both files just because they share an (empty) board signature.
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+            }
+        },
+        "sections": [{"id": "S1", "title": "Drivers", "groups": ["G_DRV"]}],
+        "groups": [
+            {
+                "id": "G_DRV",
+                "name": "Drivers",
+                "installedOn": "target",
+                "versions": [{"version": "1", "components": [{"id": "C_DRV"}]}],
+            }
+        ],
+        "components": {
+            "C_DRV": {
+                "id": "C_DRV",
+                "name": "L4T Drivers",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 100.0,
+                        "downloadFiles": [
+                            {"url": "http://x/a.deb", "fileName": "a.deb", "size": 10}
+                        ],
+                    },
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 150.0,
+                        "downloadFiles": [
+                            {"url": "http://x/b.deb", "fileName": "b.deb", "size": 20}
+                        ],
+                    },
+                ],
+            }
+        },
+    }
+
+
+def test_build_plan_does_not_double_list_same_signature(tmp_path: Path) -> None:
+    """Two catch-all entries on one (os, arch) yield ONE file, not both."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_dc.json").write_text(
+        json.dumps(_double_catchall_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        rows = manifest_db.build_plan_rows(
+            con, "Jetson:6.0", "ubuntu22.04", "x86_64", ["C_DRV"]
+        )
+        assert [r["file_name"] for r in rows] == ["b.deb"]
+    finally:
+        con.close()
+
+
+def _board_specific_only_sdkml3() -> dict[str, Any]:
+    """A component that only ships a payload for BOARD_Y (no catch-all)."""
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+                "supportedHardware": {
+                    "seriesIds": ["BOARD_Y_TARGETS", "BOARD_X_TARGETS"]
+                },
+            }
+        },
+        "sections": [{"id": "S1", "title": "Drivers", "groups": ["G_DRV"]}],
+        "groups": [
+            {
+                "id": "G_DRV",
+                "name": "Drivers",
+                "installedOn": "target",
+                "versions": [{"version": "1", "components": [{"id": "C_Y"}]}],
+            }
+        ],
+        "components": {
+            "C_Y": {
+                "id": "C_Y",
+                "name": "Board-Y Driver",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 100.0,
+                        "supportedHardware": {"seriesIds": ["BOARD_Y_TARGETS"]},
+                        "downloadFiles": [
+                            {"url": "http://x/y.deb", "fileName": "y.deb", "size": 10}
+                        ],
+                    }
+                ],
+            }
+        },
+    }
+
+
+@pytest.fixture
+def board_specific_db(tmp_path: Path) -> sqlite3.Connection:
+    """Build a manifest.db whose only component is BOARD_Y-specific."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_by.json").write_text(
+        json.dumps(_board_specific_only_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    yield con
+    con.close()
+
+
+def test_footprint_drops_component_excluded_from_board(
+    board_specific_db: sqlite3.Connection,
+) -> None:
+    """A component with no payload for the target board is not counted at all."""
+    on_x = manifest_db.footprint(
+        board_specific_db,
+        "Jetson:6.0",
+        "ubuntu22.04",
+        "x86_64",
+        board="BOARD_X_TARGETS",
+    )
+    assert on_x["components"] == 0
+    assert on_x["install_mb"] == 0
+    on_y = manifest_db.footprint(
+        board_specific_db,
+        "Jetson:6.0",
+        "ubuntu22.04",
+        "x86_64",
+        board="BOARD_Y_TARGETS",
+    )
+    assert on_y["components"] == 1
+    assert on_y["install_mb"] == 100.0
+
+
+def test_build_plan_drops_component_excluded_from_board(
+    board_specific_db: sqlite3.Connection,
+) -> None:
+    """build_plan lists no files for a board the component does not ship for."""
+    rows = manifest_db.build_plan_rows(
+        board_specific_db,
+        "Jetson:6.0",
+        "ubuntu22.04",
+        "x86_64",
+        ["C_Y"],
+        board="BOARD_X_TARGETS",
+    )
+    assert rows == []
+
+
 @pytest.fixture
 def board_db(tmp_path: Path) -> sqlite3.Connection:
     """Build a manifest.db from the board-split fixture and yield a connection."""
@@ -246,6 +927,114 @@ def board_db(tmp_path: Path) -> sqlite3.Connection:
     con = manifest_db.connect(tmp_path / "manifest.db")
     yield con
     con.close()
+
+
+def _board_mixed_sdkml3() -> dict[str, Any]:
+    """Two components: one BOARD_A-specific, one catch-all (any board)."""
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+                "supportedHardware": {
+                    "seriesIds": ["BOARD_A_TARGETS", "BOARD_B_TARGETS"]
+                },
+            }
+        },
+        "sections": [{"id": "S1", "title": "Drivers", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "Drivers",
+                "installedOn": "target",
+                "versions": [
+                    {"version": "1", "components": [{"id": "C_A"}, {"id": "C_UNIV"}]}
+                ],
+            }
+        ],
+        "components": {
+            "C_A": {
+                "id": "C_A",
+                "name": "Board A Driver",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 50.0,
+                        "supportedHardware": {"seriesIds": ["BOARD_A_TARGETS"]},
+                        "downloadFiles": [],
+                    }
+                ],
+            },
+            "C_UNIV": {
+                "id": "C_UNIV",
+                "name": "Universal Driver",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 60.0,
+                        "downloadFiles": [],
+                    }
+                ],
+            },
+        },
+    }
+
+
+@pytest.fixture
+def mixed_db(tmp_path: Path) -> sqlite3.Connection:
+    """Build a manifest.db with one board-specific and one catch-all component."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_mixed.json").write_text(
+        json.dumps(_board_mixed_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    yield con
+    con.close()
+
+
+def test_list_components_filters_by_board(mixed_db: sqlite3.Connection) -> None:
+    """list_components(board=) hides components with no payload for that board."""
+    all_ids = sorted(
+        c["comp_id"] for c in manifest_db.list_components(mixed_db, "Jetson:6.0")
+    )
+    assert all_ids == ["C_A", "C_UNIV"]
+    on_a = sorted(
+        c["comp_id"]
+        for c in manifest_db.list_components(
+            mixed_db, "Jetson:6.0", board="BOARD_A_TARGETS"
+        )
+    )
+    assert on_a == ["C_A", "C_UNIV"]
+    on_b = sorted(
+        c["comp_id"]
+        for c in manifest_db.list_components(
+            mixed_db, "Jetson:6.0", board="BOARD_B_TARGETS"
+        )
+    )
+    assert on_b == ["C_UNIV"]  # C_A is BOARD_A-specific
+
+
+def test_search_substring_filters_by_board(mixed_db: sqlite3.Connection) -> None:
+    """search_substring(board=) drops components that don't ship for the board."""
+    both = sorted(
+        h["comp_id"] for h in manifest_db.search_substring(mixed_db, "Driver")
+    )
+    assert both == ["C_A", "C_UNIV"]
+    on_b = sorted(
+        h["comp_id"]
+        for h in manifest_db.search_substring(
+            mixed_db, "Driver", board="BOARD_B_TARGETS"
+        )
+    )
+    assert on_b == ["C_UNIV"]
 
 
 def test_footprint_picks_one_entry_per_board(board_db: sqlite3.Connection) -> None:

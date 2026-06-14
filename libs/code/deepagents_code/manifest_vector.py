@@ -220,6 +220,7 @@ def search(
     query: str,
     product: str | None = None,
     installed_on: str | None = None,
+    board: str | None = None,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     """Nearest-neighbour component search for ``query``.
@@ -233,6 +234,8 @@ def search(
     Raises:
         _VectorUnavailableError: If the vector store, embedder or index is missing.
     """
+    from deepagents_code.manifest_db import _comp_applies_to_board
+
     _load_sqlite_vec(con)
     has_table = con.execute(
         "SELECT 1 FROM sqlite_master WHERE type IN ('table','view') AND name=?",
@@ -262,6 +265,8 @@ def search(
         if product and not rec["release_id"].startswith(f"{product}:"):
             continue
         if installed_on and rec["installed_on"] != installed_on:
+            continue
+        if board and not _comp_applies_to_board(con, comp_uid, board):
             continue
         rec["distance"] = round(float(distance), 4)
         out.append(rec)

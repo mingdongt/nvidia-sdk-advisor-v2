@@ -124,6 +124,88 @@ def test_build_plan_lists_files() -> None:
     assert plan["footprint"]["components"] == 1
 
 
+def _board_mixed() -> dict[str, Any]:
+    """One BOARD_A-specific component and one catch-all component."""
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+                "supportedHardware": {
+                    "seriesIds": ["BOARD_A_TARGETS", "BOARD_B_TARGETS"]
+                },
+            }
+        },
+        "sections": [{"id": "S1", "title": "Drivers", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "Drivers",
+                "installedOn": "target",
+                "versions": [
+                    {"version": "1", "components": [{"id": "C_A"}, {"id": "C_UNIV"}]}
+                ],
+            }
+        ],
+        "components": {
+            "C_A": {
+                "id": "C_A",
+                "name": "Board A Driver",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 50.0,
+                        "supportedHardware": {"seriesIds": ["BOARD_A_TARGETS"]},
+                        "downloadFiles": [],
+                    }
+                ],
+            },
+            "C_UNIV": {
+                "id": "C_UNIV",
+                "name": "Universal Driver",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 60.0,
+                        "downloadFiles": [],
+                    }
+                ],
+            },
+        },
+    }
+
+
+@pytest.fixture
+def mixed_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the tools at a board-mixed manifest.db."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_mixed.json").write_text(json.dumps(_board_mixed()), encoding="utf-8")
+    db_path = tmp_path / "manifest.db"
+    manifest_db.build_manifest_db(src, db_path)
+    monkeypatch.setenv("DEEPAGENTS_MANIFEST_DB", str(db_path))
+
+
+@pytest.mark.usefixtures("mixed_env")
+def test_list_components_board_filter() -> None:
+    """The list_components tool forwards board and hides board-incompatible comps."""
+    on_b = manifest_tools.list_components("Jetson:6.0", board="BOARD_B_TARGETS")
+    assert [c["comp_id"] for c in on_b["components"]] == ["C_UNIV"]
+
+
+@pytest.mark.usefixtures("mixed_env")
+def test_search_components_board_filter() -> None:
+    """The search_components tool forwards board to the substring fallback."""
+    on_b = manifest_tools.search_components("Driver", board="BOARD_B_TARGETS")
+    assert [m["comp_id"] for m in on_b["matches"]] == ["C_UNIV"]
+
+
 def test_missing_db_degrades_to_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS release (
     release_id    TEXT PRIMARY KEY,
     product       TEXT,
     version       TEXT,
+    edition       TEXT,
+    revision      INTEGER,
     title         TEXT,
     min_sdkm      TEXT,
     is_primary    INTEGER,
@@ -67,6 +69,7 @@ CREATE TABLE IF NOT EXISTS component (
 );
 CREATE TABLE IF NOT EXISTS component_platform (
     comp_uid         TEXT,
+    plat_idx         INTEGER,
     os               TEXT,
     arch             TEXT,
     install_mb       REAL,
@@ -74,9 +77,14 @@ CREATE TABLE IF NOT EXISTS component_platform (
     board_series     TEXT,
     excluded_devices TEXT
 );
-CREATE TABLE IF NOT EXISTS dependency (comp_uid TEXT, depends_on_comp_id TEXT);
+CREATE TABLE IF NOT EXISTS dependency (
+    comp_uid           TEXT,
+    depends_on_comp_id TEXT,
+    dep_type           TEXT NOT NULL DEFAULT 'required'
+);
 CREATE TABLE IF NOT EXISTS component_file (
     comp_uid         TEXT,
+    plat_idx         INTEGER,
     os               TEXT,
     arch             TEXT,
     url              TEXT,
@@ -126,19 +134,23 @@ def _as_list(value: object) -> list[Any]:
 
 def _platform_rows(
     comp: dict[str, Any],
-) -> Iterator[tuple[str, str, float, int, list[dict[str, Any]], str, str]]:
-    """Yield ``(os, arch, install_mb, download_bytes, files, series, excluded)``.
+) -> Iterator[tuple[int, str, str, float, int, list[dict[str, Any]], str, str]]:
+    """Yield per-platform install/download rows for ``comp``.
 
-    Each ``platforms[]`` entry can list several operating systems and architectures;
+    Each row is ``(plat_idx, os, arch, install_mb, download_bytes, files, series,
+    excluded)``. Each ``platforms[]`` entry can list several operating systems and
+    architectures;
     the cross product is expanded so callers can filter by an exact ``(os, arch)`` pair.
     A component often ships a *different* payload per board on the same ``(os, arch)``
     (a board-specific entry plus a catch-all), so the entry's
     ``supportedHardware.seriesIds`` / ``excludedDeviceIds`` are carried through as
     comma-joined strings (empty ``series`` means the entry applies to any board) — the
     read helpers use them to pick the one entry that installs on a given board instead
-    of summing every variant.
+    of summing every variant. ``plat_idx`` is the index of the originating
+    ``platforms[]`` entry, so a chosen platform row maps back to exactly its own
+    download files even when two entries share the same board signature.
     """
-    for plat in _as_list(comp.get("platforms")):
+    for plat_idx, plat in enumerate(_as_list(comp.get("platforms"))):
         oses = _as_list(plat.get("operatingSystems")) or [""]
         arches = _as_list(plat.get("architectures")) or [""]
         install_mb = float(plat.get("installSizeMB") or 0)
@@ -150,6 +162,7 @@ def _platform_rows(
         for os_name in oses:
             for arch in arches:
                 yield (
+                    plat_idx,
                     str(os_name),
                     str(arch),
                     install_mb,
@@ -174,13 +187,41 @@ def _component_ids_of_group(group: dict[str, Any]) -> list[str]:
 def _ingest_sdkml3(
     con: sqlite3.Connection, data: dict[str, Any], src: str, comp_repo_url: str | None
 ) -> None:
-    """Insert one parsed ``sdkml3`` document into all tables."""
+    """Insert one parsed ``sdkml3`` document into all tables.
+
+    Raises:
+        ValueError: If the document's ``release_id`` collides with one already
+            ingested (two distinct manifests sharing product:version:edition).
+    """
     rel = (data.get("information") or {}).get("release") or {}
     product = str(
         rel.get("productCategory") or rel.get("productDisplayName") or "Unknown"
     )
     version = str(rel.get("releaseVersion") or rel.get("title") or "")
-    release_id = f"{product}:{version}"
+    # releaseEdition disambiguates manifests that share product:version (e.g. the
+    # base vs "MD"/multi-DPU DOCA editions); without it they collide on the
+    # release primary key and silently fuse into one Frankenstein release.
+    # releaseRevision is kept as a column (it does not currently disambiguate any
+    # real collision, so folding it into the key would only churn every key).
+    edition = str(rel.get("releaseEdition") or "").strip()
+    revision = rel.get("releaseRevision")
+    release_id = f"{product}:{version}" + (f":{edition}" if edition else "")
+
+    # A genuine duplicate key (same product:version:edition from two files) means
+    # two distinct manifests would overwrite/merge — fail loudly instead of
+    # silently coalescing, so the data never describes a release that ships nowhere.
+    if con.execute(
+        "SELECT 1 FROM release WHERE release_id = ?", (release_id,)
+    ).fetchone():
+        existing_src = con.execute(
+            "SELECT src FROM release WHERE release_id = ?", (release_id,)
+        ).fetchone()
+        msg = (
+            f"duplicate release key {release_id!r} from {src!r} "
+            f"(already built from {existing_src[0]!r}); "
+            "add releaseEdition/releaseRevision to disambiguate."
+        )
+        raise ValueError(msg)
 
     con.execute(
         "INSERT OR REPLACE INTO product(product, target_os, server_type)"
@@ -188,14 +229,16 @@ def _ingest_sdkml3(
         (product, rel.get("targetOS"), ",".join(_as_list(rel.get("serverType")))),
     )
     con.execute(
-        "INSERT OR REPLACE INTO release"
-        "(release_id, product, version, title, min_sdkm, is_primary,"
-        " comp_repo_url, src)"
-        " VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO release"
+        "(release_id, product, version, edition, revision, title, min_sdkm,"
+        " is_primary, comp_repo_url, src)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?)",
         (
             release_id,
             product,
             version,
+            edition,
+            revision,
             rel.get("title"),
             rel.get("minSDKMVer"),
             1 if rel.get("showInMainList") else 0,
@@ -204,7 +247,11 @@ def _ingest_sdkml3(
         ),
     )
     host = rel.get("hostOperatingSystemsSupportFor") or {}
-    host_os = _as_list(host.get("targetGroups")) or _as_list(host.get("hostGroups"))
+    # The host filter must be the OSes that can RUN SDK Manager (hostGroups), not
+    # targetGroups — the latter also lists target-only OSes (e.g. JetPack's
+    # windows10/11) that are not valid hosts. Fall back to targetGroups only when a
+    # manifest omits hostGroups (e.g. the CUDA Toolkit manifest).
+    host_os = _as_list(host.get("hostGroups")) or _as_list(host.get("targetGroups"))
     con.executemany(
         "INSERT INTO release_host_os(release_id, host_os) VALUES (?,?)",
         [(release_id, o) for o in host_os],
@@ -232,87 +279,119 @@ def _ingest_sdkml3(
         ],
     )
 
-    # Walk sections -> groups -> components so each component carries its
-    # section + group + description.
-    for section in _as_list(data.get("sections")):
-        sec_title = section.get("title") or section.get("name")
-        for gid in _as_list(section.get("groups")):
-            group = groups_by_id.get(gid) or {}
-            for cid in _component_ids_of_group(group):
-                comp = components.get(cid)
-                if not isinstance(comp, dict):
-                    continue
-                comp_uid = f"{release_id}:{cid}"
-                license_ids = _as_list(comp.get("licenseIds"))
+    # Walk groups -> components so each component carries its section + group +
+    # description. Real manifests use one of two shapes: a ``sections`` layer that
+    # references group ids (JetPack/DOCA), or no ``sections`` at all (CUDA Toolkit,
+    # DOCA-on-BlueField) — in the latter case every group is ingested directly,
+    # otherwise the whole product would silently lose all of its components.
+    def _ingest_group(group: dict[str, Any], sec_title: str | None) -> None:
+        for cid in _component_ids_of_group(group):
+            comp = components.get(cid)
+            if not isinstance(comp, dict):
+                continue
+            comp_uid = f"{release_id}:{cid}"
+            license_ids = _as_list(comp.get("licenseIds"))
+            con.execute(
+                "INSERT OR IGNORE INTO component"
+                "(comp_uid, release_id, comp_id, name, version, section,"
+                " group_name, installed_on, description, license_id)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    comp_uid,
+                    release_id,
+                    cid,
+                    comp.get("name"),
+                    comp.get("version"),
+                    sec_title,
+                    group.get("name"),
+                    group.get("installedOn") or group.get("groupType"),
+                    group.get("description"),
+                    license_ids[0] if license_ids else None,
+                ),
+            )
+            for (
+                plat_idx,
+                os_name,
+                arch,
+                install_mb,
+                download_b,
+                files,
+                series,
+                excluded,
+            ) in _platform_rows(comp):
                 con.execute(
-                    "INSERT OR IGNORE INTO component"
-                    "(comp_uid, release_id, comp_id, name, version, section,"
-                    " group_name, installed_on, description, license_id)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO component_platform"
+                    "(comp_uid, plat_idx, os, arch, install_mb, download_b,"
+                    " board_series, excluded_devices)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
                     (
                         comp_uid,
-                        release_id,
-                        cid,
-                        comp.get("name"),
-                        comp.get("version"),
-                        sec_title,
-                        group.get("name"),
-                        group.get("installedOn") or group.get("groupType"),
-                        group.get("description"),
-                        license_ids[0] if license_ids else None,
+                        plat_idx,
+                        os_name,
+                        arch,
+                        install_mb,
+                        download_b,
+                        series,
+                        excluded,
                     ),
                 )
-                for (
-                    os_name,
-                    arch,
-                    install_mb,
-                    download_b,
-                    files,
-                    series,
-                    excluded,
-                ) in _platform_rows(comp):
+                for f in files:
                     con.execute(
-                        "INSERT INTO component_platform"
-                        "(comp_uid, os, arch, install_mb, download_b,"
-                        " board_series, excluded_devices)"
-                        " VALUES (?,?,?,?,?,?,?)",
+                        "INSERT INTO component_file"
+                        "(comp_uid, plat_idx, os, arch, url, file_name, size,"
+                        " checksum, checksum_type, board_series, excluded_devices)"
+                        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                         (
                             comp_uid,
+                            plat_idx,
                             os_name,
                             arch,
-                            install_mb,
-                            download_b,
+                            f.get("url"),
+                            f.get("fileName"),
+                            int(f.get("size") or 0),
+                            f.get("checksum"),
+                            f.get("checksumType"),
                             series,
                             excluded,
                         ),
                     )
-                    for f in files:
-                        con.execute(
-                            "INSERT INTO component_file"
-                            "(comp_uid, os, arch, url, file_name, size,"
-                            " checksum, checksum_type, board_series, excluded_devices)"
-                            " VALUES (?,?,?,?,?,?,?,?,?,?)",
-                            (
-                                comp_uid,
-                                os_name,
-                                arch,
-                                f.get("url"),
-                                f.get("fileName"),
-                                int(f.get("size") or 0),
-                                f.get("checksum"),
-                                f.get("checksumType"),
-                                series,
-                                excluded,
-                            ),
-                        )
-                for dep in _as_list(comp.get("dependencies")):
-                    dep_id = dep.get("id") if isinstance(dep, dict) else dep
-                    if dep_id:
-                        con.execute(
-                            "INSERT INTO dependency(comp_uid, depends_on_comp_id)"
-                            " VALUES (?,?)",
-                            (comp_uid, dep_id),
-                        )
+            for dep in _as_list(comp.get("dependencies")):
+                if isinstance(dep, dict):
+                    dep_id = dep.get("id")
+                    # sdkml3 marks each edge "required" or "optional"; keep it so the
+                    # closure can exclude optional deps (which SDK Manager does not
+                    # install by default) instead of over-reporting them as mandatory.
+                    dep_type = str(dep.get("type") or "required")
+                else:
+                    dep_id = dep
+                    dep_type = "required"
+                if not dep_id:
+                    continue
+                # A dependency target can be a GROUP id (a grouping indirection)
+                # rather than a component id; expand it to the group's member
+                # components so the closure pulls real, installable ids instead of a
+                # bogus group id (and never silently drops the group's members).
+                dep_targets = (
+                    _component_ids_of_group(groups_by_id[dep_id])
+                    if dep_id in groups_by_id
+                    else [dep_id]
+                )
+                for target in dep_targets:
+                    con.execute(
+                        "INSERT INTO dependency"
+                        "(comp_uid, depends_on_comp_id, dep_type) VALUES (?,?,?)",
+                        (comp_uid, target, dep_type),
+                    )
+
+    sections = _as_list(data.get("sections"))
+    if sections:
+        for section in sections:
+            sec_title = section.get("title") or section.get("name")
+            for gid in _as_list(section.get("groups")):
+                _ingest_group(groups_by_id.get(gid) or {}, sec_title)
+    else:
+        for group in groups_by_id.values():
+            _ingest_group(group, None)
 
 
 def _apply_use_cases(con: sqlite3.Connection, tags_path: Path) -> int:
@@ -384,6 +463,23 @@ def build_manifest_db(src_dir: str | Path, db_path: str | Path) -> dict[str, int
         con.commit()
         _apply_use_cases(con, Path(src_dir).parent / "use_cases.json")
         con.commit()
+        # Surface releases that ingested no components (e.g. a section/group shape
+        # the parser missed, or a genuinely component-less updater release) — a
+        # silent 0-component product is the worst failure for a grounding store.
+        empty_releases = [
+            r[0]
+            for r in con.execute(
+                "SELECT release_id FROM release r WHERE NOT EXISTS"
+                " (SELECT 1 FROM component c WHERE c.release_id = r.release_id)"
+                " ORDER BY release_id"
+            ).fetchall()
+        ]
+        if empty_releases:
+            logger.warning(
+                "manifest_db: %d release(s) ingested 0 components: %s",
+                len(empty_releases),
+                ", ".join(empty_releases),
+            )
         counts = {
             t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]  # noqa: S608 - fixed table names
             for t in (
@@ -444,16 +540,60 @@ def _board_score(row: dict[str, Any], board: str | None) -> int:
 
 
 def _pick_board_row(
-    rows: list[dict[str, Any]], board: str | None, size_key: str = "install_mb"
-) -> dict[str, Any]:
+    rows: list[dict[str, Any]], board: str | None
+) -> dict[str, Any] | None:
     """Return the single row from ``rows`` that installs on ``board``.
 
     ``rows`` are the candidate platform/file rows for one ``(comp_uid, os, arch)``.
-    The best board match wins; ties break toward the larger ``size_key`` so an
-    unknown board still yields a deterministic, non-duplicated choice.
+    The best board match wins; ties break toward the later ``platforms[]`` entry
+    (higher ``plat_idx``). Tie-breaking on ``plat_idx`` — rather than a size field —
+    guarantees ``footprint`` and ``build_plan_rows`` pick the *same* entry even
+    though they rank different size columns, so a plan's files always match its
+    footprint.
+
+    Returns ``None`` when *no* row applies to ``board`` (every variant is
+    board-specific to other boards or explicitly excludes this one) — the component
+    is genuinely not installed on that board, so callers drop it rather than
+    counting an inapplicable payload.
     """
-    applicable = [r for r in rows if _board_score(r, board) >= 0] or rows
-    return max(applicable, key=lambda r: (_board_score(r, board), r.get(size_key) or 0))
+    applicable = [r for r in rows if _board_score(r, board) >= 0]
+    if not applicable:
+        return None
+    return max(
+        applicable, key=lambda r: (_board_score(r, board), r.get("plat_idx") or 0)
+    )
+
+
+def _comp_applies_to_board(con: sqlite3.Connection, comp_uid: str, board: str) -> bool:
+    """Whether ``comp_uid`` ships any payload installable on ``board``.
+
+    A component with at least one board-applicable platform row applies. A
+    component with no platform rows at all is treated as board-agnostic (a meta/
+    placeholder component) and also applies; only a component whose every platform
+    row is board-specific to other boards (or excludes this one) is filtered out.
+
+    Returns:
+        ``True`` if the component installs something on ``board`` (or is
+        board-agnostic), ``False`` if every variant excludes it.
+    """
+    plats = con.execute(
+        "SELECT board_series, excluded_devices FROM component_platform"
+        " WHERE comp_uid = ?",
+        (comp_uid,),
+    ).fetchall()
+    if not plats:
+        return True
+    return any(
+        _board_score(
+            {
+                "board_series": p["board_series"],
+                "excluded_devices": p["excluded_devices"],
+            },
+            board,
+        )
+        >= 0
+        for p in plats
+    )
 
 
 def find_releases(
@@ -491,8 +631,8 @@ def find_releases(
     # S608: identifiers are controlled (static columns + an internally built
     # WHERE clause); all user values go through ``?`` params.
     sql = (
-        "SELECT r.release_id, r.product, r.version, r.title, r.min_sdkm,"  # noqa: S608
-        " r.is_primary"
+        "SELECT r.release_id, r.product, r.version, r.edition, r.revision,"  # noqa: S608
+        " r.title, r.min_sdkm, r.is_primary"
         f" FROM release r{clause} ORDER BY r.product, r.version DESC"
     )
     return _rows(con, sql, params)
@@ -503,8 +643,14 @@ def list_components(
     release_id: str,
     installed_on: str | None = None,
     section: str | None = None,
+    board: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return components of ``release_id`` (filtered by install side / section)."""
+    """Return components of ``release_id`` (filtered by install side / section / board).
+
+    When ``board`` is given, components whose every platform variant is specific to
+    other boards (or excludes this one) are dropped, so the listing reflects what the
+    given board actually installs.
+    """
     where = ["release_id = ?"]
     params: list[Any] = [release_id]
     if installed_on:
@@ -514,13 +660,19 @@ def list_components(
         where.append("section = ?")
         params.append(section)
     # S608: WHERE is built from controlled column predicates; values use ``?``.
-    return _rows(
+    rows = _rows(
         con,
-        "SELECT comp_id, name, version, section, group_name, installed_on"  # noqa: S608
+        "SELECT comp_uid, comp_id, name, version, section, group_name,"  # noqa: S608
+        " installed_on"
         f" FROM component WHERE {' AND '.join(where)}"
         " ORDER BY section, group_name, name",
         params,
     )
+    if board:
+        rows = [r for r in rows if _comp_applies_to_board(con, r["comp_uid"], board)]
+    for r in rows:
+        r.pop("comp_uid", None)
+    return rows
 
 
 def footprint(
@@ -551,9 +703,9 @@ def footprint(
     # S608: ``extra`` is a placeholder list built internally; values use ``?``.
     rows = _rows(
         con,
-        "SELECT c.comp_uid AS comp_uid, cp.install_mb AS install_mb,"  # noqa: S608
-        " cp.download_b AS download_b, cp.board_series AS board_series,"
-        " cp.excluded_devices AS excluded_devices"
+        "SELECT c.comp_uid AS comp_uid, cp.plat_idx AS plat_idx,"  # noqa: S608
+        " cp.install_mb AS install_mb, cp.download_b AS download_b,"
+        " cp.board_series AS board_series, cp.excluded_devices AS excluded_devices"
         " FROM component c JOIN component_platform cp ON cp.comp_uid = c.comp_uid"
         f" WHERE c.release_id = ? AND cp.os = ? AND cp.arch = ?{extra}",
         params,
@@ -563,12 +715,16 @@ def footprint(
         by_comp.setdefault(row["comp_uid"], []).append(row)
     install_mb = 0.0
     download_b = 0
+    components = 0
     for candidates in by_comp.values():
         chosen = _pick_board_row(candidates, board)
+        if chosen is None:
+            continue  # component ships no payload for this board -> not installed
+        components += 1
         install_mb += chosen["install_mb"] or 0
         download_b += chosen["download_b"] or 0
     return {
-        "components": len(by_comp),
+        "components": components,
         "install_mb": round(install_mb, 1),
         "download_b": download_b,
     }
@@ -603,7 +759,8 @@ def component_detail(
     # S608: ``plat_where`` is built from controlled predicates; values use ``?``.
     plat_rows = _rows(
         con,
-        "SELECT os, arch, install_mb, download_b, board_series, excluded_devices"  # noqa: S608
+        "SELECT plat_idx, os, arch, install_mb, download_b,"  # noqa: S608
+        " board_series, excluded_devices"
         f" FROM component_platform WHERE {plat_where}",
         plat_params,
     )
@@ -612,18 +769,30 @@ def component_detail(
     by_os_arch: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for plat in plat_rows:
         by_os_arch.setdefault((plat["os"], plat["arch"]), []).append(plat)
-    out["platforms"] = [
-        {
-            k: _pick_board_row(variants, board)[k]
-            for k in ("os", "arch", "install_mb", "download_b")
-        }
-        for variants in by_os_arch.values()
-    ]
+    platforms: list[dict[str, Any]] = []
+    for variants in by_os_arch.values():
+        chosen = _pick_board_row(variants, board)
+        if chosen is None:
+            continue  # not installed on this board for this (os, arch)
+        platforms.append(
+            {k: chosen[k] for k in ("os", "arch", "install_mb", "download_b")}
+        )
+    out["platforms"] = platforms
     out["depends_on"] = [
         r["depends_on_comp_id"]
         for r in _rows(
             con,
-            "SELECT depends_on_comp_id FROM dependency WHERE comp_uid = ?",
+            "SELECT depends_on_comp_id FROM dependency"
+            " WHERE comp_uid = ? AND dep_type = 'required'",
+            [out["comp_uid"]],
+        )
+    ]
+    out["optional_depends_on"] = [
+        r["depends_on_comp_id"]
+        for r in _rows(
+            con,
+            "SELECT depends_on_comp_id FROM dependency"
+            " WHERE comp_uid = ? AND dep_type <> 'required'",
             [out["comp_uid"]],
         )
     ]
@@ -631,9 +800,21 @@ def component_detail(
 
 
 def resolve_deps(
-    con: sqlite3.Connection, release_id: str, comp_ids: list[str]
+    con: sqlite3.Connection,
+    release_id: str,
+    comp_ids: list[str],
+    include_optional: bool = False,
 ) -> list[str]:
-    """Return the transitive dependency closure of ``comp_ids`` in ``release_id``."""
+    """Return the transitive dependency closure of ``comp_ids`` in ``release_id``.
+
+    By default only ``required`` edges are followed — SDK Manager does not install
+    optional dependencies for a default selection, so including them would
+    over-report the install set (and any size/plan derived from it). Pass
+    ``include_optional=True`` to also pull optional dependencies.
+    """
+    sql = "SELECT depends_on_comp_id FROM dependency WHERE comp_uid = ?"
+    if not include_optional:
+        sql += " AND dep_type = 'required'"
     seen: set[str] = set()
     stack = list(comp_ids)
     while stack:
@@ -641,10 +822,7 @@ def resolve_deps(
         if cid in seen:
             continue
         seen.add(cid)
-        rows = con.execute(
-            "SELECT depends_on_comp_id FROM dependency WHERE comp_uid = ?",
-            (f"{release_id}:{cid}",),
-        ).fetchall()
+        rows = con.execute(sql, (f"{release_id}:{cid}",)).fetchall()
         stack.extend(r[0] for r in rows if r[0] not in seen)
     return sorted(seen)
 
@@ -654,9 +832,13 @@ def search_substring(
     query: str,
     product: str | None = None,
     installed_on: str | None = None,
+    board: str | None = None,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     """Offline fallback for ``search_components``: match over name + description.
+
+    When ``board`` is given, matches whose every platform variant is specific to
+    other boards are dropped so results reflect the user's target board.
 
     Returns:
         Up to ``limit`` matching component rows as plain dicts.
@@ -677,15 +859,22 @@ def search_substring(
     if installed_on:
         where.append("c.installed_on = ?")
         params.append(installed_on)
-    params.append(limit)
+    # Board filtering happens in Python (CSV columns), so over-fetch first to keep
+    # roughly ``limit`` results after filtering.
+    params.append(limit * 4 if board else limit)
     # S608: WHERE is built from controlled predicates; all values use ``?``.
-    return _rows(
+    rows = _rows(
         con,
         "SELECT DISTINCT c.comp_uid, c.release_id, c.comp_id, c.name,"  # noqa: S608
         " c.group_name, c.installed_on, c.description, c.use_cases"
         f" FROM component c WHERE {' AND '.join(where)} LIMIT ?",
         params,
     )
+    if board:
+        rows = [r for r in rows if _comp_applies_to_board(con, r["comp_uid"], board)][
+            :limit
+        ]
+    return rows
 
 
 def build_plan_rows(
@@ -709,8 +898,9 @@ def build_plan_rows(
     # S608: ``placeholders`` is a ``?``-list built internally; values use ``?``.
     rows = _rows(
         con,
-        "SELECT c.comp_uid, c.comp_id, c.name, f.file_name, f.url, f.size,"  # noqa: S608
-        " f.checksum, f.checksum_type, f.board_series, f.excluded_devices"
+        "SELECT c.comp_uid, c.comp_id, c.name, f.plat_idx, f.file_name,"  # noqa: S608
+        " f.url, f.size, f.checksum, f.checksum_type, f.board_series,"
+        " f.excluded_devices"
         " FROM component c JOIN component_file f ON f.comp_uid = c.comp_uid"
         f" WHERE c.release_id = ? AND c.comp_id IN ({placeholders})"
         " AND f.os = ? AND f.arch = ?"
@@ -731,12 +921,15 @@ def build_plan_rows(
     )
     out: list[dict[str, Any]] = []
     for candidates in by_comp.values():
-        winner = _pick_board_row(candidates, board, size_key="size")
-        signature = (winner["board_series"], winner["excluded_devices"])
+        winner = _pick_board_row(candidates, board)
+        if winner is None:
+            continue  # component ships no payload for this board
+        # Emit exactly the winning platform entry's files (grouped by plat_idx),
+        # so two entries that share a board signature never double-list.
         out.extend(
             {field: row[field] for field in fields}
             for row in candidates
-            if (row["board_series"], row["excluded_devices"]) == signature
+            if row["plat_idx"] == winner["plat_idx"]
         )
     return out
 

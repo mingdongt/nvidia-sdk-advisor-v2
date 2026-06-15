@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS component_platform (
     install_mb       REAL,
     download_b       INTEGER,
     board_series     TEXT,
+    board_devices    TEXT,
     excluded_devices TEXT
 );
 CREATE TABLE IF NOT EXISTS dependency (
@@ -93,6 +94,7 @@ CREATE TABLE IF NOT EXISTS component_file (
     checksum         TEXT,
     checksum_type    TEXT,
     board_series     TEXT,
+    board_devices    TEXT,
     excluded_devices TEXT
 );
 CREATE TABLE IF NOT EXISTS license (license_id TEXT PRIMARY KEY, name TEXT);
@@ -134,21 +136,23 @@ def _as_list(value: object) -> list[Any]:
 
 def _platform_rows(
     comp: dict[str, Any],
-) -> Iterator[tuple[int, str, str, float, int, list[dict[str, Any]], str, str]]:
+) -> Iterator[tuple[int, str, str, float, int, list[dict[str, Any]], str, str, str]]:
     """Yield per-platform install/download rows for ``comp``.
 
     Each row is ``(plat_idx, os, arch, install_mb, download_bytes, files, series,
-    excluded)``. Each ``platforms[]`` entry can list several operating systems and
-    architectures;
+    devices, excluded)``. Each ``platforms[]`` entry can list several operating
+    systems and architectures;
     the cross product is expanded so callers can filter by an exact ``(os, arch)`` pair.
     A component often ships a *different* payload per board on the same ``(os, arch)``
     (a board-specific entry plus a catch-all), so the entry's
-    ``supportedHardware.seriesIds`` / ``excludedDeviceIds`` are carried through as
-    comma-joined strings (empty ``series`` means the entry applies to any board) — the
-    read helpers use them to pick the one entry that installs on a given board instead
-    of summing every variant. ``plat_idx`` is the index of the originating
-    ``platforms[]`` entry, so a chosen platform row maps back to exactly its own
-    download files even when two entries share the same board signature.
+    ``supportedHardware`` board scoping is carried through as comma-joined strings:
+    ``seriesIds`` (series-level), ``deviceIds`` (device-level — finer than a series),
+    and ``excludedDeviceIds``. An entry with NO seriesIds and NO deviceIds applies to
+    any board (a true catch-all); an entry scoped by ``deviceIds`` is device-specific
+    and must NOT be treated as a catch-all (see ``_board_score``). ``plat_idx`` is the
+    index of the originating ``platforms[]`` entry, so a chosen platform row maps back
+    to exactly its own download files even when two entries share the same board
+    signature.
     """
     # The common shape carries per-platform rows under ``platforms``; the alternate
     # (SDK Manager) shape carries them under ``versions`` instead.
@@ -161,6 +165,7 @@ def _platform_rows(
         download_b = sum(int(f.get("size") or 0) for f in files)
         hardware = plat.get("supportedHardware") or {}
         series = ",".join(_as_list(hardware.get("seriesIds")))
+        devices = ",".join(_as_list(hardware.get("deviceIds")))
         excluded = ",".join(_as_list(hardware.get("excludedDeviceIds")))
         for os_name in oses:
             for arch in arches:
@@ -172,6 +177,7 @@ def _platform_rows(
                     download_b,
                     files,
                     series,
+                    devices,
                     excluded,
                 )
 
@@ -367,13 +373,14 @@ def _ingest_sdkml3(
                 download_b,
                 files,
                 series,
+                devices,
                 excluded,
             ) in _platform_rows(comp):
                 con.execute(
                     "INSERT INTO component_platform"
                     "(comp_uid, plat_idx, os, arch, install_mb, download_b,"
-                    " board_series, excluded_devices)"
-                    " VALUES (?,?,?,?,?,?,?,?)",
+                    " board_series, board_devices, excluded_devices)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
                     (
                         comp_uid,
                         plat_idx,
@@ -382,6 +389,7 @@ def _ingest_sdkml3(
                         install_mb,
                         download_b,
                         series,
+                        devices,
                         excluded,
                     ),
                 )
@@ -389,8 +397,9 @@ def _ingest_sdkml3(
                     con.execute(
                         "INSERT INTO component_file"
                         "(comp_uid, plat_idx, os, arch, url, file_name, size,"
-                        " checksum, checksum_type, board_series, excluded_devices)"
-                        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                        " checksum, checksum_type, board_series, board_devices,"
+                        " excluded_devices)"
+                        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (
                             comp_uid,
                             plat_idx,
@@ -402,6 +411,7 @@ def _ingest_sdkml3(
                             f.get("checksum"),
                             f.get("checksumType"),
                             series,
+                            devices,
                             excluded,
                         ),
                     )
@@ -573,26 +583,42 @@ def _board_score(row: dict[str, Any], board: str | None) -> int:
     actually installed, so callers keep the single highest-scoring row instead of
     summing them all.
 
+    ``supportedHardware`` scopes an entry three ways: ``seriesIds`` (series-level,
+    same granularity as the ``board`` argument), ``deviceIds`` (device-level — finer
+    than a series), and ``excludedDeviceIds``. An entry with NEITHER seriesIds NOR
+    deviceIds is a true catch-all (applies to any board). A ``deviceIds``-scoped entry
+    is device-specific: the ``board`` argument is a series id and the manifests ship
+    no series->device map, so such an entry cannot be confirmed to apply to a series
+    board — it is treated as not-applicable for a series board, and as board-dependent
+    (not a safe default) when no board is given. This is what stops a device-only
+    payload from masquerading as a catch-all.
+
     Returns:
-        ``2`` for a board-specific match, ``1`` for a catch-all that applies to any
-        board, ``0`` for a board-specific entry when no board was given, and ``-1``
-        when the row does not apply to ``board`` at all.
+        ``2`` for a series-specific match, ``1`` for a true catch-all, ``0`` for an
+        entry that is board-dependent but might apply when no board was given, and
+        ``-1`` when the entry does not apply to the given ``board``.
     """
     series = {s for s in (row.get("board_series") or "").split(",") if s}
+    devices = {s for s in (row.get("board_devices") or "").split(",") if s}
     excluded = {s for s in (row.get("excluded_devices") or "").split(",") if s}
-    # NOTE: ``excluded`` holds DEVICE ids (e.g. JETSON_ORIN_NANO_8GB_DEVKIT) while
-    # ``board`` / ``series`` are SERIES ids (e.g. JETSON_ORIN_NANO_TARGETS). The
-    # manifests ship no series->device membership map, so a device exclusion cannot
-    # be applied to a series-level query — this check only fires when the caller
-    # passes a device-level board, which is not the documented usage. It is kept so
-    # device-level boards still work, but is intentionally inert for series boards.
+    # NOTE: ``excluded``/``devices`` hold DEVICE ids (e.g. JETSON_ORIN_NANO_8GB_DEVKIT)
+    # while ``board``/``series`` are SERIES ids (e.g. JETSON_ORIN_NANO_TARGETS). The
+    # manifests ship no series->device membership map, so device-level scoping cannot
+    # be resolved against a series board; those entries are kept board-dependent rather
+    # than silently treated as catch-alls.
     if board and board in excluded:
         return -1  # explicitly excluded from this board
+    if board and board in series:
+        return 2  # series-specific match
     if board and series:
-        return 2 if board in series else -1  # board-specific entry
-    if not series:
-        return 1  # catch-all: applies to any board
-    return 0  # board-specific entry but no board given -> least preferred
+        return -1  # series-specific to OTHER series
+    if devices:
+        # Device-specific entry. A series board cannot confirm it; with no board it is
+        # board-dependent (not a safe default), never a catch-all.
+        return -1 if board else 0
+    if series:
+        return 0  # series-specific entry, no board given -> board-dependent
+    return 1  # no seriesIds and no deviceIds -> true catch-all (any board)
 
 
 def _pick_board_row(
@@ -620,6 +646,57 @@ def _pick_board_row(
     )
 
 
+def _release_boards(con: sqlite3.Connection, release_id: str) -> list[str]:
+    """Return the board-series ids ``release_id`` supports (may be empty).
+
+    Returns:
+        The release's supported board series, or ``[]`` when the release declares no
+        boards (e.g. CUDA Toolkit / DOCA, which are not board-scoped).
+    """
+    return [
+        r[0]
+        for r in con.execute(
+            "SELECT board FROM release_board WHERE release_id = ?", (release_id,)
+        ).fetchall()
+    ]
+
+
+def _resolve_for_release(
+    variants: list[dict[str, Any]],
+    board: str | None,
+    boards: list[str],
+) -> tuple[dict[str, Any] | None, bool]:
+    """Pick the install variant for a component, or report that the board is needed.
+
+    ``variants`` are one component's candidate platform/file rows for an ``(os, arch)``.
+
+    - With a ``board``, the board-appropriate row is chosen (``None`` if the component
+      installs nothing on it).
+    - With no board, a *universal* variant — one that applies to EVERY board the
+      release supports — is preferred (a ``seriesIds=[all release boards]`` entry or a
+      true catch-all), since every board would install it. When no single variant
+      covers all the release's boards the choice genuinely depends on the board, so the
+      component is reported as board-dependent (the caller surfaces ``needs_board``)
+      rather than guessing one board's payload. A component that installs on none of
+      the release's boards is dropped, not flagged.
+
+    Returns:
+        ``(chosen_row_or_None, board_dependent)``. ``board_dependent`` is ``True`` only
+        when no variant is universal yet some board would install one.
+    """
+    if board is not None:
+        return _pick_board_row(variants, board), False
+    if not boards:
+        # Release is not board-scoped (e.g. CUDA/DOCA): no board dimension to resolve.
+        return _pick_board_row(variants, None), False
+    universal = [v for v in variants if all(_board_score(v, b) >= 0 for b in boards)]
+    if universal:
+        return _pick_board_row(universal, None), False
+    if any(_board_score(v, b) >= 0 for v in variants for b in boards):
+        return None, True  # some board installs a variant, but none is release-wide
+    return None, False  # installs on no board of this release -> drop
+
+
 def _comp_applies_to_board(con: sqlite3.Connection, comp_uid: str, board: str) -> bool:
     """Whether ``comp_uid`` ships any payload installable on ``board``.
 
@@ -633,7 +710,7 @@ def _comp_applies_to_board(con: sqlite3.Connection, comp_uid: str, board: str) -
         board-agnostic), ``False`` if every variant excludes it.
     """
     plats = con.execute(
-        "SELECT board_series, excluded_devices FROM component_platform"
+        "SELECT board_series, board_devices, excluded_devices FROM component_platform"
         " WHERE comp_uid = ?",
         (comp_uid,),
     ).fetchall()
@@ -643,6 +720,7 @@ def _comp_applies_to_board(con: sqlite3.Connection, comp_uid: str, board: str) -
         _board_score(
             {
                 "board_series": p["board_series"],
+                "board_devices": p["board_devices"],
                 "excluded_devices": p["excluded_devices"],
             },
             board,
@@ -746,9 +824,15 @@ def footprint(
     ``board``-appropriate row (see ``_pick_board_row``); summing every row would
     over-report the footprint.
 
+    When ``board`` is unknown, a component whose every variant is board-specific (no
+    catch-all) cannot be sized without guessing a board. Such components are NOT
+    counted; their ids are returned in ``board_dependent`` with ``needs_board=True`` so
+    the caller can ask the user for their board instead of reporting a board-specific
+    size as if it were the default.
+
     Returns:
-        ``{"components", "install_mb", "download_b"}`` totals (zeros if nothing
-        matches the given filters).
+        ``{"components", "install_mb", "download_b", "board_dependent", "needs_board"}``
+        (zeros / empty if nothing matches the given filters).
     """
     params: list[Any] = [release_id, host_os, arch]
     extra = ""
@@ -759,21 +843,27 @@ def footprint(
     # S608: ``extra`` is a placeholder list built internally; values use ``?``.
     rows = _rows(
         con,
-        "SELECT c.comp_uid AS comp_uid, cp.plat_idx AS plat_idx,"  # noqa: S608
-        " cp.install_mb AS install_mb, cp.download_b AS download_b,"
-        " cp.board_series AS board_series, cp.excluded_devices AS excluded_devices"
+        "SELECT c.comp_uid AS comp_uid, c.comp_id AS comp_id,"  # noqa: S608
+        " cp.plat_idx AS plat_idx, cp.install_mb AS install_mb,"
+        " cp.download_b AS download_b, cp.board_series AS board_series,"
+        " cp.board_devices AS board_devices, cp.excluded_devices AS excluded_devices"
         " FROM component c JOIN component_platform cp ON cp.comp_uid = c.comp_uid"
         f" WHERE c.release_id = ? AND cp.os = ? AND cp.arch = ?{extra}",
         params,
     )
+    boards = _release_boards(con, release_id)
     by_comp: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         by_comp.setdefault(row["comp_uid"], []).append(row)
     install_mb = 0.0
     download_b = 0
     components = 0
+    board_dependent: set[str] = set()
     for candidates in by_comp.values():
-        chosen = _pick_board_row(candidates, board)
+        chosen, dependent = _resolve_for_release(candidates, board, boards)
+        if dependent:
+            board_dependent.add(candidates[0]["comp_id"])
+            continue  # size depends on the board -> don't guess, flag it
         if chosen is None:
             continue  # component ships no payload for this board -> not installed
         components += 1
@@ -783,6 +873,8 @@ def footprint(
         "components": components,
         "install_mb": round(install_mb, 1),
         "download_b": download_b,
+        "board_dependent": sorted(board_dependent),
+        "needs_board": bool(board_dependent),
     }
 
 
@@ -816,20 +908,23 @@ def component_detail(
     plat_rows = _rows(
         con,
         "SELECT plat_idx, os, arch, install_mb, download_b,"  # noqa: S608
-        " board_series, excluded_devices"
+        " board_series, board_devices, excluded_devices"
         f" FROM component_platform WHERE {plat_where}",
         plat_params,
     )
     # Collapse the per-board variants of each (os, arch) to the one that installs
-    # on ``board`` so a single platform never shows two conflicting sizes.
+    # on ``board`` so a single platform never shows two conflicting sizes. With no
+    # board, prefer the release-wide variant and omit an (os, arch) whose size is
+    # genuinely board-dependent rather than showing one board's payload as the size.
+    boards = _release_boards(con, release_id)
     by_os_arch: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for plat in plat_rows:
         by_os_arch.setdefault((plat["os"], plat["arch"]), []).append(plat)
     platforms: list[dict[str, Any]] = []
     for variants in by_os_arch.values():
-        chosen = _pick_board_row(variants, board)
+        chosen, _dependent = _resolve_for_release(variants, board, boards)
         if chosen is None:
-            continue  # not installed on this board for this (os, arch)
+            continue  # not installed on this board, or board-dependent without a board
         platforms.append(
             {k: chosen[k] for k in ("os", "arch", "install_mb", "download_b")}
         )
@@ -945,7 +1040,10 @@ def build_plan_rows(
 
     A component may publish a different file per board on the same ``(os, arch)``; only
     the ``board``-appropriate platform entry is actually downloaded, so the others are
-    dropped rather than listed alongside it.
+    dropped rather than listed alongside it. When ``board`` is unknown, a component
+    whose every variant is board-specific (no catch-all) is skipped rather than
+    guessing which file to download — ``footprint`` reports it under
+    ``board_dependent`` / ``needs_board`` so the caller asks for the board.
     """
     if not comp_ids:
         return []
@@ -956,13 +1054,14 @@ def build_plan_rows(
         con,
         "SELECT c.comp_uid, c.comp_id, c.name, f.plat_idx, f.file_name,"  # noqa: S608
         " f.url, f.size, f.checksum, f.checksum_type, f.board_series,"
-        " f.excluded_devices"
+        " f.board_devices, f.excluded_devices"
         " FROM component c JOIN component_file f ON f.comp_uid = c.comp_uid"
         f" WHERE c.release_id = ? AND c.comp_id IN ({placeholders})"
         " AND f.os = ? AND f.arch = ?"
         " ORDER BY c.comp_id",
         params,
     )
+    boards = _release_boards(con, release_id)
     by_comp: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         by_comp.setdefault(row["comp_uid"], []).append(row)
@@ -977,9 +1076,9 @@ def build_plan_rows(
     )
     out: list[dict[str, Any]] = []
     for candidates in by_comp.values():
-        winner = _pick_board_row(candidates, board)
-        if winner is None:
-            continue  # component ships no payload for this board
+        winner, dependent = _resolve_for_release(candidates, board, boards)
+        if dependent or winner is None:
+            continue  # which file to download depends on the board, or none applies
         # Emit exactly the winning platform entry's files (grouped by plat_idx),
         # so two entries that share a board signature never double-list.
         out.extend(

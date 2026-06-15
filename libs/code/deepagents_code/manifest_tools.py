@@ -178,7 +178,11 @@ def footprint(
             so per-board components are sized for the user's board, not double-counted.
 
     Returns:
-        Dict with {components, install_mb, download_b}, or {"error": ...}.
+        Dict with {components, install_mb, download_b, board_dependent, needs_board},
+        or {"error": ...}. When "needs_board" is true, "board_dependent" lists the
+        component ids whose size depends on the exact board and are excluded from the
+        total — ask the user for their target board and re-query with "board" for an
+        exact figure rather than reporting an incomplete one.
     """
     con = _open()
     if isinstance(con, dict):
@@ -345,7 +349,11 @@ def build_plan(
 
     Returns:
         Dict with {release_id, host_os, arch, footprint, files: [{comp_id, name,
-        file_name, url, size, checksum, checksum_type}]}, or {"error": ...}.
+        file_name, url, size, checksum, checksum_type}]}, or {"error": ...}. The
+        embedded "footprint" carries "needs_board"/"board_dependent"; when
+        "needs_board" is true the plan omits the board-dependent components' files —
+        ask the user for their target board and re-query with "board" before presenting
+        the plan as complete.
     """
     con = _open()
     if isinstance(con, dict):

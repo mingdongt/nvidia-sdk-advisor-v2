@@ -1158,3 +1158,216 @@ def test_build_plan_rows_picks_board_payload(board_db: sqlite3.Connection) -> No
         board="BOARD_A_TARGETS",
     )
     assert [r["file_name"] for r in rows] == ["a.deb"]
+
+
+def _two_series_split_sdkml3() -> dict[str, Any]:
+    """A release spanning TWO board series, exercising the board-resolution rules.
+
+    - ``C_SPLIT`` ships an A-only build and a B-only build — NO variant covers both
+      boards, so with no board the size/file is genuinely undecidable.
+    - ``C_BOTH`` ships one variant scoped to BOTH series — release-wide, so it is sized
+      without a board.
+    - ``C_PLAIN`` is a true catch-all (no supportedHardware).
+    - ``C_DEV`` is a device-only variant (``deviceIds``); a series board cannot resolve
+      it, so it installs on no series board. Used to assert ``deviceIds`` is ingested.
+
+    Mirrors the real shape where a release spans several Jetson families and the
+    series board (not a device id) is what the agent can pass.
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "Jetson",
+                "releaseVersion": "6.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+                "supportedHardware": {
+                    "seriesIds": ["BOARD_A_TARGETS", "BOARD_B_TARGETS"]
+                },
+            }
+        },
+        "sections": [{"id": "S1", "title": "Drivers", "groups": ["G"]}],
+        "groups": [
+            {
+                "id": "G",
+                "name": "Drivers",
+                "installedOn": "target",
+                "versions": [
+                    {
+                        "version": "1",
+                        "components": [
+                            {"id": "C_SPLIT"},
+                            {"id": "C_BOTH"},
+                            {"id": "C_PLAIN"},
+                            {"id": "C_DEV"},
+                        ],
+                    }
+                ],
+            }
+        ],
+        "components": {
+            "C_SPLIT": {
+                "id": "C_SPLIT",
+                "name": "Split",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 100.0,
+                        "supportedHardware": {"seriesIds": ["BOARD_A_TARGETS"]},
+                        "downloadFiles": [
+                            {"url": "http://x/a.deb", "fileName": "a.deb", "size": 10}
+                        ],
+                    },
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 150.0,
+                        "supportedHardware": {"seriesIds": ["BOARD_B_TARGETS"]},
+                        "downloadFiles": [
+                            {"url": "http://x/b.deb", "fileName": "b.deb", "size": 20}
+                        ],
+                    },
+                ],
+            },
+            "C_BOTH": {
+                "id": "C_BOTH",
+                "name": "Both",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 70.0,
+                        "supportedHardware": {
+                            "seriesIds": ["BOARD_A_TARGETS", "BOARD_B_TARGETS"]
+                        },
+                        "downloadFiles": [
+                            {"url": "http://x/o.deb", "fileName": "o.deb", "size": 7}
+                        ],
+                    }
+                ],
+            },
+            "C_PLAIN": {
+                "id": "C_PLAIN",
+                "name": "Common",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 50.0,
+                        "downloadFiles": [
+                            {"url": "http://x/p.deb", "fileName": "p.deb", "size": 5}
+                        ],
+                    }
+                ],
+            },
+            "C_DEV": {
+                "id": "C_DEV",
+                "name": "DevKit",
+                "version": "1",
+                "platforms": [
+                    {
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": 30.0,
+                        "supportedHardware": {"deviceIds": ["BOARD_A_8GB_DEVKIT"]},
+                        "downloadFiles": [
+                            {"url": "http://x/d.deb", "fileName": "d.deb", "size": 3}
+                        ],
+                    }
+                ],
+            },
+        },
+    }
+
+
+@pytest.fixture
+def split_db(tmp_path: Path) -> sqlite3.Connection:
+    """Build a manifest.db from the two-series-split fixture and yield a connection."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_split.json").write_text(
+        json.dumps(_two_series_split_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    yield con
+    con.close()
+
+
+def test_device_ids_are_ingested(split_db: sqlite3.Connection) -> None:
+    """supportedHardware.deviceIds is stored in board_devices, not dropped.
+
+    Without this a device-only entry is indistinguishable from a catch-all.
+    """
+    dev = split_db.execute(
+        "SELECT board_series, board_devices FROM component_platform"
+        " WHERE comp_uid = 'Jetson:6.0:C_DEV'"
+    ).fetchone()
+    assert dev["board_series"] == ""
+    assert dev["board_devices"] == "BOARD_A_8GB_DEVKIT"
+    a = split_db.execute(
+        "SELECT board_series, board_devices FROM component_platform"
+        " WHERE comp_uid = 'Jetson:6.0:C_SPLIT' AND install_mb = 100.0"
+    ).fetchone()
+    assert a["board_series"] == "BOARD_A_TARGETS"
+    assert a["board_devices"] == ""
+
+
+def test_footprint_flags_no_universal_component_when_board_unknown(
+    split_db: sqlite3.Connection,
+) -> None:
+    """With no board, a component with no release-wide variant is not guessed.
+
+    It is excluded from the totals and surfaced via board_dependent / needs_board,
+    while a release-wide variant (C_BOTH) and a catch-all (C_PLAIN) stay counted.
+    A device-only component (C_DEV) installs on no series board, so it is dropped.
+    """
+    fp = manifest_db.footprint(split_db, "Jetson:6.0", "ubuntu22.04", "x86_64")
+    assert fp["needs_board"] is True
+    assert fp["board_dependent"] == ["C_SPLIT"]
+    assert fp["components"] == 2  # C_BOTH + C_PLAIN
+    assert fp["install_mb"] == 120.0  # 70 + 50
+
+
+def test_footprint_resolves_precisely_when_board_given(
+    split_db: sqlite3.Connection,
+) -> None:
+    """With the board, each component resolves to its board payload; nothing flagged."""
+    fp = manifest_db.footprint(
+        split_db, "Jetson:6.0", "ubuntu22.04", "x86_64", board="BOARD_A_TARGETS"
+    )
+    assert fp["needs_board"] is False
+    assert fp["board_dependent"] == []
+    assert fp["components"] == 3  # C_SPLIT(A) + C_BOTH + C_PLAIN; C_DEV is device-only
+    assert fp["install_mb"] == 220.0  # 100 + 70 + 50
+
+
+def test_build_plan_skips_undecidable_files_when_board_unknown(
+    split_db: sqlite3.Connection,
+) -> None:
+    """build_plan omits a no-universal component's file when the board is unknown.
+
+    With no board the undecidable component's file is omitted; with the board every
+    component resolves precisely.
+    """
+    rows = manifest_db.build_plan_rows(
+        split_db,
+        "Jetson:6.0",
+        "ubuntu22.04",
+        "x86_64",
+        ["C_SPLIT", "C_BOTH", "C_PLAIN", "C_DEV"],
+    )
+    assert sorted(r["file_name"] for r in rows) == ["o.deb", "p.deb"]
+    rows_a = manifest_db.build_plan_rows(
+        split_db,
+        "Jetson:6.0",
+        "ubuntu22.04",
+        "x86_64",
+        ["C_SPLIT", "C_BOTH", "C_PLAIN", "C_DEV"],
+        board="BOARD_A_TARGETS",
+    )
+    assert sorted(r["file_name"] for r in rows_a) == ["a.deb", "o.deb", "p.deb"]

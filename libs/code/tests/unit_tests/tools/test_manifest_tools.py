@@ -206,6 +206,14 @@ def test_search_components_board_filter() -> None:
     assert [m["comp_id"] for m in on_b["matches"]] == ["C_UNIV"]
 
 
+@pytest.mark.usefixtures("manifest_env")
+def test_resolve_deps_returns_components_key() -> None:
+    """resolve_deps returns the closure under 'components' (honest for both modes)."""
+    result = manifest_tools.resolve_deps("Jetson:9.9", ["C_CUDA"])
+    assert result["components"] == ["C_CUDA"]
+    assert "required" not in result
+
+
 def test_missing_db_degrades_to_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

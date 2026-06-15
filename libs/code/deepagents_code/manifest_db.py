@@ -150,10 +150,13 @@ def _platform_rows(
     ``platforms[]`` entry, so a chosen platform row maps back to exactly its own
     download files even when two entries share the same board signature.
     """
-    for plat_idx, plat in enumerate(_as_list(comp.get("platforms"))):
+    # The common shape carries per-platform rows under ``platforms``; the alternate
+    # (SDK Manager) shape carries them under ``versions`` instead.
+    entries = _as_list(comp.get("platforms")) or _as_list(comp.get("versions"))
+    for plat_idx, plat in enumerate(entries):
         oses = _as_list(plat.get("operatingSystems")) or [""]
         arches = _as_list(plat.get("architectures")) or [""]
-        install_mb = float(plat.get("installSizeMB") or 0)
+        install_mb = _parse_mb(plat.get("installSizeMB"))
         files = _as_list(plat.get("downloadFiles"))
         download_b = sum(int(f.get("size") or 0) for f in files)
         hardware = plat.get("supportedHardware") or {}
@@ -173,14 +176,52 @@ def _platform_rows(
                 )
 
 
+def _parse_mb(value: object) -> float:
+    """Parse an install size in MB from a number or a unit-suffixed string.
+
+    Most manifests store ``installSizeMB`` as a number; the alternate (SDK Manager)
+    shape stores a string like ``"382M"``.
+
+    Returns:
+        The size in MB as a float (``"1.5G"`` -> 1536.0), or 0.0 when unparseable.
+    """
+    if isinstance(value, bool) or value is None:
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if not text:
+        return 0.0
+    mult = {"G": 1024.0, "M": 1.0, "K": 1.0 / 1024.0}.get(text[-1].upper())
+    if mult is not None:
+        text = text[:-1].strip()
+    else:
+        mult = 1.0
+    try:
+        return float(text) * mult
+    except ValueError:
+        return 0.0
+
+
 def _component_ids_of_group(group: dict[str, Any]) -> list[str]:
-    """Return the component ids a group lists via ``versions[].components[].id``."""
+    """Return the component ids a group lists.
+
+    Handles both shapes: components nested under ``versions[].components[]`` (the
+    common shape) and listed directly under ``group.components[]`` (the alternate
+    SDK Manager shape).
+    """
     out: list[str] = []
+
+    def _add(comp: Any) -> None:  # noqa: ANN401 - dict or bare id string
+        cid = comp.get("id") if isinstance(comp, dict) else comp
+        if cid and cid not in out:
+            out.append(cid)
+
+    for comp in _as_list(group.get("components")):
+        _add(comp)
     for ver in _as_list(group.get("versions")):
         for comp in _as_list(ver.get("components")):
-            cid = comp.get("id")
-            if cid and cid not in out:
-                out.append(cid)
+            _add(comp)
     return out
 
 
@@ -267,8 +308,16 @@ def _ingest_sdkml3(
     )
 
     components: dict[str, Any] = data.get("components") or {}
+    # ``groups`` is usually a (possibly id-interleaved) list of group objects, but the
+    # alternate SDK Manager shape keys them in a dict — normalize both to objects.
+    raw_groups = data.get("groups")
+    group_objs = (
+        list(raw_groups.values())
+        if isinstance(raw_groups, dict)
+        else _as_list(raw_groups)
+    )
     groups_by_id = {
-        g.get("id"): g for g in _as_list(data.get("groups")) if isinstance(g, dict)
+        g.get("id"): g for g in group_objs if isinstance(g, dict) and g.get("id")
     }
     licenses: dict[str, Any] = data.get("licenses") or {}
     con.executemany(
@@ -290,7 +339,8 @@ def _ingest_sdkml3(
             if not isinstance(comp, dict):
                 continue
             comp_uid = f"{release_id}:{cid}"
-            license_ids = _as_list(comp.get("licenseIds"))
+            # ``licenseIds`` (plural) is common; the alt shape uses ``licenseId``.
+            license_ids = _as_list(comp.get("licenseIds") or comp.get("licenseId"))
             con.execute(
                 "INSERT OR IGNORE INTO component"
                 "(comp_uid, release_id, comp_id, name, version, section,"
@@ -530,6 +580,12 @@ def _board_score(row: dict[str, Any], board: str | None) -> int:
     """
     series = {s for s in (row.get("board_series") or "").split(",") if s}
     excluded = {s for s in (row.get("excluded_devices") or "").split(",") if s}
+    # NOTE: ``excluded`` holds DEVICE ids (e.g. JETSON_ORIN_NANO_8GB_DEVKIT) while
+    # ``board`` / ``series`` are SERIES ids (e.g. JETSON_ORIN_NANO_TARGETS). The
+    # manifests ship no series->device membership map, so a device exclusion cannot
+    # be applied to a series-level query — this check only fires when the caller
+    # passes a device-level board, which is not the documented usage. It is kept so
+    # device-level boards still work, but is intentionally inert for series boards.
     if board and board in excluded:
         return -1  # explicitly excluded from this board
     if board and series:

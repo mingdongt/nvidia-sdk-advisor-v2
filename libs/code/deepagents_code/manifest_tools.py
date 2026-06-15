@@ -299,8 +299,9 @@ def resolve_deps(
         include_optional: Also pull optional dependencies (off by default).
 
     Returns:
-        Dict with "required": the sorted set of component ids needed (selection +
-        dependencies), or {"error": ...}.
+        Dict with "components": the sorted set of component ids needed (selection +
+        dependencies), or {"error": ...}. (Named "components" rather than "required"
+        because the set also includes optional deps when include_optional=True.)
     """
     con = _open()
     if isinstance(con, dict):
@@ -309,7 +310,7 @@ def resolve_deps(
         from deepagents_code import manifest_db
 
         return {
-            "required": manifest_db.resolve_deps(
+            "components": manifest_db.resolve_deps(
                 con, release_id, comp_ids, include_optional
             )
         }

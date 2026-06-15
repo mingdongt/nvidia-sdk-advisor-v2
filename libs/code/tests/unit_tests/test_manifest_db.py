@@ -431,6 +431,89 @@ def test_sectionless_manifest_ingests_components(tmp_path: Path) -> None:
         con.close()
 
 
+def _alt_schema_sdkml3() -> dict[str, Any]:
+    """The alternate sdkml3 shape used by the SDK Manager self-update manifest.
+
+    ``groups`` is a dict keyed by id; the group lists its components directly under
+    ``components`` (no ``versions`` wrapper); the component carries ``versions[]``
+    (not ``platforms[]``) where each version is a platform with a STRING
+    ``installSizeMB`` ("382M"); and the license is ``licenseId`` (singular).
+    """
+    return {
+        "information": {
+            "release": {
+                "productCategory": "SDK Manager",
+                "releaseVersion": "2.4.0",
+                "showInMainList": True,
+                "hostOperatingSystemsSupportFor": {"hostGroups": ["ubuntu22.04"]},
+            }
+        },
+        "groups": {
+            "G_SDKM": {
+                "id": "G_SDKM",
+                "name": "SDK Manager",
+                "installedOn": "host",
+                "description": "NVIDIA SDK Manager.",
+                "components": [{"id": "NV_SDKM_APP_COMP", "version": "2.4.0"}],
+            }
+        },
+        "components": {
+            "NV_SDKM_APP_COMP": {
+                "id": "NV_SDKM_APP_COMP",
+                "name": "SDK Manager",
+                "licenseId": "NV_SW_License",
+                "versions": [
+                    {
+                        "version": "2.4.0",
+                        "operatingSystems": ["ubuntu22.04"],
+                        "architectures": ["x86_64"],
+                        "installSizeMB": "382M",
+                        "downloadFiles": [
+                            {
+                                "url": "/Linux/sdkmanager.deb",
+                                "fileName": "sdkmanager.deb",
+                                "size": 89088620,
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        "licenses": {"NV_SW_License": {"name": "NVIDIA SW License"}},
+    }
+
+
+def test_alt_schema_dict_groups_and_versions_ingested(tmp_path: Path) -> None:
+    """The dict-groups / direct-components / versions-as-platforms shape is parsed."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "sdkml3_alt.json").write_text(
+        json.dumps(_alt_schema_sdkml3()), encoding="utf-8"
+    )
+    manifest_db.build_manifest_db(src, tmp_path / "manifest.db")
+    con = manifest_db.connect(tmp_path / "manifest.db")
+    try:
+        comps = manifest_db.list_components(con, "SDK Manager:2.4.0")
+        assert [c["comp_id"] for c in comps] == ["NV_SDKM_APP_COMP"]
+        assert comps[0]["installed_on"] == "host"
+        # "382M" string parsed to 382 MB; download bytes summed from the file.
+        fp = manifest_db.footprint(con, "SDK Manager:2.4.0", "ubuntu22.04", "x86_64")
+        assert fp["components"] == 1
+        assert fp["install_mb"] == 382.0
+        assert fp["download_b"] == 89088620
+        plan = manifest_db.build_plan_rows(
+            con, "SDK Manager:2.4.0", "ubuntu22.04", "x86_64", ["NV_SDKM_APP_COMP"]
+        )
+        assert [r["file_name"] for r in plan] == ["sdkmanager.deb"]
+        detail = manifest_db.component_detail(
+            con, "SDK Manager:2.4.0", "NV_SDKM_APP_COMP"
+        )
+        assert detail is not None
+        assert detail["license_id"] == "NV_SW_License"
+    finally:
+        con.close()
+
+
 def test_zero_component_release_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
